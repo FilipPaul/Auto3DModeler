@@ -342,6 +342,12 @@ Never report "works" without having run it; report failures with their output.
    first in the start screen's 🕘 row (though another was saved later) with its picture, first in the 🕘 dialog; one
    click opens it again (name, id, steps); a failed save asks „Zavřít i tak" / „Zpět" (Zpět: it stays); the AI's
    close_project; an empty project closes too; no console errors, no native dialogs.
+   `tools/e2e_loading_indicator.py <url> <dir> [<a big .step>]` covers the loading card: the biggest STEP in samples/
+   (7.8 MB) dropped on the start screen -> "Loading ‹name› (7.8 MB)…" in the page < 100 ms after the drop, a frame
+   painted with it before any long task (PerformanceObserver longtask vs the card's insertion), its steps (Uploading…,
+   Reading the STEP file…, the kernel's stage, Making the mesh…) and seconds; the assembly question without the card;
+   gone when the part is open; ⬇ Export STEP: no card over the Save dialog; a broken STEP in Czech: „Načítám …", then
+   the error in the app; no console errors, no native dialogs.
    `tools/e2e_reload_stall.py <url> <dir>` covers the page loading itself again (📄 New project, ✕ Close project, a
    reload — with the ✨ AI chat open): the fresh page's /api/version and a project's picture under 2 s, none of its requests
    waits to be sent (the left page in the back/forward cache used to hold its AI poll + chat stream: 6 sockets used

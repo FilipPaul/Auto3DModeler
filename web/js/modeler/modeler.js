@@ -19,6 +19,7 @@ import { libraryFactsHtml } from '../library/browser.js';
 import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
+import { busy, busyShown, busyStep } from '../busy.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 import { holeUnder, holeHint, holeLocked, setHoleLock, HoleDrag } from './holedrag.js';
 import { HOLE_SIZES, HOLE_SHAPES, THREADS, dFlat, holeSpec, setHole, nearestSize } from './holes.js';
@@ -2283,7 +2284,8 @@ export class Modeler {
       const rid = (this.rid = newRid('m'));
       this.busyBox(null);
       const timer = setTimeout(() => { if (this.cancelling !== rid) this.busyBox('Building the 3D model…'); }, 350);
-      let cancelled = false;
+      let cancelled = false, card = null;
+      const T = performance.now();
       try {
         const threads = this.threadsShown(), key = JSON.stringify([features, threads]);
         // (🔩 real threads not cut yet: the part first, with thread lines — the cut follows by itself, cutThreads)
@@ -2294,6 +2296,9 @@ export class Modeler {
         this.result = r;
         this.resultKey = key;
         if (r.threads?.real?.pending) this.cutThreads(features);
+        // a big part: "Drawing…" on screen before its mesh is made (the page may stop a moment there)
+        if (busyShown()) await busyStep('Drawing…');
+        else if (r.body && performance.now() - T > 1500) { card = busy('Drawing the 3D model…'); await card.painted; }
         this.applyUpdates(r);
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         for (const s of r.features || []) if (s.outline) this.faceOutlines = { ...this.faceOutlines, [s.id]: s.outline }; // (⬆ faces' outlines, for drawing them)
@@ -2314,6 +2319,7 @@ export class Modeler {
         this.hooks.toast(e.message, 'error', 7000);
       } finally {
         clearTimeout(timer);
+        card?.done();
         if (cancelled && !this.queued) this.busyBox('Cancelled —', true); else this.busyBox(null);
         if (this.cancelling === rid) this.cancelling = null;
       }

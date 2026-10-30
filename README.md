@@ -50,6 +50,15 @@ says *Cancelling…* and is gone — the work is not started again on its own. A
 model keeps its last result with *Cancelled — ↻ Rebuild*; a sheet says *Cancelled* with ↻ Try again; the next change
 builds as usual. The ⚠ Collisions list has ✕ Stop while it checks.
 
+**Loading says so at once**: a file dropped or opened (STEP, IGES, STL, DXF, PDF, a project), a 🎬 demo, a big
+assembly, a drawing set — a card in the middle of the window, in every workspace and on the start screen, says
+*Loading part.step (12.4 MB)…* the moment you drop it, before the page gets busy: then what it is doing (*Uploading to
+the server…* with a bar, *Reading the STEP file…*, the CAD kernel's stage, *Making the mesh…*, *Drawing…*), the
+seconds so far (reading a big STEP cannot be interrupted part-way) and **Cancel**. Its spinner keeps turning even while
+the page draws a big part. It goes when the part is on screen; an error says what went wrong instead. An export, a
+collision check you asked for or a drawing sheet shows it too when it takes more than a moment (never over the Save
+dialog).
+
 **What is working now (⚙ N)**: while anything runs — a part being built, a file read, a drawing made, a collision
 check, also from another window or the AI — the top bar shows **⚙** with how many jobs; nothing when idle. Click it:
 each job in plain words, which part, how long it has run (live), waiting or running, and **✕ Stop**. A job running

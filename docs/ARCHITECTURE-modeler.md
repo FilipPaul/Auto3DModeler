@@ -7,6 +7,23 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⏳ The loading card (2026-10-30)** (the owner: "When I drag/drop a new large STEP … it does not say anything … I need
+  to see the info BEFORE that freeze!"). The busy box was a small pill top-right of the viewport (none on the start
+  screen) and the server stage said "Building the 3D model" while it read the file. busy.js: busy(text, {delay}) ->
+  {step(text, frac), done(), painted} — a card in <body> (fixed, middle, z 90: under in-app questions), the newest
+  shown; `painted` = two rAFs and a task: callers await it before the work. busyFile(file): "Loading ‹name› (12.4
+  MB)…"; postWithProgress (XHR: the upload's %, then "Reading the STEP file…"); the seconds so far; the spinner turns
+  by a CSS transform (compositor: it keeps turning through a long task). progressbox.setStageSink: while a card is up
+  the server's stage and ✕ Cancel show on it (the small box hidden). busyAside(): download() puts the cards aside
+  (not over the Save dialog); a question (STEP assembly: as an assembly / one body) is asked with no card, it comes
+  back after. Wired: open STEP / IGES (openSolid, the assembly path), STL / DXF / PDF / drawings / PCB, a project,
+  🎬 demos, ⬇ Export (delay 300 ms), drawing set PDF, a sheet being made (delay 500 ms), the ⚠ collision check asked
+  for (delay 500), an assembly of over 30 placed parts opening; a 3D model's rebuild: "Drawing…" painted before its
+  mesh is made (a card of its own when the build took over 1.5 s). worker.STAGES: an import says "Reading the file —
+  the CAD kernel makes it a solid". Measured (headless, 7.8 MB MIT E-Vent STEP): the card 1 ms after the drop, its
+  frame at 14 ms, no long task before it (the server reads ~10 s; the page's longest task 105 ms). Not done: the
+  jobs list does not show the page's own XHR uploads (the server's job is listed). Tests: tools/e2e_loading_indicator.py.
+
 - **⊕ The origin lit like a snap point (2026-10-30)** (the owner: "I'm missing highlighting of the origin, similarly as
   for a point"). Sketch: the origin already snapped and was pickable; hovering it now also shows "Počátek" (was
   "počátek"), in ⬚ Select too (by the Snap › Origin filter). 3D model and assembly: ModelView.withOrigin adds ⊕ (0, 0, 0)

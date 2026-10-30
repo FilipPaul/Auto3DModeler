@@ -67,8 +67,8 @@ function rows() {
 const secsText = (s) => (s < 60 ? `${Math.floor(s)} s` : `${Math.floor(s / 60)} min ${Math.floor(s % 60)} s`);
 const timeText = (j) => `${j.state === 'waiting' ? `${t('waiting')} · ` : ''}${secsText(j.secs)}${j.total ? ` · ${j.done + 1} / ${j.total}` : ''}`;
 
-/** Is a progress box on screen (the busy box, the 3D model's)? */
-const progressShown = () => [...document.querySelectorAll('#busy, .m-busy')].some((b) => !b.hidden && b.getClientRects().length);
+/** Is a progress box on screen (the busy box, the 3D model's, the loading card)? */
+const progressShown = () => [...document.querySelectorAll('#busy, .m-busy, #loadCard')].some((b) => !b.hidden && b.getClientRects().length);
 
 function show() {
   if (!els) return;

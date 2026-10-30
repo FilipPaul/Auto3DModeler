@@ -6,6 +6,10 @@
 
 const ops = new Map(); // rid -> {label, stage, cancelled}
 let box = null, polling = false;
+let sink = null; // the loading card (busy.js): takes the stage while it is up -> true
+
+/** The loading card's hook: sink({text, frac, cancelling} | null) -> true when it shows them (the box stays hidden). */
+export const setStageSink = (fn) => { sink = fn; };
 
 export const newRid = (p = 'r') => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -24,8 +28,9 @@ function el() {
 
 function show() {
   const b = el(), shown = [...ops.values()].filter((o) => o.shown);
-  if (!shown.length) { b.hidden = true; return; }
+  if (!shown.length) { b.hidden = true; sink?.(null); return; }
   const op = shown[shown.length - 1], cancelling = [...ops.values()].some((o) => o.cancelled);
+  if (sink?.({ text: cancelling ? 'Cancelling…' : op.stage || null, frac: !cancelling && op.total ? (op.done + 1) / op.total : null, cancelling })) { b.hidden = true; return; }
   const vp = shownViewport();
   if (vp && b.parentElement !== vp) vp.appendChild(b);
   b.querySelector('.busy-text').textContent = cancelling ? 'Cancelling…' : op.stage || op.label;
