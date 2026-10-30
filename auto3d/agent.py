@@ -183,7 +183,9 @@ class Relay:
         return (client is None or self.owner is None or client == self.owner
                 or time.time() - self.owner_seen > self.owner_timeout)
 
-    def poll(self, timeout: float = 20.0, client: str | None = None, active: bool = True):
+    def poll(self, timeout: float = 20.0, client: str | None = None, active: bool = True, hung_up=None):
+        """The next command for `client`, else None after `timeout` s — or as soon as `hung_up()` says the page has
+        gone (its request closed: a reload), so a call is not handed to a page that cannot run it."""
         self.last_poll = time.time()
         end = self.last_poll + timeout
         with self.cv:
@@ -198,6 +200,8 @@ class Relay:
                 self.owner_seen = time.time()
             try:
                 while True:
+                    if hung_up is not None and hung_up():
+                        return None
                     c = self._next(client, self._may_take(client))
                     if c or time.time() >= end:
                         return c

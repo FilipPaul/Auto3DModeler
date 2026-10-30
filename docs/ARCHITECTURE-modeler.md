@@ -980,6 +980,14 @@ Date: 2026-10-25. Written by the architect agent.
   sessionStorage — go on); sessionStorage {closed} sets autosave.first, so the closed project heads the start screen's
   🕘 row and the 🕘 dialog even when its kept time is older than another's. AI: close_project (refused when not saved).
   tests: tools/e2e_close_project.py, e2e_agent (close_project last).
+- **No ~20 s wait after the page loads itself again done** (📄 New project, ✕ Close project): the cause — the left
+  page went into the browser's back/forward cache with its open /api/agent/poll and /api/chat/events, so their
+  sockets stayed taken (the poll's until the server answered, 20 s); with the fresh page's two the browser's 6
+  HTTP/1.1 connections per server were used up and its requests queued before being sent (CDP: stalled before
+  dnsStart; gone with an unload handler, which keeps a page out of that cache). Fix: agent.js aborts the poll and
+  closes the EventSource on pagehide, back on pageshow (persisted); the server ends a poll as soon as the page hangs
+  up (server._hung_up: the socket reads as closed — Relay.poll(hung_up=)), so a gone page takes no call. tests:
+  tools/e2e_reload_stall.py, test_agent (poll / hang-up); e2e_close_project waits 8 s for the picture, not 45.
 - **Mouse side buttons = Undo / Redo; Back stays in the app done** (the owner, 2026-10-30: "boční tlačítka na myši
   … místo back na stránce, což v browseru zavře program"): web/js/mouseback.js — buttons 3 / 4 stopped on mousedown /
   mouseup / auxclick (document, capture); on the press a Ctrl+Z / Ctrl+Y keydown on the body, so every workspace's own

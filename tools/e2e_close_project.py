@@ -153,8 +153,8 @@ try:
     wait("return document.querySelectorAll('#startRecent .st-proj').length > 0", 15)
     names = recent_names()
     check(names[:1] == [NAME], f"first in 🕘 Recent projects: {names}")
-    try:  # (in this headless run the fresh page's requests can queue ~20 s behind the old page's — 📄 New project too)
-        pic = wait("const i = document.querySelector('#startRecent .st-proj img'); return !!i && i.complete && i.naturalWidth > 0", 45)
+    try:  # (at once: the old page frees its connections — tools/e2e_reload_stall.py)
+        pic = wait("const i = document.querySelector('#startRecent .st-proj img'); return !!i && i.complete && i.naturalWidth > 0", 8)
     except TimeoutError:
         pic = False
     check(pic is True, "with its picture")

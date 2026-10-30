@@ -342,6 +342,10 @@ Never report "works" without having run it; report failures with their output.
    first in the start screen's 🕘 row (though another was saved later) with its picture, first in the 🕘 dialog; one
    click opens it again (name, id, steps); a failed save asks „Zavřít i tak" / „Zpět" (Zpět: it stays); the AI's
    close_project; an empty project closes too; no console errors, no native dialogs.
+   `tools/e2e_reload_stall.py <url> <dir>` covers the page loading itself again (📄 New project, ✕ Close project, a
+   reload — with the ✨ AI chat open): the fresh page's /api/version and a project's picture under 2 s, none of its requests
+   waits to be sent (the left page in the back/forward cache used to hold its AI poll + chat stream: 6 sockets used
+   up, ~20 s), the AI's call (gui_state) reaches the page after each load; no console errors.
    `tools/e2e_mouse_back.py <url> <dir>` covers the mouse's side buttons and the browser's Back (Czech): ◀ (button 3) over
    the 3D view undoes a block's extrude, ▶ (4) redoes it, once per press, mousedown / mouseup / auxclick prevented; over a
    text field nothing; history.back() twice -> the same page (not reloaded), the project still there, the guard on top.

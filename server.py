@@ -2000,12 +2000,30 @@ def api_agent_call():
     return jsonify(_mcp_result(text, res.get("image"), bool(res.get("error"))))
 
 
+def _hung_up(environ) -> bool:
+    """True when the page closed this request's connection (it reloaded, or aborted the fetch): the socket reads as
+    ended. False when that cannot be told (no socket in this server)."""
+    import select
+    import socket
+    sock = environ.get("werkzeug.socket")
+    if sock is None:
+        return False
+    try:
+        if not select.select([sock], [], [], 0)[0]:
+            return False
+        return sock.recv(1, socket.MSG_PEEK) == b""
+    except (OSError, ValueError):
+        return True
+
+
 @app.get("/api/agent/poll")
 def api_agent_poll():
-    """The page long-polls for tool calls to apply. ?build=: the commit the page was loaded with (said in reports)."""
+    """The page long-polls for tool calls to apply. ?build=: the commit the page was loaded with (said in reports).
+    It ends as soon as the page hangs up (a reload), not after its 20 s: no call is taken by a page that is gone."""
     if request.args.get("build"):
         PAGE_BUILDS[request.args.get("client") or ""] = PAGE_BUILDS[""] = request.args["build"][:40]
-    cmd = RELAY.poll(20.0, request.args.get("client") or None, request.args.get("active", "1") == "1")
+    env = request.environ
+    cmd = RELAY.poll(20.0, request.args.get("client") or None, request.args.get("active", "1") == "1", lambda: _hung_up(env))
     return jsonify(cmd) if cmd else ("", 204)
 
 

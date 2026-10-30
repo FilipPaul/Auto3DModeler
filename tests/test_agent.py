@@ -599,6 +599,34 @@ class TestRelay(unittest.TestCase):
         time.sleep(2.6 - (time.time() - t0) if time.time() - t0 < 2.6 else 0)
         self.assertIsNone(got.get("B"))
 
+    def test_poll_ends_when_the_page_hangs_up(self):
+        """A page gone (reload: its request closed) stops waiting at once and takes no call — the next page gets it."""
+        relay = Relay()
+        gone = threading.Event()
+        threading.Timer(0.3, gone.set).start()
+        t0 = time.time()
+        self.assertIsNone(relay.poll(10, client="A", hung_up=gone.is_set))
+        self.assertLess(time.time() - t0, 2.5)
+        relay.outbox["x"] = {"id": "x", "cmd": "get_part", "args": {}, "to": None, "taken": None}
+        relay.order.append("x")
+        self.assertIsNone(relay.poll(10, client="A", hung_up=lambda: True))  # (hung up: not taken)
+        self.assertEqual(relay.poll(1, client="A")["id"], "x")
+
+    def test_hung_up_reads_the_socket(self):
+        import socket
+        import server
+        a, b = socket.socketpair()
+        try:
+            self.assertFalse(server._hung_up({"werkzeug.socket": a}))  # open, nothing sent
+            b.sendall(b"GET")
+            self.assertFalse(server._hung_up({"werkzeug.socket": a}))  # data waiting is not a hang-up
+            a.recv(3)
+            b.close()
+            self.assertTrue(server._hung_up({"werkzeug.socket": a}))   # the page closed it
+        finally:
+            a.close()
+        self.assertFalse(server._hung_up({}))                          # no socket (the test client): never
+
     def test_server_routes_a_chats_call_and_keeps_a_chat_per_window(self):
         import server
         orig = server.RELAY

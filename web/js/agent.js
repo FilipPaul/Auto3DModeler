@@ -61,14 +61,20 @@ export function startBridge(handlers) {
   const client = CLIENT;
   // closing: its chat's calls fail at once instead of waiting (a reload is back within seconds)
   window.addEventListener('pagehide', () => navigator.sendBeacon?.(withClient('/api/agent/bye')));
-  let poller = null;
+  let poller = null, round = 0; // (round: the loop that polls now — a page left ends it)
   const repoll = () => poller?.abort();
+  // a page left (📄 New project, a reload) can stay in the browser's back/forward cache with its waiting poll: that
+  // socket stays taken until the server answers (20 s), and with the chat's stream the browser's 6 per server were
+  // used up — the next page's requests waited. Left: the poll stops now; back from that cache: it polls again.
+  window.addEventListener('pagehide', () => { round++; repoll(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) loop(); });
   document.addEventListener('visibilitychange', repoll);
   window.addEventListener('focus', repoll);
   const done = new Map(); // id -> result: a command handed out again (lease expired) is not run twice
 
   const loop = async () => {
-    while (alive) {
+    const mine = ++round;
+    while (alive && mine === round) {
       let cmd = null;
       try {
         poller = new AbortController();
@@ -228,6 +234,10 @@ export class ChatPanel {
     this.updateUndo();
     this.checkStatus();
     this.connect();
+    // (the page left: its stream closed at once — kept open in the back/forward cache it held a socket the next page
+    // needs; back from that cache: open again, the history is replayed and what is shown already skipped)
+    window.addEventListener('pagehide', () => { this.es?.close(); this.es = null; });
+    window.addEventListener('pageshow', (e) => { if (e.persisted && !this.es) this.connect(); });
     recorder.listen(() => this.renderRec()); // (⏺ a stopped recording: 📎 attached to the next message with one click)
     window.addEventListener('a3d:lang', () => { this.renderRec(); this.renderConv(); });
     // ⏺ "Stop and send to the AI": the chat in sight, that recording with the next message — sent now unless Claude is busy

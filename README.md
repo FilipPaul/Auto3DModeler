@@ -380,7 +380,8 @@ project's name, so windows are told apart.
 project is saved (with its picture) and the window goes back to the start screen, with no project open — the closed
 one first in its 🕘 Recent projects, one click opens it again. If it cannot be saved, the app says so and offers
 *Close anyway* / *Back*. The AI chat and a ⏺ recording go on; the undo history starts afresh. There is no shortcut on
-purpose: Ctrl+W closes the browser's tab.
+purpose: Ctrl+W closes the browser's tab. Both are quick: the fresh start screen and its pictures come at once
+(the left page lets go of its connections to the app straight away).
 
 **Several windows, several starts**: the app runs once per data folder — starting it again (the built app) only opens
 another window of it. Each window holds its own project: a new window starts on the start screen, and its *Continue
