@@ -815,7 +815,9 @@ Never report "works" without having run it; report failures with their output.
    in headless Edge with software GL — it prints open → first frame / interactive, orbit fps and render ms, pick /
    hover / select / drag ms, the joint solve, collisions, BOM, autosave, a version, JS heap, GPU buffers and the
    server's /api/timings — and holds budgets (interactive < 8 s, orbit ≥ 4 fps in software GL / ≥ 30 with --gpu, pick
-   < 50 ms, hover and select p50 < 50 / 100 ms, a drag step < 50 ms, every joint held, no console errors). --files
+   < 50 ms, hover and select p50 < 50 / 100 ms, a drag step < 50 ms, every joint held, no console errors; the full UI
+   in Czech — a click on a part, another, empty space, Esc, a parts-tree row by real mouse / key input with the default
+   docks and suggestions — its handlers p50 < 100 ms, with --gpu its painted frame < 100 ms and no long task over it). --files
    measures other .a3d files without budgets (a mech*.a3d is driven and played too); compare numbers before / after a
    change on the same machine (another job's load moves them).
    `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint

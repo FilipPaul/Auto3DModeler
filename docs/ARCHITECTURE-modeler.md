@@ -36,6 +36,16 @@ Date: 2026-10-25. Written by the architect agent.
     2`: not needed — the files are 20–50 kB, the parts are rebuilt). Next: the kernel's first build after a server
     start (the 160-hole base 4 s, in each process that needs it), SwiftShader frames, the first collision check.
   They are 🎬 demos too (Velká sestava — 150 dílů, … 500 dílů, Soukolí — 30 kol).
+  - Choosing in Czech (the owner: choosing a part in the 500-part demo, and Esc / a click on empty space, terribly slow):
+    the headless test ran in English. In Czech each click took 2.5 s on big-500, 11 s on big-150 (a real Edge window,
+    a GPU; the CDP profile: 98 % in i18n.js t() / byPattern from the translating MutationObserver) — a text the
+    tables do not hold (a Czech text set again, a long tooltip of the docks / the 👁 of 521 rows) was matched
+    against all patterns, their values again inside (one tooltip 5.9 s). t() keeps its answers (memo, cleared with
+    the language) and a pattern whose own words are not in the text is skipped before its regex: the worst text
+    cold 1.5 ms; a click to its painted frame on big-500 40–70 ms (select 2555 → 43, deselect 3263 → 48, Esc 3215
+    → 40, a tree row 2628 → 48 ms p50), big-150 11 500 → 50–80 ms. Not culprits by the profile: the parts list (kept),
+    the suggestions (≤ 14 ms), the panels, layout (≤ 12 ms a click, no forced-reflow loop). e2e_big_assembly times
+    the full UI in Czech (real input, default docks) with budgets.
 
 - **💾 Project files are `.a3d` packages (2026-10-30)** (the owner: a real 35 MB `.a3d.json` was 35 MB of base64 STEP;
   an own extension). auto3d/package.py: a ZIP — `project.json` (the project, `"format": "a3d-package", "package": 1`,
