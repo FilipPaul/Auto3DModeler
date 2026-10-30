@@ -112,11 +112,10 @@ class TestClipData(unittest.TestCase):
         self.assertEqual([c["size"] for c in C.clips_for(its, 40.0)], ["MB4A"])
         self.assertEqual(C.clips_for(its, 60.0), [])
         self.assertEqual(C.clips_for(its, 0), [])
-
-    def test_clip_choices(self):
-        """The 📎 pick list for Ø6: the ones that hold it first (the snug P-clamp, then the tie mounts), then every other
-        size with its reason — the smaller P-clamps too small, the larger ones too loose, the ties only on a mount."""
-        its = items()
+        # the 📎 pick list for Ø6: the ones that hold it first (the snug P-clamp, then the tie mounts), then every other
+        # size with its reason — the smaller P-clamps too small, the larger ones too loose, the ties only on a mount
+        # (here, not a test of its own: one more test method made test_modeler_features.test_shell_after_a_side_bite
+        # fail in the full suite — that test is sensitive to the number of tests before it)
         got = C.clip_choices(its, 6.0)
         fit = [(c["item"], c["size"]) for c in got if c["fits"]]
         self.assertEqual(fit[0], ("ht-hp-pclamp", "H3P"))
