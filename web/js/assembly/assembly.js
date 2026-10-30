@@ -1288,7 +1288,7 @@ export class Assembly {
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
       box.querySelector('.as-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
       box.querySelector('[data-a=fix]')?.addEventListener('click', () => this.toggleFixed(it.id));
-      box.querySelector('[data-a=reset]')?.addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
+      box.querySelector('[data-a=reset]')?.addEventListener('click', () => { const reset = () => { if (!this.mayMove(it.id, true, reset)) return; it.matrix = ID(); this.applyMates(); this.commit(); }; reset(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       box.querySelector('[data-a=openPart]')?.addEventListener('click', () => this.hooks.openPart(it.part));
       return;
@@ -2560,7 +2560,7 @@ export class Assembly {
   setPos(k, value) {
     const it = this.inst(this.sel), v = parseFloat(String(value).replace(',', '.'));
     if (!it || !Number.isFinite(v)) return;
-    if (!this.mayMove(it.id)) { this.renderProps(); return; }
+    if (!this.mayMove(it.id, true, () => this.setPos(k, value))) { this.renderProps(); return; }
     const m = new THREE.Matrix4().fromArray(it.matrix);
     const e = m.elements;
     e[{ x: 12, y: 13, z: 14 }[k]] = v;
@@ -2570,8 +2570,9 @@ export class Assembly {
   }
 
   /** May this part be moved by hand? Not when a locked joint holds it; when unlocked joints hold it, only if the
-   *  user agrees to break them (ask = false: break them without asking — the AI). */
-  mayMove(id, ask = true) {
+   *  user agrees to break them (ask = false: break them without asking — the AI). Asking: not now (no pop-up) — a bar
+   *  in the view says it (askBreak), its "Break them and move it" breaks them and does the move again (again()). */
+  mayMove(id, ask = true, again = null) {
     if (this.inst(id)?.fixed) { this.hooks.toast(t('📌 It is fixed in place — free it (📌 in its panel) to move it.'), 'warning', 5000); return false; }
     const mine = (this.doc.mates || []).filter((m) => m.move === id);
     if (!mine.length) return true;
@@ -2579,9 +2580,35 @@ export class Assembly {
       this.hooks.toast('A locked joint 🔒 holds this part — unlock it in the joints list to move the part by hand.', 'warning', 5000);
       return false;
     }
-    if (ask && !window.confirm(t2('Moving it by hand breaks its {n} joint(s). Break them and move it?', { n: mine.length }))) return false;
+    if (ask) { this.askBreak(id, mine.length, again); return false; }
     this.unjoinMoving(id);
     return true;
+  }
+
+  /** Moving a joined part by hand breaks its joints: said in the view's bottom-right corner, where OK / Cancel live
+   *  (actiondock.js takes the row there; a right-click presses its first button) — "Break them and move it" (again():
+   *  the move asked for, now without joints), "Keep the joints" / Esc: nothing changes. A new ask replaces it. */
+  askBreak(id, n, again) {
+    this.dropBreak?.();
+    const at = document.createElement('div'); // (removing it takes the docked row away too: its place holder is in it)
+    at.className = 'as-break-at';
+    at.innerHTML = `<div class="mp-actions as-break" role="alertdialog"><span class="as-break-hint">${esc(t2('Moving it by hand breaks its {n} joint(s).', { n }))}</span>
+      <button class="btn primary danger" data-a="break">${esc(t('Break them and move it'))}</button><button class="btn" data-a="keep">${esc(t('Keep the joints'))}</button></div>`;
+    const done = (go) => {
+      document.removeEventListener('keydown', onKey, true);
+      at.remove();
+      this.dropBreak = null;
+      if (!go || !this.inst(id)) return;
+      this.unjoinMoving(id);
+      this.sel = id;
+      if (again) again(); else this.commit();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); done(false); } };
+    at.querySelector('[data-a=break]').addEventListener('click', () => done(true));
+    at.querySelector('[data-a=keep]').addEventListener('click', () => done(false));
+    document.addEventListener('keydown', onKey, true);
+    this.els.viewport.appendChild(at);
+    this.dropBreak = () => done(false);
   }
 
   /** 📌 Fix a part in place (it is not moved by hand, joints bring the others to it) — or free it. A part its own
@@ -3555,7 +3582,7 @@ export class Assembly {
     const it = this.inst(this.sel), b = this.bodyOf(it)?.body;
     if (!it || !b || !Number.isFinite(deg)) return;
     if (!this.rotAllowed) { // once per slide: may it move?
-      if (!this.mayMove(it.id)) { this.renderProps(); return; }
+      if (!this.mayMove(it.id, true, () => this.setRot(axis, deg, true))) { this.renderProps(); return; }
       this.rotAllowed = true;
     }
     if (final) this.rotAllowed = false;

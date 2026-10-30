@@ -100,8 +100,10 @@ try:
     wait("return document.querySelectorAll('.aih-row').length >= 1")
     print("🕘 Recent projects:", [r.text.replace("\n", " | ")[:80] for r in d.find_elements(By.CSS_SELECTOR, ".aih-row")])
     d.save_screenshot(f"{OUT}/recent.png")
-    js("window.confirm = () => true")
     d.find_element(By.CSS_SELECTOR, ".aih-row [data-del]").click()
+    time.sleep(0.3)
+    print("asks in the page:", js("return document.querySelector('.choose.confirm p')?.textContent"))
+    d.find_element(By.CSS_SELECTOR, ".choose.confirm .btn.primary").click()  # Forget it
     time.sleep(0.6)
     print("forgotten:", recent())
 finally:

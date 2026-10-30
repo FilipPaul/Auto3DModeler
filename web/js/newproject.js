@@ -3,6 +3,7 @@
 // old project lingers in the workspaces); a toast says where the old one is and ↶ opens it again. ⧉ New project in a
 // new window: this one stays as it is. Ctrl+Alt+N (Ctrl+N is the browser's own new window).
 import { t } from './i18n.js';
+import { confirmIn } from './choose.js';
 
 const AFTER = 'a3d.newProject'; // sessionStorage: {name, id} of the project kept — the toast after the fresh load
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -19,7 +20,7 @@ export function initNewProject(hooks) {
     }
     if (hooks.empty()) { hooks.toast(t('This project is empty already — start with one of the cards.'), 'info', 4000); return null; }
     await hooks.autosave.saveNow();
-    if (!hooks.autosave.kept() && !confirm(t('The project could not be kept on the server (see “⚠ Not saved”). Start a new project anyway? Its last changes would be lost.'))) return null;
+    if (!hooks.autosave.kept() && !(await confirmIn('The project could not be kept on the server (see “⚠ Not saved”). Start a new project anyway? Its last changes would be lost.', { ok: 'Start a new one', danger: true }))) return null;
     try { sessionStorage.setItem(AFTER, JSON.stringify({ name: hooks.name(), id: hooks.autosave.id })); } catch { /* private window */ }
     hooks.keepChat?.(); // (this window's AI chat goes on in the new project)
     location.assign(url());

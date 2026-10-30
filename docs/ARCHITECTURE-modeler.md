@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **No browser pop-ups (2026-10-30)** (the owner, firmly: every pop-up embedded in the app). Every window.confirm in
+  web/js went: choose.js `confirmIn(text, {ok, danger})` (the in-page choose() with yes / Cancel, the text translated
+  as the old wrapper in i18n.js did — that wrapper is gone) for sign out, Restore dimensions, forget a project, clean
+  up, library / printer / named-number / part delete, deleting steps others need, a new project not kept; the joint
+  break (assembly.js mayMove) asks no more before a move: `askBreak` puts a `.mp-actions.as-break` row in the view's
+  bottom-right dock ("Break them and move it" redoes the move without joints, "Keep the joints" / Esc). Guard:
+  tests/test_no_native_dialogs.py scans web/js for confirm / alert / prompt / window[...] / beforeunload.
+  tools/e2e_no_native_dialogs.py (Czech; window.confirm / alert / prompt recorded, never called).
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

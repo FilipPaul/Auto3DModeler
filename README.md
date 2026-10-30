@@ -341,6 +341,12 @@ Make it a slot** / **▭ Make it a rectangle** / **◯ Make it a circle**.
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
 
+**No browser pop-ups**: every question is asked inside the app. Moving a joined part by hand (typed X / Y / Z, the
+turn sliders, Reset) does not stop you with a dialog: a small bar in the view's bottom-right corner says *Moving it by
+hand breaks its joints* — **Break them and move it** or **Keep the joints** (Esc). Deleting a step others need,
+forgetting a kept project, deleting a library part, a printer or a named number, signing Claude Code out and starting
+a new project that could not be kept ask yes / no in a small dialog in the page (Esc / Cancel: nothing happens).
+
 **⧉ Windows (several monitors)**: the **⧉** on a tab (or in ☰ Parts) opens that part — a 3D model, an assembly, a
 drawing sheet, a 2D drawing — in a new browser window, with only that tab (the other parts are in its ☰ tree).
 **Drag a tab** from one window onto another window's tab row: it opens there and goes from the first. The windows stay linked: a change in one is in the others at

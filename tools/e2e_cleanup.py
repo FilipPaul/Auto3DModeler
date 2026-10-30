@@ -48,16 +48,18 @@ try:
     time.sleep(1)
     before = names()
     print("kept:", [n for n in before if n in ("3D model 1", "Sestava 2", "Project 3", "Bracket", "3D model 4")])
-    js("window.__asked = []; window.confirm = (m) => { window.__asked.push(m); return true; }")
     d.find_element(By.CSS_SELECTOR, ".choose [data-clean]").click()
-    time.sleep(1.5)
-    asked = js("return window.__asked")
+    time.sleep(1)
+    asked = [js("return document.querySelector('.choose.confirm p')?.textContent")]  # (asked in the page, no pop-up)
+    asked = asked if asked[0] else []
+    d.find_element(By.CSS_SELECTOR, ".choose.confirm .btn.primary").click()  # Delete
+    time.sleep(1)
     print("it asks:", asked[0].split("\n")[0] if asked else None, "| naming:", [n for n in ("3D model 1", "Sestava 2", "Project 3", "Bracket") if asked and n in asked[0]])
     after = names()
     print("after:", [n for n in after if n in ("3D model 1", "Sestava 2", "Project 3", "Bracket", "3D model 4")])
     d.find_element(By.CSS_SELECTOR, ".choose [data-clean]").click()
     time.sleep(1)
-    print("again:", js("return [...document.querySelectorAll('.toast')].map(t => t.textContent).slice(-1)"), "| asked again:", len(js("return window.__asked")) > 1)
+    print("again:", js("return [...document.querySelectorAll('.toast')].map(t => t.textContent).slice(-1)"), "| asked again:", bool(js("return document.querySelector('.choose.confirm')")))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

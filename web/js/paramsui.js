@@ -4,6 +4,7 @@
 // screen rebuilt as usual, the others through the same /api/model/rebuild (the ⚙ jobs list names them), the
 // assembly's joints and parts too.
 import { t } from './i18n.js';
+import { confirmIn } from './choose.js';
 import { leftDock } from './leftdock.js';
 import { params, readField, isPlain, resolveIn, uses, exprText, ParamError } from './params.js';
 import { fetchRebuild } from './modeler/packed.js';
@@ -151,9 +152,9 @@ class ParamsPanel {
       inp.addEventListener('blur', () => setTimeout(() => renderAll(), 0));
     }
     for (const b of this.list.querySelectorAll('[data-pxdel]')) {
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
         const name = b.dataset.pxdel, where = usedBy()[name] || [];
-        if (where.length && !confirm(t2('{name} is used in: {parts}. Delete it? Those numbers keep their values.', { name, parts: where.join(', ') }))) return;
+        if (where.length && !(await confirmIn(t2('{name} is used in: {parts}. Delete it? Those numbers keep their values.', { name, parts: where.join(', ') }), { ok: 'Delete', danger: true }))) return;
         params.remove(name);
       });
     }

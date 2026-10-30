@@ -4,6 +4,7 @@
 // the server as Server-Sent Events.
 
 import { t } from './i18n.js';
+import { confirmIn } from './choose.js';
 import { recorder } from './recorder.js';
 import { pageBuild } from './stale.js';
 
@@ -326,7 +327,7 @@ export class ChatPanel {
     box.querySelector('.ai-keyin')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') useKey(); });
     on('.ai-logout', async () => {
       const claude = s.method !== 'key';
-      if (claude && !confirm(t('Sign Claude Code out on this computer? (Also its use outside this app.)'))) return;
+      if (claude && !(await confirmIn('Sign Claude Code out on this computer? (Also its use outside this app.)', { ok: 'Sign out', danger: true }))) return;
       try { await post('/api/ai/logout', { claude }); this.showAccess(true); } catch (e) { this.toast(e.message, 'error'); }
     });
   }
