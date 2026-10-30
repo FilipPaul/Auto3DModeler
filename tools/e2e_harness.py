@@ -3,7 +3,17 @@ it -> a click on the PCB's top -> "🔌 Vést kabel odsud" in the suggestions ->
 clicked (the PCB's top, the box's top, the motor's top) -> Esc keeps them: one harness, 4 wires, its length as the
 kernel's math has it (auto3d/modeler/harness.py from the same points), the tree's row, BOM lines with the colours and
 lengths (+5 %, rounded up to 10 mm) -> the motor moved: its point follows (and on 💥 Explode) -> a point dragged with
-the mouse -> a corner too tight: ⚠ in the view and the panel -> a point deleted (Delete) -> undo -> STEP export holds
+the mouse -> a corner with no room for the radius: a quiet ⚠ note in the view and the panel (no red over the cable) ->
+a Z clicked with two sharp corners 6 mm apart: shaped to the radius, no note, the drawn tube's centre on arcs of R
+-> a point deleted (Delete) -> undo -> 🔒 its length locked (the panel's button): the motor moved closer, the cable
+keeps its length (the slack sags, as harness.py's shape), moved far away: taut, red, "Kabel je napnutý — krátký o …"
+-> STEP export -> the AI -> the points list (part · face, x / y / z typed, ＋ between, ↑ ↓ ✕, a row lit in the view,
+🗑 all + undo), a pin's top clicked off its axis: on the axis; that point 🔒 on the pin follows it, 🔓 stays in space;
+a point dragged onto the pin: on its axis; Alt + click: the box's bottom (hidden); ◎ to the face's centre; the length
+label not changed by ✎; where it goes through a part (span, spot, ⚠ in the view); a point in space on a face taken as
+locked; ➰ a span's own length (the suggestion, one input): a loop that long, kept as the pin moves, taut too far,
+edit_harness spans; the owner's case — ends on two pins' tops leave them straight up, the span round a tall block
+between them (Python checks the bundle clear of every body); saved + reloaded: the locks and spans kept holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -81,12 +91,20 @@ def typein(sel, text):
 
 def table():
     box = d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest")
-    return [" ".join(b.text.split()) for b in box[0].find_elements(By.CSS_SELECTOR, ".vs-list button")] if box else []
+    # (read in the page at once: the table is drawn again while the mouse moves)
+    return js("return [...document.querySelectorAll('#asmViewport .view-suggest .vs-list button')].map(b => b.textContent.split(/\\s+/).join(' ').trim())") if box else []
 
 
 def world_points(hid="H1"):
     return js(f"""const t = {T}, h = t.get(arguments[0]);
       return h.points.map((p) => window.__hnPoint(h, p).toArray());""", hid)
+
+
+def kernel_route(hid="H1", locked=True):
+    """The harness as the export sends it to the kernel (its points with the leads and detours, its spans, its locked
+    length) shaped by auto3d/modeler/harness.py — the page's own math checked against it."""
+    st = js(f"return window.__hn.harnessStep(window.__app.assembly.doc, {T}.get(arguments[0]))", hid)
+    return HM.shape(st["points"], st["r_min"], spans={x["from"]: x["length"] for x in st.get("spans", [])} if locked else None, total=st.get("length") if locked else None, still=st.get("still") or ())
 
 
 def page_length(hid="H1"):
@@ -101,7 +119,7 @@ try:
     wait("return !!window.__app")
     js("""import('/js/assembly/harness.js').then((m) => {
       window.__hnPoint = (h, p) => m.pointAt(window.__app.assembly, h, p);
-      window.__hnLength = (id) => { const h = window.__app.assembly.harnessTool.get(id); return m.route(h.points.map((p) => m.pointAt(window.__app.assembly, h, p)).filter(Boolean), m.rMinOf(h)).length; };
+      window.__hnLength = (id) => m.routeAt(window.__app.assembly, window.__app.assembly.harnessTool.get(id)).length;
       window.__hn = m; })""")
     wait("return !!window.__hn")
     call("new_model", name="Krabice")
@@ -160,8 +178,8 @@ try:
     pts = world_points()
     L = page_length()
     r_min = js(f"return window.__hn.rMinOf({T}.get('H1'))")
-    py = HM.route(pts, r_min)["length"]
-    check("length = the kernel's route (harness.py)", abs(L - py) < 1e-6, f"{L:.3f} vs {py:.3f}")
+    py = kernel_route()["length"]
+    check("length = the kernel's route (harness.py)", abs(L - py) < 1e-3, f"{L:.3f} vs {py:.3f}")
     check("the points lie on their faces, Ø/2 + 0.5 off (the PCB's top z 12 + 1.81 + 0.5)", abs(pts[0][2] - (12 + HM.bundle_d(4, 1.5) / 2 + 0.5)) < 1e-3, pts[0])
     lt = f"{round(L):,}".replace(",", " ")
     tree = d.find_element(By.CSS_SELECTOR, "#asmLeft .hn-row").text
@@ -209,15 +227,40 @@ try:
     p2b = world_points()[2]
     check("a point dragged onto the box's top", js(f"return {T}.get('H1').points[2].inst") == "I1" and math.dist(p2b, [90, 20, 10 + HM.bundle_d(4, 1.5) / 2 + 0.5]) < 1.5, (p2, p2b))
 
-    # 6. a corner too tight: ⚠ in the view and the panel
+    # 6. a corner with no room for the radius (its leg ends at the cable's start): a quiet ⚠ note, no red over it
     typein("#asmRight input[data-hn=r]", "80")
     warn = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn")]
     bad = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-bad")]
-    check("R 80: a too-tight corner marked ⚠ in the view", any("ohyb R" in w and "< min 80 mm" in w for w in warn), warn)
-    check("…and in the panel", any("ohyb R" in b for b in bad), bad)
+    check("R 80: the corner with no room noted ⚠ in the view", any("na 80 není místo" in w for w in warn), warn)
+    check("…and in the panel", any("na R 80 mm není místo" in b for b in bad), bad)
+    check("…quietly: no red over the cable", not js(f"return {T}.group.children.some(o => o.material?.color?.getHex() === 0xff4d4d)"))
     d.save_screenshot(f"{OUT}/harness_5_tight.png")
     typein("#asmRight input[data-hn=r]", "")  # (empty: the rule of thumb again)
     check("R empty: the rule of thumb 5 × Ø, no ⚠", js(f"return window.__hn.rMinOf({T}.get('H1'))") == math.ceil(5 * HM.bundle_d(4, 1.5)) and not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn"))
+
+    # 6b. a Z clicked in space with two sharp corners 6 mm apart, R 15: shaped — the corners moved apart along the
+    # outer legs until both arcs are R 15 —, no note; the tube's rings centred on lines and on arcs of R 15
+    js(f"{T}.finish(false)")
+    r = call("add_harness", type="cable", d=4, r_min=15, points=[{"xyz": [0, 140, 60]}, {"xyz": [60, 140, 60]}, {"xyz": [60, 146, 60]}, {"xyz": [120, 146, 60]}])
+    check("a Z with sharp corners: H2 cable", r.startswith("H2 cable"), r[:120])
+    js(f"{T}.sel = 'H2'; {A}.render(); {A}.draw()")
+    time.sleep(0.5)
+    check("…shaped: no ⚠ note, no red", not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn") and not d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-bad")
+          and not js(f"return {T}.group.children.some(o => o.material?.color?.getHex() === 0xff4d4d)"))
+    rings = js(f"""const m = {T}.group.children.find(o => o.userData.harness === 'H2' && o.geometry?.type === 'TubeGeometry'), g = m.geometry, p = g.attributes.position, k = g.parameters.radialSegments, out = [];
+      for (let i = 0; i <= g.parameters.tubularSegments; i++) {{ let x = 0, y = 0, z = 0; for (let j = 0; j < k; j++) {{ const q = i * (k + 1) + j; x += p.getX(q); y += p.getY(q); z += p.getZ(q); }} out.push([x / k, y / k, z / k]); }}
+      return out;""")
+    zr = HM.route([[0, 140, 60], [60, 140, 60], [60, 146, 60], [120, 146, 60]], 15)
+    arcs = [s for s in zr["segments"] if s[0] == "arc"]
+    on = lambda q: min([abs(math.dist(q, s[4]) - s[5]) for s in arcs] + [abs(q[1] - 140), abs(q[1] - 146)])  # noqa: E731  (on an arc or on a leg)
+    on_arc = [q for q in rings if 140 + 1e-3 < q[1] < 146 - 1e-3]
+    check("…the drawn tube bends on arcs of R 15 (its rings' centres)", len(arcs) == 2 and all(abs(s[5] - 15) < 1e-6 for s in arcs) and len(on_arc) >= 4
+          and max(on(q) for q in rings) < 0.05, (len(on_arc), max(on(q) for q in rings)))
+    check("…its length as the kernel's", abs(page_length("H2") - zr["length"]) < 1e-6, (page_length("H2"), zr["length"]))
+    d.save_screenshot(f"{OUT}/harness_5b_shaped.png")
+    call("edit_harness", id="H2", remove=True)
+    js(f"{T}.sel = 'H1'; {T}.editPoints('H1')")
+    time.sleep(0.4)
 
     # 7. a point chosen (clicked) and deleted with Delete; undo brings it back
     click_at(world_points()[1])
@@ -231,6 +274,43 @@ try:
     ActionChains(d).send_keys(Keys.ENTER).perform()
     time.sleep(0.4)
     check("Enter: done", not js(f"return {T}.edit"))
+
+    # 7b. 🔒 its length locked with the panel's button; the motor moved closer: the cable keeps its length (the slack
+    # sags), as the kernel's math has it; moved far away: taut — red, a note in the view and the panel
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    L0 = page_length()
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").click()
+    time.sleep(0.5)
+    locked = js(f"return {T}.get('H1').length_locked")
+    check("🔒 the panel's button locks its length as it is", locked and abs(locked - L0) < 0.06 and "🔒" in d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").text, (locked, L0))
+    call("place_part", part="I3", x=115, y=10, z=10)
+    time.sleep(0.6)
+    pts_c = world_points()
+    Lc, py_c = page_length(), kernel_route()
+    check("the motor moved closer: the cable keeps its length (± 0.5 mm)", abs(Lc - locked) <= 0.5 and kernel_route(locked=False)["length"] < locked - 10, (Lc, locked, kernel_route(locked=False)["length"]))
+    tight = lambda r: min([b["r"] for b in r["bends"]] or [r_min])  # noqa: E731
+    check("…as harness.py's shape (slack sagging), its bends no tighter than without the slack", abs(Lc - py_c["length"]) < 1e-3 and tight(py_c) >= tight(kernel_route(locked=False)) - 1,
+          (Lc, py_c["length"], [round(b["r"], 2) for b in py_c["bends"]]))
+    check("…not taut", not d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut"))
+    d.save_screenshot(f"{OUT}/harness_6b_slack.png")
+    call("place_part", part="I3", x=400, y=10, z=10)
+    time.sleep(0.6)
+    short = kernel_route(locked=False)["length"] - locked
+    taut_v = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-taut")]
+    taut_p = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut")]
+    check("pulled too far: taut, noted in the view", any("Kabel je napnutý" in w for w in taut_v), taut_v)
+    check("…and in the panel with how much it is short", any(f"krátký o {round(short):,}".replace(",", " ") in w or "krátký o" in w for w in taut_p) and short > 0, (taut_p, short))
+    check("…drawn red", js(f"return {T}.group.children.some(o => o.userData.harness === 'H1' && o.material?.color?.getHex() === 0xd0312d)"))
+    check("…get_assembly says taut", json.loads(call("get_assembly"))["harnesses"][0].get("taut", {}).get("short_mm", 0) > 0)
+    d.save_screenshot(f"{OUT}/harness_6c_taut.png")
+    call("place_part", part="I3", x=135, y=10, z=10)
+    time.sleep(0.4)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").click()
+    time.sleep(0.4)
+    check("🔓 unlocked again", not js(f"return {T}.get('H1').length_locked"))
 
     # 8. STEP export: the four wires in it (as solids of their own part "Svazek 1")
     tree = js(f"return {A}.stepTree()")
@@ -249,6 +329,268 @@ try:
     r = call("edit_harness", id="H2", remove=True)
     check("edit_harness remove", r.startswith("H2 removed") and len(json.loads(call("get_assembly"))["harnesses"]) == 1, r)
     d.save_screenshot(f"{OUT}/harness_6_done.png")
+
+    # 10. the points list in the panel
+    def rows_text():
+        return [" ".join(e.text.split()) for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt .hn-pw")]
+
+    def pts_n():
+        return js(f"return {T}.get('H1').points.length")
+
+    js(f"{T}.sel = 'H1'; {A}.sel = null; {A}.render(); {A}.draw()")
+    time.sleep(0.4)
+    rows = rows_text()
+    check("10. the points list: every point with its part and face", len(rows) == 4 and "DPS I2 · F" in rows[0] and "Krabice I1 · F" in rows[2] and "Motor I3" in rows[3], rows)
+    ActionChains(d).move_to_element(d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt")[2]).perform()
+    time.sleep(0.3)
+    check("…a row under the mouse lights its point in the view", js(f"return {T}.hl") == 2)
+    d.find_elements(By.CSS_SELECTOR, "#asmRight [data-pins]")[0].click()
+    time.sleep(0.4)
+    P = world_points()
+    check("＋ between 1 and 2: a point in the middle, on the PCB too", pts_n() == 5 and math.dist(P[1], [(P[0][i] + P[2][i]) / 2 for i in range(3)]) < 0.01 and js(f"return {T}.get('H1').points[1].inst") == "I2", P[:3])
+    el = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-pxyz='1:0']")
+    el.click()
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).send_keys("33").send_keys(Keys.ENTER).perform()
+    time.sleep(0.5)
+    check("x typed: the point moves there (still on its part)", abs(world_points()[1][0] - 33) < 0.01 and js(f"return {T}.get('H1').points[1].inst") == "I2", world_points()[1])
+    before = js(f"return JSON.stringify({T}.get('H1').points)")
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='1:1']").click()
+    time.sleep(0.4)
+    swapped = json.loads(js(f"return JSON.stringify({T}.get('H1').points)"))
+    check("↓ moves it later", swapped[2] == json.loads(before)[1] and swapped[1] == json.loads(before)[2])
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='2:-1']").click()
+    time.sleep(0.4)
+    check("↑ back", js(f"return JSON.stringify({T}.get('H1').points)") == before)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pdel='1']").click()
+    time.sleep(0.4)
+    check("✕ deletes it", pts_n() == 4)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=clearPts]").click()
+    time.sleep(0.4)
+    check("🗑 all points: none left, clicking new ones", pts_n() == 0 and js(f"return {T}.edit") == "H1")
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    time.sleep(0.6)
+    check("…Ctrl+Z brings them back", pts_n() == 4, pts_n())
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.3)
+
+    # 10b. the length label stays as it is on ✎ Upravit body (no next point until the mouse is over the view)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    was_len = d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text
+    d.find_element(By.CSS_SELECTOR, "[data-hx=edit]").click()  # (✎ in the view's corner)
+    time.sleep(0.4)
+    check("✎ Upravit body: the length label as it was", d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text == was_len, (was_len, d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text))
+
+    # 11. a pin on the box: its top clicked 3 mm off the axis -> the point on its axis
+    call("new_model", name="Cep")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 12}}])
+    call("add_feature", type="extrude", sketch="F1", d=20)
+    call("open_part", id="Pohon")
+    call("insert_part", part="Cep")
+    call("place_part", part="I4", x=40, y=20, z=10)
+    wait(f"return Object.values({A}.bodies).every(b => b.body) && {A}.view.meshes.length === 4")
+    js(f"{A}.choose(null); {T}.editPoints('H1'); {A}.view.setView('iso')")
+    time.sleep(0.8)
+    lz = 30 + HM.bundle_d(4, 1.5) / 2 + 0.5
+    click_at([43, 20, 30])
+    pin = js(f"return {T}.get('H1').points.at(-1)")
+    check("11. a pin's top clicked off its axis: the point on the axis", pts_n() == 5 and pin.get("inst") == "I4" and math.hypot(pin["at"][0], pin["at"][1]) < 1e-3 and pin.get("face"), pin)
+    check("…in the world: over the axis, Ø/2 + 0.5 above the top", math.dist(world_points()[4], [40, 20, lz]) < 1e-3, world_points()[4])
+    js(f"{A}.renderProps ? {A}.renderProps() : {A}.render()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='4:-1']").click()  # (a middle point now: before the motor's)
+    time.sleep(0.4)
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.3)
+    check("…moved before the motor's point (a middle point)", js(f"return {T}.get('H1').points[3].inst") == "I4")
+    call("place_part", part="I4", x=60, y=20, z=10)
+    time.sleep(0.6)
+    check("🔒 locked on the pin: the pin moved, the point with it (its matrix × its spot)", math.dist(world_points()[3], [60, 20, lz]) < 1e-3, world_points()[3])
+    check("…the cable shaped through it again (length = harness.py's route)", abs(page_length() - kernel_route()["length"]) < 1e-3)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-plock='3']").click()
+    time.sleep(0.4)
+    check("🔓 unlocked: a point in space (remembering its part)", js(f"const p = {T}.get('H1').points[3]; return !p.inst && !!p.xyz && p.on?.inst === 'I4'"))
+    call("place_part", part="I4", x=80, y=20, z=10)
+    time.sleep(0.6)
+    check("…the pin moved: the unlocked point stays put", math.dist(world_points()[3], [60, 20, lz]) < 1e-3, world_points()[3])
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-plock='3']").click()
+    time.sleep(0.4)
+    call("place_part", part="I4", x=90, y=20, z=10)
+    time.sleep(0.6)
+    check("🔒 again: stuck to the pin where it was, it follows from there (+10 mm)", math.dist(world_points()[3], [70, 20, lz]) < 1e-3, world_points()[3])
+    call("place_part", part="I4", x=40, y=20, z=10)
+    time.sleep(0.5)
+
+    # 12. a point dragged onto the pin's top (off its axis): on the axis
+    js(f"{T}.editPoints('H1')")
+    time.sleep(0.4)
+    p2 = world_points()[2]
+    cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
+    ActionChains(d, duration=60).move_to_element_with_offset(cv, *offset(p2)).click_and_hold().move_by_offset(10, 0).move_to_element_with_offset(cv, *offset([38, 21, 30])).release().perform()
+    time.sleep(0.6)
+    q = js(f"return {T}.get('H1').points[2]")
+    check("12. a point dragged onto the pin's top: on its axis", q.get("inst") == "I4" and math.hypot(q["at"][0], q["at"][1]) < 1e-3, q)
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    time.sleep(0.5)
+
+    # 13. Alt + click on the box's top: the face behind it — its bottom (hidden), the cable outside, below it
+    n0 = pts_n()
+    spot = next(s for s in ([120, 80, 10], [100, 90, 10], [150, 90, 10], [20, 10, 10], [80, 5, 10], [150, 60, 10]) if js(f"""
+      const v = {A}.view, V = v.camera.position.constructor, [sx, sy] = v.toScreen(new V(...arguments[0])), h = v.ray(sx, sy).intersectObjects(v.meshes, false);
+      return h.length >= 2 && h[0].object.userData.inst === 'I1' && Math.abs(h[0].point.z - 10) < 1e-3 && h[1].object.userData.inst === 'I1' && Math.abs(h[1].point.z) < 1e-3;""", s))
+    cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
+    ActionChains(d, duration=30).move_to_element_with_offset(cv, *offset(spot)).perform()
+    time.sleep(0.3)
+    ActionChains(d).key_down(Keys.ALT).click().key_up(Keys.ALT).perform()
+    time.sleep(0.5)
+    b = world_points()[-1]
+    check("13. Alt + click: the box's bottom, the cable under it", pts_n() == n0 + 1 and js(f"return {T}.get('H1').points.at(-1).inst") == "I1" and abs(b[2] - (0 - HM.bundle_d(4, 1.5) / 2 - 0.5)) < 1e-3, b)
+    d.find_element(By.CSS_SELECTOR, "[data-hx=undoPt]").click()
+    time.sleep(0.4)
+
+    # 14. ◎ the point to its face's centre (the box's top)
+    click_at(spot)
+    rows = table()
+    check("14. ◎ Bod do středu této plochy / díry offered", any("Bod do středu této plochy" in r for r in rows), rows)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Bod do středu')) { b.click(); break; }")
+    time.sleep(0.5)
+    check("…the point at the top's centre", js(f"return {T}.get('H1').points.at(-1).at") == [80, 50, 10], js(f"return {T}.get('H1').points.at(-1)"))
+    d.find_element(By.CSS_SELECTOR, "[data-hx=undoPt]").click()
+    time.sleep(0.3)
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.6)
+
+    # 15. where it goes through a part: the part, the span and the spot, a ⚠ there in the view
+    hs = json.loads(call("get_assembly"))["harnesses"][0]
+    check("15. point_list: each point with its part, lock and face", [p.get("locked") for p in hs["point_list"]] == [True] * 5 and hs["point_list"][3]["part"] == "I4" and all(p.get("face") for p in hs["point_list"]), hs["point_list"])
+    call("add_harness", type="cable", d=4, points=[{"xyz": [-20, 50, 5]}, {"xyz": [80, 50, 5]}])  # (its end inside the box: it cannot get clear)
+    js(f"{T}.checkThrough()")
+    time.sleep(0.6)
+    h2 = json.loads(call("get_assembly"))["harnesses"][1]
+    check("…through_at: the box, span 1–2, a spot inside it", [(c["part"], c["span"]) for c in h2.get("through_at") or []] == [("I1", "1–2")] and 0 <= h2["through_at"][0]["xyz"][0] <= 80, h2.get("through_at"))
+    check("…a ⚠ at the spot in the view: kabel koliduje s Krabice I1", any("kabel koliduje s Krabice I1" in e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-clash")), [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-clash")])
+    check("…the panel names the span", "úsek 1–2" in d.find_element(By.CSS_SELECTOR, "#asmRight .hn-thr").text, d.find_element(By.CSS_SELECTOR, "#asmRight .hn-thr").text)
+    d.save_screenshot(f"{OUT}/harness_7_points.png")
+    call("edit_harness", id="H2", remove=True)
+
+    # 16. a point in space lying on a face (as an older file's): taken as locked on that part
+    r = call("add_harness", type="cable", d=6, points=[{"xyz": [150, 90, 10 + 3.5]}, {"xyz": [150, 90, 60]}])
+    js(f"{A}.draw()")
+    time.sleep(0.4)
+    check("16. a point in space on the box's top: locked on it, the other stays free", js(f"return {T}.get('H2').points.map(p => p.inst || 'free')") == ["I1", "free"], js(f"return {T}.get('H2').points"))
+    r = call("edit_harness", id="H2", unlock_points=[1])
+    check("edit_harness unlock_points: in space", js(f"return !{T}.get('H2').points[0].inst"), r[:100])
+    r = call("edit_harness", id="H2", lock_points=[1])
+    check("edit_harness lock_points: on its part again", js(f"return {T}.get('H2').points[0].inst") == "I1", r[:100])
+    call("edit_harness", id="H2", unlock_points=[1])
+
+    # 18. ➰ a span's own length: a cable from the pin's top to the box's top and up; its first span chosen,
+    # "Smyčka / volná délka" in the suggestions, its length typed (40 mm more): a loop of slack that long; the pin
+    # moved: the span keeps it; moved too far: that span taut
+    def span_len(hid, k):
+        return js(f"const h = {T}.get(arguments[0]); return window.__hn.routeAt(window.__app.assembly, h).spans[arguments[1]]", hid, k)
+
+    js(f"{T}.finish(false)")
+    r = call("add_harness", type="cable", d=4, r_min=10, points=[{"part": "I4", "face": "F2:end"}, {"part": "I1", "face": "F2:end"}, {"xyz": [80, 50, 60]}])
+    hid = r.split(" ")[0]
+    js(f"{T}.sel = arguments[0]; {T}.span = 0; {A}.sel = null; {A}.render(); {A}.draw()", hid)
+    time.sleep(0.4)
+    rows = table()
+    check("18. a span chosen: ➰ Smyčka / volná délka offered", any("Smyčka / volná délka" in r for r in rows), rows)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Smyčka')) { b.click(); break; }")
+    time.sleep(0.4)
+    inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-slen='0']")
+    L0 = span_len(hid, 0)
+    check("…one input: the span's length, as it is now", abs(float(inp.get_attribute("value")) - L0) < 0.06, (inp.get_attribute("value"), L0))
+    want_span = round(L0 + 40, 1)
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).send_keys(str(want_span)).send_keys(Keys.ENTER).perform()
+    time.sleep(0.6)
+    check("…typed 40 mm more: the span that long (± 0.5), a loop of slack", js(f"return {T}.get(arguments[0]).spans", hid) == [{"from": 0, "length": want_span}] and abs(span_len(hid, 0) - want_span) <= 0.5,
+          (js(f"return {T}.get(arguments[0]).spans", hid), span_len(hid, 0)))
+    py_sp = kernel_route(hid)
+    check("…as harness.py's shape, every bend ≥ R", abs(py_sp["length"] - page_length(hid)) < 1e-3 and all(b["ok"] for b in py_sp["bends"]), [round(b["r"], 2) for b in py_sp["bends"]])
+    d.save_screenshot(f"{OUT}/harness_8_loop.png")
+    call("place_part", part="I4", x=55, y=20, z=10)
+    time.sleep(0.6)
+    check("the pin moved: the span keeps its length", abs(span_len(hid, 0) - want_span) <= 0.5, span_len(hid, 0))
+    call("place_part", part="I4", x=-250, y=20, z=10)
+    time.sleep(0.6)
+    js(f"{T}.sel = arguments[0]; {A}.render(); {A}.draw()", hid)
+    time.sleep(0.4)
+    tt = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut")]
+    check("…moved too far: that span taut, with how much it is short", any("Úsek 1–2 je napnutý — krátký o" in x for x in tt), tt)
+    call("place_part", part="I4", x=40, y=20, z=10)
+    time.sleep(0.4)
+    r = call("edit_harness", id=hid, spans=[{"from": 1, "length": None}])
+    check("edit_harness spans length null: no length of its own", not js(f"return {T}.get(arguments[0]).spans", hid), r[:120])
+    r = call("edit_harness", id=hid, spans=[{"from": 2, "length": 120}])
+    check("edit_harness spans: set, listed", '"spans":[{"from":2,"to":3' in r, r[-260:])
+
+    # 19. the owner's case: a cable from one pin's top to another's, a tall block between them — its ends leave the
+    # tops straight up (the bundle never in the pins), the span goes round the block (a detour), nothing hit
+    call("new_model", name="Blok")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 20, "h": 20}}])
+    call("add_feature", type="extrude", sketch="F1", d=150)
+    call("open_part", id="Pohon")
+    call("insert_part", part="Cep")
+    call("insert_part", part="Blok")
+    ids = [x["id"] for x in json.loads(call("get_assembly"))["parts"]][-2:]
+    call("place_part", part=ids[0], x=100, y=85, z=10)
+    call("place_part", part=ids[1], x=55, y=35, z=10)
+    call("place_part", part="I4", x=40, y=20, z=10)
+    wait(f"return Object.values({A}.bodies).every(b => b.body) && {A}.view.meshes.length === 6")
+    r = call("add_harness", type="cable", d=6, points=[{"part": "I4", "face": "F2:end"}, {"part": ids[0], "face": "F2:end"}])
+    hid = r.split(" ")[0]
+    time.sleep(1.5)
+    js(f"{T}.sel = arguments[0]; {A}.render(); {A}.draw()", hid)
+    time.sleep(1.0)
+    st = js(f"return window.__hn.harnessStep(window.__app.assembly.doc, {T}.get(arguments[0]))", hid)
+    P = st["points"]
+    lift6 = 30 + 3 + 0.5
+    check("19. the ends leave the pins' tops straight up (a lead)", math.dist(P[0], [40, 20, lift6]) < 1e-3 and abs(P[1][0] - 40) < 1e-3 and abs(P[1][1] - 20) < 1e-3 and P[1][2] > lift6 + 30
+          and abs(P[-2][0] - 100) < 1e-3 and abs(P[-2][1] - 85) < 1e-3 and P[-2][2] > lift6 + 30, P)
+
+    def sd_box(q, lo, hi):
+        c, e = [(x + y) / 2 for x, y in zip(lo, hi)], [(y - x) / 2 for x, y in zip(lo, hi)]
+        u = [abs(q[i] - c[i]) - e[i] for i in range(3)]
+        return min(max(u), 0.0) + math.sqrt(sum(max(x, 0.0) ** 2 for x in u))
+
+    def sd_pin(q, cx, cy):
+        u = (math.hypot(q[0] - cx, q[1] - cy) - 6, abs(q[2] - 20) - 10)
+        return min(max(u), 0.0) + math.hypot(max(u[0], 0.0), max(u[1], 0.0))
+
+    def worst(route):
+        sm = HM.samples(route, 0.5)
+        return min(min(sd_box(q, [55, 35, 10], [75, 55, 160]), sd_pin(q, 40, 20), sd_pin(q, 100, 85), sd_box(q, [0, 0, 0], [160, 100, 10])) for q in sm)
+
+    plain = HM.shape([P[0], P[1], P[-2], P[-1]], st["r_min"])
+    check("…straight, it would go through the block", worst(plain) < 0, round(worst(plain), 2))
+    kr = kernel_route(hid)
+    check("…it goes round the block: a detour, the whole bundle clear of every body (≥ Ø/2)", len(P) > 4 and worst(kr) >= 3 - 1e-3 and all(b["ok"] for b in kr["bends"]), (len(P), round(worst(kr), 2)))
+    f = json.loads(call("get_assembly"))["harnesses"][-1]
+    check("…get_assembly: nothing hit, the detour told", not f.get("still_hits") and not f.get("through_parts") and f.get("detour_points", 0) >= 1, {k: f.get(k) for k in ("still_hits", "through_parts", "detour_points")})
+    check("…no ⚠ marker on it in the view", js(f"return {T}.built.get(arguments[0]).objs.filter(o => o.isCSS2DObject && o.element.textContent.includes('koliduje')).length", hid) == 0)
+    d.save_screenshot(f"{OUT}/harness_9_avoid.png")
+    call("edit_harness", id=hid, remove=True)
+
+    # 17. saved and reloaded: the locks kept
+    keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
+    js("return window.__app.autosave.saveNow()")
+    time.sleep(1)
+    d.refresh()
+    wait("return !!window.__app")
+    wait("return document.querySelector('.restore-bar')", 15)
+    d.find_element(By.CSS_SELECTOR, ".restore-bar [data-a=open]").click()
+    time.sleep(2)
+    call("open_part", id="Pohon")
+    wait(f"return {A}.active && Object.values({A}.bodies).every(b => b.body)", 60)
+    time.sleep(1)
+    got = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
+    check("17. reloaded: every point's part, lock and face, the spans' lengths kept", got == keep, (keep, got))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

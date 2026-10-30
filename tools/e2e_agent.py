@@ -328,6 +328,19 @@ try:
     tool("edit_harness", id="H1", count=2, color="red")
     hs = json.loads(tool("get_assembly")[0]).get("harnesses", [])
     print(f"    harnesses: {[(h['id'], len(h['wires']), h['length_mm']) for h in hs]} | 2 wires: {len(hs) == 1 and len(hs[0]['wires']) == 2}")
+    # 🔒 its length locked longer than the route: the slack sags, the length held; locked shorter: reported taut
+    print("    edit_harness length 400 (slack, not taut):", "taut" not in tool("edit_harness", id="H1", length=400)[0])
+    print("    edit_harness length 10 (taut):", "taut" in tool("edit_harness", id="H1", length=10)[0])
+    tool("edit_harness", id="H1", length=None)
+    # 🔒 / 🔓 its first point (on the flange): unlocked it stays in space, locked again it is on the flange
+    print("    edit_harness unlock_points [1]:", json.loads(tool("edit_harness", id="H1", unlock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
+    print("    edit_harness lock_points [1]:", json.loads(tool("edit_harness", id="H1", lock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
+    print("    lock_points on a point in space:", tool("edit_harness", id="H1", lock_points=[2])[0][:90])
+    # ➰ its only span 40 mm longer than it is: a loop of slack, listed in `spans`; then none of its own again
+    t, _ = tool("edit_harness", id="H1", spans=[{"from": 1, "length": json.loads(tool("get_assembly")[0])["harnesses"][0]["length_mm"] + 40}])
+    print("    edit_harness spans +40:", json.loads(t.split(". ", 1)[1]).get("spans"))
+    print("    edit_harness spans from 5 (no such span):", tool("edit_harness", id="H1", spans=[{"from": 5, "length": 100}])[0][:90])
+    tool("edit_harness", id="H1", spans=[{"from": 1, "length": None}])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

@@ -615,13 +615,27 @@ TOOLS = [
     {"name": "edit_harness", "where": "browser",
      "description": "Change a cable harness of the assembly on screen (id H… from get_assembly `harnesses` or add_harness): any field of "
                     "add_harness (type, count, wire_d, wires, d, color, r_min, pitch, reserve, name); points replaces its points, "
-                    "add_points appends to them; remove: true deletes it. One undo step; answers it as add_harness does.",
+                    "add_points appends to them; remove: true deletes it. 🔒 length_locked: true locks its length as it is now "
+                    "(false: unlocked), or length: <mm> locks it at that (null: unlocked) — when its ends move (a part dragged, "
+                    "drive_mechanism) the cable keeps that length: the slack sags (keeping r_min); too far apart it goes straight "
+                    "and the answer / get_assembly say `taut` {short_mm}. lock_points / unlock_points: point numbers (1 = the first, "
+                    "as `point_list` numbers them) of points on a part — 🔒 locked it moves with its part (the default for a point "
+                    "on a face), 🔓 unlocked it stays where it is in space. The answer's `point_list` gives each point's part, face, "
+                    "lock and xyz. ➰ spans: [{from: a point number, length: mm}] gives the cable between that point and the next its "
+                    "own length — longer than now: a loop of slack that keeps r_min and holds that length when the parts move "
+                    "(no length: as it is now; null: none of its own); they win over length_locked; too far apart: `taut` with its "
+                    "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz). "
+                    "One undo step; answers it as add_harness does.",
      "inputSchema": _obj({"id": STR, "type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
                           "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
                           "add_points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
                           "count": {"type": "integer", "minimum": 1, "maximum": 60}, "wire_d": NUM,
                           "wires": {"type": "array", "items": _obj({"color": STR, "d": NUM})}, "d": NUM, "color": STR,
-                          "r_min": {"type": ["number", "null"]}, "pitch": NUM, "reserve": NUM, "name": STR, "remove": {"type": "boolean"}}, ["id"])},
+                          "r_min": {"type": ["number", "null"]}, "pitch": NUM, "reserve": NUM, "name": STR, "remove": {"type": "boolean"},
+                          "length_locked": {"type": "boolean"}, "length": {"type": ["number", "null"]},
+                          "lock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "spans": {"type": "array", "items": _obj({"from": {"type": "integer", "minimum": 1}, "length": {"type": ["number", "null"]}}, ["from"])},
+                          "unlock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}}}, ["id"])},
     {"name": "save_to_library", "where": "browser",
      "description": "Keep the 3D model on screen in the user's parts library (to use again in any project); a library part being "
                     "changed (opened with ✎ Edit in the library) is saved back over itself when no name is given: name, category (e.g. "

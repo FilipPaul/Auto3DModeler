@@ -708,7 +708,18 @@ Never report "works" without having run it; report failures with their output.
    more points on the PCB, the box, the motor -> Esc keeps them; the length equals auto3d/modeler/harness.py's route of
    the same points, the points Ø/2 + 0.5 off their faces; the tree row; BOM lines *Vodič Ø1,5 mm červený — N mm* (+5 %,
    up to 10 mm) in get_bom and the 📋 window; the motor moved / 💥 explode: its points follow; a point dragged onto
-   another face; R 80: ⚠ in the view and the panel, R empty: 5 × Ø; a point clicked + Delete, Ctrl+Z, Enter; STEP export
+   another face; R 80: a quiet ⚠ note in the view and the panel (no red over the cable), R empty: 5 × Ø; a Z with two
+   sharp corners 6 mm apart shaped to R 15 (no note, the tube's ring centres on arcs of R 15, length = harness.py); 🔒 its length locked with the panel's button,
+   the motor moved closer: length kept ± 0.5 = harness.py's shape, moved far: taut — red, *Kabel je napnutý* in the
+   view and the panel, get_assembly `taut`, 🔓 again; the points list (part · face, x typed, ＋ between, ↑ ↓ ✕, a lit
+   row, 🗑 all + Ctrl+Z), ✎ leaves the length label as it is, a pin's top clicked off its axis -> on the axis, 🔒 on
+   the pin it follows it, 🔓 it stays, 🔒 again from there; a point dragged onto the pin: on its axis; Alt + click:
+   the box's bottom; ◎ to the top's centre; through_at + ⚠ spots; a point in space on a face adopted as locked,
+   lock_points / unlock_points; ➰ a span chosen -> Smyčka / volná délka -> its length + 40 typed: a loop that long =
+   harness.py's shape, kept as the pin moves, "Úsek 3–4 je napnutý" too far, edit_harness spans; saved + reloaded:
+   parts, locks, faces, spans kept; the owner's case — a cable between two pins' tops with a tall block between:
+   leads straight up, a detour round the block, the bundle clear of every body (signed distances in Python), nothing
+   reported hit; a point clicked + Delete, Ctrl+Z, Enter; STEP export
    with 3 parts + 4 wire solids; add_harness / edit_harness / get_assembly). Prints ALL OK / FAILED, exit code 1 on a
    failure.
    `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows

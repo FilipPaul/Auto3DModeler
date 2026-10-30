@@ -114,7 +114,18 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `through_parts` names parts its centre line goes through (add a point round them). Points on a part move with it.
    The answer and get_assembly `harnesses` give its length; get_bom lists a line per wire with its length + the
    reserve (5 %). `edit_harness {id, …}` changes any of these (`points` replaces them, `add_points` appends, `remove:
-   true` deletes it). STEP / GLB exports and the assembly drawing include it.
+   true` deletes it). Corners are shaped to r_min (two close corners moved apart), so `bends_too_tight` is only the
+   exception. To test moving parts with a real cable, lock its length: `edit_harness {id, length_locked: true}` (as it
+   is now) or `{length: 400}` — then drag / drive_mechanism: the slack sags, and a cable pulled too far is reported
+   `taut: {short_mm}` (a limit of the motion). The answer's `point_list` names each point's part, face and lock: a
+   point on a part is 🔒 locked (moves with it); `edit_harness {id, unlock_points: [3]}` leaves it in space,
+   `lock_points` sticks it back. A flat face given as `{part, face}` puts the point on its centre (a pin's top: on its
+   axis, so the length holds as the joint turns). `through_at` says where it goes through a part (the span between
+   two points, the spot) — add a point there to lead it round. A service loop between two points:
+   `edit_harness {id, spans: [{from: 3, length: 180}]}` (the cable from point 3 to 4 that long: slack that keeps
+   r_min and holds as the parts move; no length: as it is now; null: none). The cable keeps clear of the parts by
+   itself (its ends leave their faces straight out, a span goes round a part in its way): `detour_points` says how
+   many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those. STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

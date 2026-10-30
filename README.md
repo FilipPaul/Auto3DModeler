@@ -1186,10 +1186,40 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   space puts a point there (in the plane facing you, through the last point). A live preview follows the mouse with
   the length (*Délka 1 284 mm*). **Esc / Enter / ✓ Done** keeps the points. Points on a part **stick to it**: they
   follow when it moves (a mechanism, a drag, 💥 Explode). Afterwards *✎ Edit points*: drag a point (onto another face
-  or in space), click the cable to put a point there, click a point and press Delete. The route is straight lines
-  with every corner rounded to the minimum radius; a corner whose legs are too short for it gets the largest radius
-  that fits and is **marked red with ⚠ *ohyb R 6 mm < min 15 mm*** in the view and the panel — never bent tighter
-  silently. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  or in space), click the cable to put a point there, click a point and press Delete. The cable **shapes itself to the
+  minimum radius**: straight lines with every corner an arc of that radius, tangent to both legs; two corners clicked
+  close together (a 6 mm step) are moved apart along the legs around them until both arcs fit — the ends stay where
+  you clicked. Only where nothing fits (a short leg at an end of the cable, a U turn narrower than 2 × R) it bends
+  with the largest radius that does, and a small quiet note sits on that spot (*⚠ R 6 mm — na 15 není místo*, the
+  panel: *Bod 3: na R 15 mm není místo, ohnuto R 6 mm*) — never bent tighter silently. The length (panel, tree,
+  BOM) is the shaped path's.
+  **🔒 Lock its length** (the button by *Délka …* in the panel, or *Zamknout délku* in its suggestions) to test moving
+  parts with a real cable: when its ends move (a part dragged, ▶ a mechanism, a slider) the cable keeps that length —
+  the slack sags in a bow out of its corners (down where nothing else decides), still at the bend radius; pulled
+  further than it reaches it goes straight and **red**, with *⚠ Kabel je napnutý — krátký o 12 mm* in the view, the
+  panel and a message, like a collision.
+  **The points list** (*Body* in the panel) shows every point in order — its part and face (*Krabice I1 · F2:end*)
+  or *volný bod* — with x / y / z you can type, ↑ ↓ to reorder, ✕, **＋ between two rows** for a point in the middle,
+  and *🗑 Smazat všechny body*; the row under the mouse lights its point in the view. A point on a part is **🔒
+  locked** to it (it moves with it: a drag, ▶, a slider); 🔓 leaves it where it is in space, 🔒 again sticks it to the
+  part from there. Older files: a point in space lying on a face is taken as locked to that part. A click on a **round
+  face** (a pin's top, a ring round a hole) puts the point on its axis, so the length holds as a joint turns about it;
+  *◎ Bod do středu této plochy / díry* in the suggestions moves the chosen (or last) point to its face's centre.
+  **Alt + click** picks the face behind the one you see (a groove underneath, the inside of a hole; again at the same
+  spot: the next one behind). Dragging a point snaps to hole and face centres. Where the cable goes through a part,
+  a small *⚠ Motor I3* sits at the spot and the panel names the span (*úsek 3–4*).
+  **➰ A loop / slack between two points**: choose a span (click the chosen cable between two points, or the length
+  between two rows of the points list) and *➰ Smyčka / volná délka* asks for one thing — the span's length, filled in
+  with its length now (left as it is: that length is locked). Longer makes a loop of slack there that keeps the bend
+  radius, out of the corners (down where nothing else decides), exactly that long; when the parts move the span keeps
+  it, pulled too far it goes straight with *⚠ Úsek 3–4 je napnutý — krátký o 12 mm*. The spans' lengths win over a
+  locked length of the whole cable (the panel says so).
+  **It keeps clear of the parts**: an end on a face leaves it straight out (as far as its bend needs), so the bundle
+  never sits in the part it starts on, and where a span would go through or graze another part the cable goes round
+  it — a point of its own put in beside the part (and moved further out until the bend clears it), your clicked
+  points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
+  once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
+  sits at the spot. A span with its own length that needs a detour loses that length (the AI is told). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part
