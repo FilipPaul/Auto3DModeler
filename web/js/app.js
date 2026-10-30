@@ -2892,7 +2892,7 @@ const libraryTools = {
 Object.assign(agentHandlers, libraryTools);
 Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
-recorder.init({ state, project, modeler, assembly }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks
+recorder.init({ state, project, modeler, assembly, toast }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks (toast: 📋 copied)
 Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_recording, get_recording, get_recording_screenshot)
 Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project)
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})

@@ -2349,6 +2349,13 @@ const CS = {
   'Attach the recording ({n} events)': 'Přiložit záznam ({n} událostí)', 'Look at what I did.': 'Podívej se, co jsem dělal(a).', Attach: 'Přiložit',
   '{n} events': '{n} událostí', 'Choose one of the last recordings': 'Vybrat jeden z posledních záznamů',
   'Stop the recording and send it to the AI chat now': 'Zastavit záznam a hned ho poslat do chatu s AI', 'Stop and send to the AI': 'Zastavit a poslat AI',
+  // 📋 the recording copied as text (recorder.js: the pill, the chat's 📎 and its ▾; the panel when the clipboard is blocked)
+  'Copy the recording': 'Kopírovat záznam',
+  'Stop the recording and copy it as text — paste it (Ctrl+V) into a chat with a developer or another AI': 'Zastavit záznam a zkopírovat ho jako text — vložte ho (Ctrl+V) do chatu s vývojářem nebo jinou AI',
+  'Copy the recording as text — paste it (Ctrl+V) into a chat with a developer or another AI': 'Zkopírovat záznam jako text — vložte ho (Ctrl+V) do chatu s vývojářem nebo jinou AI',
+  'Recording copied ({n} events, {kb} kB) — paste it with Ctrl+V': 'Záznam zkopírován ({n} událostí, {kb} kB) — vložte Ctrl+V',
+  'The browser did not let the app write to the clipboard — select all, press Ctrl+C, then paste it (Ctrl+V) into the chat.': 'Prohlížeč aplikaci nedovolil zapsat do schránky — vyberte vše, stiskněte Ctrl+C a pak text vložte (Ctrl+V) do chatu.',
+  'Select all': 'Vybrat vše',
   // 🕘 previous conversations of the AI chat (agent.js, auto3d/chat_history.py)
   '🕘 Previous conversations': '🕘 Předchozí konverzace', '＋ New conversation': '＋ Nová konverzace',
   'The earlier chats — open one to read it and go on with it': 'Dřívější chaty — otevřete jeden, přečtěte si ho a pokračujte v něm',
