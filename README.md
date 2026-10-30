@@ -1032,6 +1032,12 @@ part's rolled-up `total`.
   list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and
   parts are lit; the panel says *Vybráno dílů: 5*, and the suggestions work on them all (👁 hide / see-through /
   isolate, H, ✕ *Take them out* — one Ctrl+Z). Esc or a click beside the rows chooses none.
+  **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
+  with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
+  the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click
+  its row, e.g. a hinge leaf) is the base — the group swings with it. The joints panel shows the group as **one row**
+  (*Brána (60 dílů)*: double-click renames it, ◆ chooses its parts, ✕ dissolves it — the parts stay). The AI:
+  `fix_together {parts | all_except, to, name}`, get_assembly `groups`, `remove_joint {id: "R1"}`.
   **The mouse over a row lights its part's outline in the view** (a sub-assembly's row or a part in it: the whole
   sub-assembly; a hidden 👁 part does not light up), seen through the parts in front of it; a chosen part — from the
   list or the view — shows its outline in blue the same way, so a screw inside a plate chosen in the list shows where

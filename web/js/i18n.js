@@ -2392,6 +2392,15 @@ const CS = {
   'Ctrl+click adds or takes out a part': 'Ctrl+klik přidá nebo odebere díl',
   'Ctrl+click adds or takes out a part, Shift+click in the list chooses the rows between — what can be done with them all is in the suggestions.':
     'Ctrl+klik přidá nebo odebere díl, Shift+klik v seznamu vybere řádky mezi — co jde se všemi udělat, je v návrzích.',
+  // 🔗 a rigid group of many parts
+  'Fix together ({n} parts)': 'Spojit pevně ({n} dílů)', '{name} ({n} parts)': '{name} ({n} dílů)', 'fixed together on': 'pevně spojeno na',
+  'Choose its parts': 'Vybrat jeho díly', 'Dissolve the group: its parts stay where they are, each free again': 'Zrušit skupinu: díly zůstanou, kde jsou, každý zase volný',
+  'Group dissolved — its parts stay where they are (Ctrl+Z: back).': 'Skupina zrušena — díly zůstaly, kde jsou (Ctrl+Z: zpět).',
+  'One rigid group, as they are now: they move as one body with the part they are on (mechanisms, dragging) — one row in the joints, ✕ there dissolves it':
+    'Jedna pevná skupina, jak jsou teď: pohybují se jako jedno těleso s dílem, na kterém jsou (mechanismy, tažení) — jeden řádek ve vazbách, ✕ tam ji zruší',
+  '{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).':
+    '{name}: {n} dílů pevně spojeno na {base} — pohybují se jako jeden (✕ v jejím řádku ji zruší; Ctrl+Z: zpět).',
+  'fixing parts together': 'spojuje díly pevně',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)

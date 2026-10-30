@@ -420,7 +420,7 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}), ...(this.doc.groups?.length ? { groups: this.doc.groups } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
@@ -429,6 +429,7 @@ export class Assembly {
         if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
         if (s.harnesses) this.doc.harnesses = s.harnesses; else delete this.doc.harnesses;
         if (s.chains) this.doc.chains = s.chains; else delete this.doc.chains;
+        if (s.groups) this.doc.groups = s.groups; else delete this.doc.groups;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -707,6 +708,85 @@ export class Assembly {
     return nj;
   }
 
+  /** 🔗 Several parts fixed together as they are now: one rigid group (doc.groups {id R…, name}) — each part 🔗 fixed
+   *  onto the base by a joint of the group (`group`), its one row in the joints panel stands for them all. The base:
+   *  `to` ("I60", or "I37/I14": a part inside a sub-assembly — the group turns with it), else a 📌 fixed one of them,
+   *  else the one joined to the rest of the assembly, else the biggest. Left out: 📌 fixed parts (they stay anyway) and
+   *  parts the base hangs on (they hold it). A part's own 🔗 rigid joints and its place in another group go (this one
+   *  takes over); its other joints stay. Nothing moves; one undo step -> {group, parts, skipped}. */
+  fixGroup(ids, { to = null, name = null } = {}) {
+    const [top, inner] = to ? String(to).split(/\/(.*)/s) : [null, null];
+    if (to && !this.inst(top)) throw new Error(`No part ${top} in the assembly — get_assembly lists them (I1, I2 …).`);
+    for (const id of ids) if (!this.inst(id)) throw new Error(`No part ${id} in the assembly — get_assembly lists them (I1, I2 …).`);
+    const all = [...new Set([...(top ? [top] : []), ...ids])], vol = (id) => this.bodyOf(this.inst(id))?.body?.volume || 0;
+    if (all.length < 2) throw new Error('Fix at least two parts together.');
+    const out = (id) => (this.doc.mates || []).some((m) => m.move === id && !m.group && !all.includes(m.onto));
+    const base = top || all.find((id) => this.inst(id).fixed) || all.find(out) || [...all].sort((a, b) => vol(b) - vol(a))[0];
+    const hangsOn = (a, b) => { // (a held through joints on b)
+      const seen = new Set(), stack = [a];
+      while (stack.length) {
+        const x = stack.pop();
+        if (x === b) return true;
+        if (seen.has(x)) continue;
+        seen.add(x);
+        stack.push(...(this.doc.mates || []).filter((m) => m.move === x).map((m) => m.onto));
+      }
+      return false;
+    };
+    const parts = all.filter((id) => id !== base && !this.inst(id).fixed && !hangsOn(base, id)), skipped = all.filter((id) => id !== base && !parts.includes(id));
+    if (!parts.length) throw new Error(`Nothing to fix onto ${base}: ${skipped.join(', ')} ${skipped.length > 1 ? 'are' : 'is'} 📌 fixed or hold${skipped.length > 1 ? '' : 's'} it.`);
+    const faces = (id, pre = null) => { // (the biggest face — of a part that does not move inside a sub-assembly; `pre`: of that inner part)
+      const it = this.inst(id), flex = this.kindOf(it.part) === 'assembly' && !it.rigid ? this.flexOf(it) : new Set();
+      const ok = (f) => (pre ? String(f.name).startsWith(`${pre}/`) : !flex.has(String(f.name).split('/')[0]));
+      const name = [...(this.bodyOf(it)?.body?.faces || [])].filter(ok).sort((p, q) => q.area - p.area)[0]?.name;
+      if (!name) throw new Error(pre ? `${id} has no part ${pre} with faces — get_assembly lists its inner parts.` : `${id} has no solid yet.`);
+      return name;
+    };
+    const ontoFace = faces(base, inner);
+    const set = new Set(parts);
+    this.doc.mates = (this.doc.mates || []).filter((m) => !(set.has(m.move) && (m.type === 'rigid' || m.group)));
+    const n = Math.max(0, ...(this.doc.groups || []).map((g) => parseInt(String(g.id).slice(1), 10) || 0)) + 1;
+    const own = inner && this.innerList(this.inst(base)).find((x) => x.id === inner.split('/')[0]); // (the base inside a sub-assembly: its name)
+    const g = { id: `R${n}`, name: String(name || '').trim() || this.partName((own || this.inst(base)).part) };
+    let k = Math.max(0, ...(this.doc.mates || []).map((x) => parseInt(String(x.id || '').slice(1), 10) || 0));
+    const fA = this.worldFace(base, ontoFace), made = parts.map((id) => {
+      const m = { id: `J${++k}`, type: 'rigid', group: g.id, move: id, face: faces(id), onto: base, ontoFace, gap: 0, fr: 2 };
+      return Object.assign(m, frameNow(this.worldFace(id, m.face), fA));
+    });
+    this.doc.mates = [...this.doc.mates, ...made];
+    this.doc.groups = [...(this.doc.groups || []), g];
+    this.applyMates();
+    this.commit();
+    return { group: g, base, parts, skipped };
+  }
+
+  /** 🔗 Groups with no joints left (their parts taken out, their base gone) dropped; a joint whose group is gone is a
+   *  plain 🔗 rigid joint. */
+  tidyGroups() {
+    if (!this.doc.groups && !(this.doc.mates || []).some((m) => m.group)) return;
+    const used = new Set((this.doc.mates || []).map((m) => m.group).filter(Boolean));
+    this.doc.groups = (this.doc.groups || []).filter((g) => used.has(g.id));
+    if (!this.doc.groups.length) delete this.doc.groups;
+    for (const m of this.doc.mates || []) if (m.group && !this.doc.groups?.some((g) => g.id === m.group)) delete m.group;
+  }
+
+  /** A group's parts (the base first) -> [ids]. */
+  groupParts(gid) {
+    const mine = (this.doc.mates || []).filter((m) => m.group === gid);
+    return mine.length ? [mine[0].onto, ...mine.map((m) => m.move)] : [];
+  }
+
+  /** ✕ A rigid group dissolved: its joints go, its parts stay where they are (each free again, or held by its own
+   *  other joints). One undo step. */
+  dissolveGroup(gid) {
+    if (!(this.doc.groups || []).some((g) => g.id === gid)) throw new Error(`No group ${gid} — get_assembly lists them (groups).`);
+    this.doc.mates = (this.doc.mates || []).filter((m) => m.group !== gid);
+    this.doc.groups = this.doc.groups.filter((g) => g.id !== gid);
+    if (!this.doc.groups.length) delete this.doc.groups;
+    this.applyMates();
+    this.commit();
+  }
+
   /** 〰 A spring: the spring part's end face ({inst, face}) reaches face b of another part (springs.js) — one undo step,
    *  a word on what it does -> the record or null. */
   makeSpring(a, b, k = null) {
@@ -771,6 +851,8 @@ export class Assembly {
     const ids = this.selIds(), first = this.inst(ids[0]);
     const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${ids.map((id) => `${t('part')} ${id}`).join(', ')}`;
     showSuggest(vp, t2('{n} parts chosen', { n: ids.length }), [
+      { icon: '🔗', label: t2('Fix together ({n} parts)', { n: ids.length }), rank: 0, title: t('One rigid group, as they are now: they move as one body with the part they are on (mechanisms, dragging) — one row in the joints, ✕ there dissolves it'),
+        run: () => { try { const inner = this.selKeys().filter((k) => k.includes('/')), r = this.fixGroup(ids, { to: inner.length === 1 ? inner[0] : null }); this.hooks.toast(t2('{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).', { name: r.group.name, n: r.parts.length + 1, base: this.partName(this.inst(r.base).part) }), 'ok', 5000); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); } } },
       { icon: '✕', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) },
       { icon: '◆', label: `${t('Only')} ${this.partName(first.part)} ${first.id}`, rank: 9, run: () => this.choose(first.id) },
       ...displayItems(this, ids), // (👁 all of them hidden, see-through, isolated …)
@@ -2182,7 +2264,8 @@ export class Assembly {
     const all = list || (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
-    const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
+    const grp = (m) => (m.group && this.doc.groups?.some((g) => g.id === m.group) ? m.group : null), rigids = [...new Set(all.map(grp).filter(Boolean))];
+    const js = all.filter((m) => !fast(m) && !grp(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
     const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')), lockTip = esc(t('Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
@@ -2192,7 +2275,13 @@ export class Assembly {
         <span class="as-jw"><b data-no-i18n>${esc(f.text || '')}</b> · ${esc(t('through'))} <span data-no-i18n>${esc(into.join(', '))}</span>${off.length ? ` — ⚠ ${esc(t('it does not sit in its holes'))}` : ''}</span>
         <span class="as-jbtn"><button class="mini danger" data-fdel="${gid}" title="${esc(f.bolt ? 'Take it out, with the holes drilled for it' : 'Take it out (its screw, nut / insert)')}">✕</button></span></div>`;
     };
-    return `<h3>Joints</h3>${bad ? `<p class="mp-count bad as-jbad">⚠ ${esc(t2('{n} joint(s) do not hold — see the red ones.', { n: bad }))}</p>` : ''}<datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${groups.map(fRow).join('')}${js.map((m) => {
+    const gRow = (gid) => { // (🔗 a rigid group: one row for all its parts)
+      const g = this.doc.groups.find((x) => x.id === gid), ps = this.groupParts(gid), base = this.inst(ps[0]);
+      return `<div class="as-jrow as-grow" data-grow="${gid}"><span class="as-jt">🔗 <span class="as-jname own" data-gname="${gid}" title="${dbl}" data-no-i18n>${esc(t2('{name} ({n} parts)', { name: g.name, n: ps.length }))}</span> <i>${gid}</i></span>
+        <span class="as-jw">${esc(t('fixed together on'))} <b data-no-i18n>${esc(this.partName(base?.part))}</b> <i>${ps[0]}</i></span>
+        <span class="as-jbtn"><button class="mini" data-gpick="${gid}" title="${esc(t('Choose its parts'))}">◆</button><button class="mini danger" data-gdel="${gid}" title="${esc(t('Dissolve the group: its parts stay where they are, each free again'))}">✕</button></span></div>`;
+    };
+    return `<h3>Joints</h3>${bad ? `<p class="mp-count bad as-jbad">⚠ ${esc(t2('{n} joint(s) do not hold — see the red ones.', { n: bad }))}</p>` : ''}<datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${rigids.map(gRow).join('')}${groups.map(fRow).join('')}${js.map((m) => {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
       const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
@@ -2382,6 +2471,21 @@ export class Assembly {
       row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
     }
     for (const el of box.querySelectorAll('[data-fdel]')) el.addEventListener('click', () => this.removeFastener(el.dataset.fdel));
+    for (const row of box.querySelectorAll('[data-grow]')) {
+      const ids = (this.doc.mates || []).filter((m) => m.group === row.dataset.grow).map((m) => m.id);
+      row.addEventListener('mouseenter', () => { this.hoverJoint = ids; this.drawMarks(); });
+      row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
+    }
+    for (const el of box.querySelectorAll('[data-gdel]')) el.addEventListener('click', () => { this.dissolveGroup(el.dataset.gdel); this.hooks.toast(t('Group dissolved — its parts stay where they are (Ctrl+Z: back).'), 'info', 4000); });
+    for (const el of box.querySelectorAll('[data-gpick]')) el.addEventListener('click', () => this.select(this.groupParts(el.dataset.gpick)));
+    for (const el of box.querySelectorAll('[data-gname]')) {
+      el.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        const g = this.doc.groups.find((x) => x.id === el.dataset.gname);
+        el.textContent = g.name;
+        renameInPlace(el, (n) => { const v = String(n || '').trim(); if (v) g.name = v; this.commit(); });
+      });
+    }
     for (const el of box.querySelectorAll('[data-jfix]')) el.addEventListener('click', () => this.repairJoint(el.dataset.jfix));
     for (const row of box.querySelectorAll('[data-jrow]')) {
       row.addEventListener('mouseenter', () => { this.hoverJoint = row.dataset.jrow; this.drawMarks(); });
@@ -2850,6 +2954,7 @@ export class Assembly {
     if (fid) return this.removeFastener(fid); // a screw goes with its nut and its holes
     this.doc.instances = this.doc.instances.filter((i) => i.id !== id);
     this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id && m.onto !== id);
+    this.tidyGroups(); // (🔗 a group whose base went: dissolved)
     if (this.doc.display?.[id]) delete this.doc.display[id]; // (👁 not passed on to a part put in later with its id)
     if (this.sel === id) this.sel = null;
     if (this.sel2 === id) this.sel2 = null;
@@ -3056,6 +3161,7 @@ export class Assembly {
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
     if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
     tidyChains(this); // (⛓ a chain whose first link is gone)
+    this.tidyGroups();
     this.innerFrames(); // (an older file's joints on a sub-assembly's parts: measured against those parts once)
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
@@ -4464,7 +4570,8 @@ export class Assembly {
       ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       ...(this.doc.chains?.length ? { chains: chainsSummary(this) } : {}),
       ...(() => { const v = displayed(this); return { ...(v.hidden.length ? { hidden: v.hidden } : {}), ...(v.clear.length ? { transparent: v.clear } : {}) }; })(), // (👁 display only)
-      joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
+      ...(this.doc.groups?.length ? { groups: this.doc.groups.map((g) => { const ps = this.groupParts(g.id); return { id: g.id, name: g.name, base: ps[0], parts: ps.slice(1) }; }) } : {}),
+      joints: (this.doc.mates || []).filter((m) => !m.group).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : m.type === 'axis_distance' ? { distance: +m.dist || 0, ...(m.side === -1 ? { side: -1 } : {}) } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true, ...(this.goneFace(m) ? { gone_face: this.goneFace(m).face } : {}) } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
@@ -4661,6 +4768,19 @@ export class Assembly {
           l = this.limitsOf(it, mo);
         }
         return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min ?? 'open (no min)'} … ${l.max ?? 'open (no max)'} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+      },
+      fix_together: async ({ parts, all_except: except, to, name } = {}) => {
+        need();
+        await settle();
+        let ids = parts;
+        if (except !== undefined && except !== null) {
+          if (!Array.isArray(except)) throw new Error('all_except: a list of placed parts (I…) left out.');
+          const out = new Set([...except, ...(to ? [String(to).split('/')[0]] : [])]);
+          ids = this.doc.instances.map((i) => i.id).filter((id) => !out.has(id));
+        }
+        if (!Array.isArray(ids) || !ids.length) throw new Error('parts: the placed parts to fix together (I…), or all_except: [the ones left out] — get_assembly lists them.');
+        const r = this.fixGroup(ids, { to: to || null, name: name || null });
+        return { text: `${r.group.id} 🔗 “${r.group.name}”: ${r.parts.length} part(s) fixed onto ${to || r.base} as they are now — they move with it as one body (drive_mechanism, move_free, a drag); remove_joint {id: "${r.group.id}"} dissolves it.${r.skipped.length ? ` Left out: ${r.skipped.join(', ')} (📌 fixed, or ${r.base} hangs on them).` : ''} ${JSON.stringify({ groups: this.summary().groups })}` };
       },
       lock_motion: async ({ part, motion = 0 }) => {
         need();

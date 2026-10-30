@@ -817,7 +817,12 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     // ---------------------------------------------------------------- joints and measuring (assembly)
     edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked, name, ratio }) => {
       need('assembly', 'Joints are in an assembly');
-      const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id), cp = (a.doc.couplings || []).find((x) => x.id === id);
+      const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id), cp = (a.doc.couplings || []).find((x) => x.id === id), grp = (a.doc.groups || []).find((x) => x.id === id);
+      if (grp) { // 🔗 a rigid group: its name
+        if (String(name || '').trim()) grp.name = String(name).trim();
+        a.commit();
+        return ok(a.summary().groups.find((g) => g.id === id));
+      }
       if (cp) { // ⚙ a coupling: its ratio, the way round, its name
         if (ratio !== undefined) { if (!(+ratio > 0)) throw new Error('ratio is a number above 0.'); cp.ratio = +ratio; }
         if (flip !== undefined) { if (flip) cp.flip = !cp.flip; }
@@ -852,6 +857,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     remove_joint: async ({ id }) => {
       need('assembly', 'Joints are in an assembly');
       const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id);
+      if (!m && (a.doc.groups || []).some((g) => g.id === id)) { // 🔗 a rigid group dissolved: its parts stay
+        const n = a.groupParts(id).length;
+        a.dissolveGroup(id);
+        return ok(`Group ${id} dissolved — its ${n} parts stay where they are, each free again (or held by its own other joints).`);
+      }
       if (!m && (a.doc.couplings || []).some((c) => c.id === id)) { // ⚙ a coupling: the parts turn on their own again
         a.doc.couplings = a.doc.couplings.filter((c) => c.id !== id);
         a.commit();

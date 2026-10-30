@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔗 Many parts fixed together: one rigid group (2026-10-30)** (the AI's request: ~60 gate parts had to follow the
+  frame — 60 rigid snap_faces, unreadable). doc.groups [{id R…, name}]; each member a 🔗 rigid joint onto the base
+  with `group` (fr: 2), so placeAll / the flat engine / drag / loops treat them as before; the members are derived
+  from the joints (groupParts: base first), tidyGroups drops empty ones. fixGroup(ids, {to, name}): the base `to`
+  ("I60" or "I37/I14" — a part inside a sub-assembly: the group turns with it), else a 📌 one, else the one joined
+  outside, else the biggest; 📌 parts and parts the base hangs on left out; a member's own rigid joints / old group
+  replaced; faces: the biggest of a part that does not move inside its sub-assembly; nothing moves, one commit.
+  The joints panel: one row (gRow: "Brána (60 dílů)", double-click renames, ◆ chooses its parts, ✕ dissolveGroup);
+  the suggestion for several chosen parts "🔗 Spojit pevně (n dílů)" (an inner row among them: the base). The AI:
+  fix_together {parts | all_except, to, name}; get_assembly `groups` {id, name, base, parts} (their joints left out
+  of `joints`); edit_joint {id: R…, name}; remove_joint {id: R…} dissolves. Not done: 📦 a sub-assembly made from the
+  chosen parts (keeping their places) — a follow-up. Tests: tools/e2e_assembly_groups.py (new), e2e_agent.
+
 - **Several parts chosen in an assembly: Ctrl / Shift+click (2026-10-30)** (the owner: "selecting parts must be very
   easy"). One chosen set for the list and the view: `sel` / `sel2` (the pair: the joints between two) as before, and
   `picks` — the rows ("I3", "I3/I2" inside a sub-assembly) when more are chosen; sel / sel2 are setters that drop the
