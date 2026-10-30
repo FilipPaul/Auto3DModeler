@@ -289,6 +289,26 @@ try:
     check({"I2", "I4", "I5"} <= moved and w < 0.05 and sp["off"] < 1e-3 and len(sp["scales"]) > 3, f"▶: {sorted(moved)} moved (the piston and both balls), joints off {w:.4f} mm, the spring drawn at the piston ({sp['off']:.5f} off, {len(sp['scales'])} lengths)")
     d.save_screenshot(f"{OUT}/demo_pump.png")
 
+    # the big assemblies: listed, each opens with all its parts built (the gear train: one mechanism of 30 moving parts)
+    files = [x["file"] for x in listing]
+    big = {"velka-sestava-150.a3d": (97, None), "velka-sestava-500.a3d": (521, None), "soukoli-30-kol.a3d": (31, 30)}
+    check(all(f in files for f in big) and len(listing) == 11, f"11 demos, the three big assemblies among them: {files}")
+    for f, (n, moving) in big.items():
+        if f not in files:
+            continue
+        d.find_element(By.ID, "openBtn").click()
+        time.sleep(0.2)
+        js("document.getElementById('demoBtn').click()")
+        wait("return document.querySelectorAll('.demos [data-demo]').length")
+        t0 = time.time()
+        js("document.querySelector(`.demos [data-demo='${arguments[0]}'] [data-open]`).click()", f)
+        wait(f"return window.__app.state.workspace === 'assembly' && {A}.doc.instances.length === {n} && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body) && {A}.view.meshes.length === {n}", 180)
+        took = time.time() - t0
+        unmet = js(f"return {A}.unmet().length")
+        parts = js(f"return {A}.mech.list.map(m => m.parts.length)") if moving else None
+        check(unmet == 0 and (not moving or parts == [moving]), f"{f}: {n} placed parts drawn in {took:.1f} s, {unmet} joints not held{f', a mechanism of {parts} parts' if moving else ''}")
+        d.save_screenshot(f"{OUT}/demo_{f[:-4]}.png")
+
     # the demo files did not change; Czech
     after = {x["file"]: demo_bytes(x["file"]) for x in listing}
     check(after == before, "the demo files on the server are as they were")

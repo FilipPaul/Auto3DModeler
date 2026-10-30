@@ -12,6 +12,8 @@ project as the app saves it (an .a3d package with its iso picture), with its "de
   ridici-box-s-motorem     a box with a PCB and a motor joined by a 🔌 4-wire harness; the motor turns a pulley
   portalovy-pojezd         a carriage on a beam with a stepper: its 🔒 cable in 📎 P-clips through an igus ⛓ energy chain
   otocne-rameno-s-kabelem  an arm on a hinge with a sensor: 4 loose wires, a ➰ loop across the hinge, 📎 tie mounts
+  velka-sestava-150        a machine of 145 placed parts (tools/make_big_assembly.py a), velka-sestava-500: 521 placed
+                           parts, mostly fasteners (b), soukoli-30-kol: a gear train of 30 discs (c)
 """
 import json
 import math
@@ -494,5 +496,28 @@ try:
             "order": 7, "name": "Swinging arm with a cable", "name_cs": "Otočné rameno s kabelem",
             "text": "An arm on a hinge (⚙ −90 … +90°) with a SICK sensor at its tip, wired with 4 loose wires (brown, blue, black, white) from the controller: a ➰ loop of slack arching across the hinge onto the arm, two adhesive 📎 tie mounts (HellermannTyton MB3A) on the arm. ▶ swings the arm — the loop takes up the motion and never goes taut; the wires keep clear of the box and the arm.",
             "text_cs": "Rameno na čepu (⚙ −90 … +90°) se snímačem SICK na konci, zapojeným 4 volnými vodiči (hnědý, modrý, černý, bílý) z řídicí jednotky: ➰ smyčka rezervy obloukem přes kloub na rameno, na rameni dvě samolepicí 📎 příchytky (HellermannTyton MB3A). ▶ rameno kývá — smyčka pohyb vyrovná a nikdy se nenapne; vodiče se vyhnou krabici i rameni."})
+    # ---------------------------------------------------------------- big assemblies (tools/make_big_assembly.py)
+    BIG = [("velka-sestava-150", "big150", {
+        "order": 8, "name": "Big assembly — 150 parts", "name_cs": "Velká sestava — 150 dílů",
+        "text": "A machine of 145 placed parts from 20 different ones: plates screwed to a base (M4 screws, washers and nuts through it), columns carrying a sub-assembly each (a plate with M3 screws), two bearing blocks with a 608 bearing and a shaft, L brackets, an imported STEP housing and standoffs — 105 joints (concentric, touch). Click, drag the two loose plates, hide parts, ⚠ collisions, the BOM: a big assembly stays quick.",
+        "text_cs": "Stroj ze 145 vložených dílů 20 druhů: desky přišroubované k základně (šrouby M4, podložky a matice skrz ni), sloupky s podsestavou na každém (deska se šrouby M3), dva ložiskové domky s ložiskem 608 a hřídelí, úhelníky, importovaná STEP skříň a distanční sloupky — 105 vazeb (soustředně, dotyk). Klikejte, táhněte dvě volné desky, skrývejte díly, ⚠ kolize, kusovník: velká sestava zůstává svižná."}),
+        ("velka-sestava-500", "big500", {
+            "order": 9, "name": "Big assembly — 500 parts (fasteners)", "name_cs": "Velká sestava — 500 dílů (spojovací materiál)",
+            "text": "A rack of 521 placed parts, as in real machines mostly fasteners: 40 plates on a base, each held by 4 M3 screws with a washer and a nut under the base — 160 of each, one part each placed many times. Turn the view, click and hide parts, check collisions.",
+            "text_cs": "Rám s 521 vloženými díly, jako u skutečných strojů většinou spojovací materiál: 40 desek na základně, každá na 4 šroubech M3 s podložkou a maticí pod základnou — od každého 160 kusů, jeden díl vložený mnohokrát. Otáčejte pohledem, klikejte a skrývejte díly, kontrolujte kolize."}),
+        ("soukoli-30-kol", "mech30", {
+            "order": 10, "name": "Gear train — 30 gears", "name_cs": "Soukolí — 30 kol",
+            "text": "30 discs on the pins of a base, each geared to the next (⚙ ratio 1, every other one turning the other way): one ⚙ Mechanism of 30 moving parts. ▶ plays it, the slider turns the first disc — the whole train follows.",
+            "text_cs": "30 kotoučů na čepech základny, každý zabírá do dalšího (⚙ převod 1, každý druhý se točí opačně): jeden ⚙ mechanismus s 30 pohyblivými díly. ▶ ho přehraje, posuvník otáčí prvním kotoučem — celé soukolí ho následuje."})]
+    if any(want(n) for n, _, _ in BIG):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import make_big_assembly as big
+        b = big.Builder(URL)
+        try:
+            for name, fn, meta in BIG:
+                if want(name):
+                    getattr(big, fn)(b, OUT, file=f"{name}.a3d", demo=meta)
+        finally:
+            b.quit()
 finally:
     d.quit()

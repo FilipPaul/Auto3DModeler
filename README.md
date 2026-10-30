@@ -405,7 +405,11 @@ energy chain whose moving end goes with the carriage, and a clip on the carriage
 the cable follows at the same length) and a swinging arm (*Otočné rameno s kabelem*: an arm on a hinge, −90 … +90°,
 with a SICK M12 sensor at its tip wired with 4 loose wires — brown, blue, black, white — from the controller; a ➰
 loop of slack arches across the hinge onto the arm, two MB tie mounts hold the wires on it — ▶: the loop takes up the
-swing, never taut, clear of the box and the arm). Each is listed with what it shows (in Czech or English) and opens
+swing, never taut, clear of the box and the arm). Three big assemblies show that size is no problem: *Velká sestava —
+150 dílů* (a machine of 145 placed parts from 20 different ones: plates, columns with a sub-assembly each, bearing
+blocks, brackets, a STEP housing, screws, washers and nuts — 105 joints), *Velká sestava — 500 dílů (spojovací
+materiál)* (521 placed parts, mostly fasteners: 40 plates with 4 screws, washers and nuts each) and *Soukolí — 30 kol*
+(a gear train of 30 discs, each geared to the next: one ⚙ mechanism of 30 moving parts). Each is listed with what it shows (in Czech or English) and opens
 as a new project — a copy, the demo stays as it is — on its assembly with ⚙ Mechanism ready (Czech motion names,
 ▶). The files are in `demos/` (built through the app by `tools/make_demos.py`) and go into the Windows build.
 

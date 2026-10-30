@@ -149,9 +149,13 @@ class Builder:
           A.commit();
           return { instances: A.doc.instances.length, joints: A.doc.mates.length, unmet: A.unmet().length };""")
 
-    def save(self, file, active_name, name):
+    def save(self, file, active_name, name, demo=None):
+        """The project as the app saves it (an .a3d with its picture); demo: its 🎬 record (auto3d/demos.py) — its Czech
+        name then the project's name."""
         proj = self.js("return window.__app.autosave.hooks.project()")
-        proj["project_name"] = name
+        proj["project_name"] = demo["name_cs"] if demo else name
+        if demo:
+            proj["demo"] = demo
         proj["active"] = {"part": next(p["id"] for p in proj["parts"] if p["name"] == active_name)}
         thumb = self.d.execute_async_script("window.__app.projectThumb().then(arguments[arguments.length - 1], () => arguments[arguments.length - 1](null))")
         req = urllib.request.Request(f"{self.url}/api/project/package", json.dumps({"project": proj, "thumbnail": thumb}).encode("utf-8"),
@@ -214,7 +218,7 @@ def ids(start=1, prefix="I"):
         k += 1
 
 
-def big150(b, out):
+def big150(b, out, file="big-150.a3d", demo=None):
     b.fresh()
     # ---- the parts (20 distinct with the two sub-assemblies)
     pb = [(x0, y0) for y0 in (20, 120) for x0 in (20, 160, 300)]  # Plate B corners on the base
@@ -304,10 +308,10 @@ def big150(b, out):
         b.js("const A = window.__app.assembly, it = A.doc.instances[A.doc.instances.length - 1]; it.matrix = arguments[0]; it.fixed = true", T(x, 280, 10))
     r = b.run("const A = window.__app.assembly; A.commit(); await A.refresh(); return { top: A.doc.instances.length, all: A.flatParts().length, joints: A.doc.mates.length, unmet: A.unmet().length }")
     print("  Machine:", r)
-    b.save(out / "big-150.a3d", "Machine", "Big assembly 150")
+    b.save(out / file, "Machine", "Big assembly 150", demo)
 
 
-def big500(b, out):
+def big500(b, out, file="big-500.a3d", demo=None):
     b.fresh()
     cells = [(x0, y0) for y0 in range(20, 800 - 79, 160) for x0 in range(20, 1200 - 99, 140)][:40]
     holes = [(-30, -20), (30, -20), (30, 20), (-30, 20)]
@@ -327,10 +331,10 @@ def big500(b, out):
         for hx, hy in holes:  # (the first two plates' fasteners joined; the rest only placed)
             fa.at(g, x0 + 40 + hx, y0 + 30 + hy, 16, 0, p, nearest(f["Plate A"]["faces"], ":hole:", 40 + hx, 30 + hy), "F2:end", joints=k < 2)
     print("  Rack:", b.done())
-    b.save(out / "big-500.a3d", "Rack", "Big assembly 500")
+    b.save(out / file, "Rack", "Big assembly 500", demo)
 
 
-def mech30(b, out, n=30):
+def mech30(b, out, n=30, file="mech-30.a3d", demo=None):
     b.fresh()
     xs = [-(n - 1) * 15 + 30 * k for k in range(n)]
     b.model("Gear base", [{"type": "sketch", "plane": "XY", "shapes": [{"rect": {"x": 0, "y": 0, "w": n * 30 + 30, "h": 60}}]}, {"type": "extrude", "sketch": "F1", "d": 10},
@@ -357,7 +361,7 @@ def mech30(b, out, n=30):
     for a, c in zip(discs, discs[1:]):
         b.call("snap_faces", type="gear", move={"part": c, "face": rim}, onto={"part": a, "face": rim})
     print(" ", b.call("drive_mechanism", driver={"part": discs[0], "motion": 0}, name="Gear train", to=30)[:160])
-    b.save(out / "mech-30.a3d", "Gear train", "Mechanism 30")
+    b.save(out / file, "Gear train", "Mechanism 30", demo)
 
 
 if __name__ == "__main__":
