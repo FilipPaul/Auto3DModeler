@@ -131,9 +131,10 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    itself (its ends leave their faces straight out, a span goes round a part in its way): `detour_points` says how
    many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those.
    Fix it down with a clip: `edit_harness {id, clip: {point: 3}}` (a point on a face; the snuggest clip for its Ø, the
-   point then on the clip's axis). Through an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
+   point then on the clip's axis; the clip is 🔗 fixed to that part, so it moves with a carriage or an arm). Through
+   an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
    one sized for the bundle is put in) — the cable then follows the chain's moving end. The chain itself (library_add
-   an e-chain: its first link at the fixed end — join it to the frame): `edit_chain {id: "C1", links, travel, moves_with:
+   an e-chain: its first link at the fixed end — join it to the frame; one put in by edit_harness chain is joined for you): `edit_chain {id: "C1", links, travel, moves_with:
    "I5"}` (the carriage: its moving end goes along as that part moves; null: its own travel), get_assembly `chains`
    (reach_ok false: add links). STEP / GLB exports and the assembly drawing include it.
    The joints' symbols in the view: `set_view {joints: false}` hides them (the bottom row's 🔗 Joints) — for a clean

@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📎 A clip goes with its part; a chain span keeps its end (2026-10-30)** (the demo builder's findings). clipAt:
+  placeClip, then 🔗 `fixTogether(clip, the point's part)` (HarnessTool.fixOn / hostOf: a clip's point -> the part
+  its clip is fixed to), then the point — one undo step (History.mark / squash: the steps since a mark made one).
+  chainSpan with a library chain: its first link 🔗 fixed to the span's first point's part, one undo step. A span
+  through a chain stores `enter` ('fixed' | 'moving': the end nearer its first point when routed, setSpanChain);
+  spanChains takes the path from that end; an older file's is decided once in assembly.load (settleEntries, before
+  the history's reset, from the placed matrices). shortLeads: an end on a face whose next point is nearer than
+  leadOf (max(r_min, Ø) + Ø) -> a quiet `.hn-note` there ("příliš blízko — kabel potřebuje rovný výstup X mm"),
+  get_assembly `too_close`. make_demos.py no longer joins its clips by hand. tools/e2e_harness.py 20–23 (the clip's
+  joint; a clip on the motor moved with it, on its axis, deleted with its joint, undo / redo as one step; a span over
+  the chain's whole travel in at the fixed end though the moving end came nearer, an older file decided on load; the
+  note and get_assembly too_close).
 - **🎬 Two cable demos (2026-10-30)** (the owner: two demos that show cable routing nicely). tools/make_demos.py builds
   them through the AI tools, from real library parts: *Portálový pojezd* (portalovy-pojezd) — a carriage on a 60 mm
   beam (a touch, its turn and cross slide locked: ⚙ "Pojezd vozíku" −150 … 150 mm), a NEMA 17 (rigid on it), an igus
@@ -20,7 +32,8 @@ Date: 2026-10-25. Written by the architect agent.
   sag through the arm's edge at ±90°), two MB3A tie mounts on the arm. Learned on the way: a clip is put in loose (no
   joint) — on a moving part the demo joins it 🔗 rigid to it, else it stays behind; a span through a chain takes the
   chain's path from the end nearer its first point — that point must stay nearer the fixed end over the whole travel;
-  a face end's lead is max(r_min, Ø) + Ø long — the next point (a clip) beyond it. tests/test_demos.py (their chain,
+  a face end's lead is max(r_min, Ø) + Ø long — the next point (a clip) beyond it (the first two fixed in the app
+  since, the third noted: see above). tests/test_demos.py (their chain,
   locks, clips, span, limits), tools/e2e_cable_demos.py (each opened from 🎬; at −max / 0 / max: no taut / through /
   still_hits / too-tight bend, 🔒 length and ➰ span kept, no overlaps; the chain's moving end with the carriage; ▶).
 - **AI tools for the new features (2026-10-30)** (the owner: after a batch of features the in-app AI must reach every

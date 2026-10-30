@@ -15,7 +15,9 @@ locked; ➰ a span's own length (the suggestion, one input): a loop that long, k
 edit_harness spans; the owner's case — ends on two pins' tops leave them straight up, the span round a tall block
 between them (Python checks the bundle clear of every body); 📎 a clip on a point (the suggestion): the point on its
 axis, deleted -> "the clip stays" ✕, undo; ⛓ a span through a chain put in from the library: the cable on its path, the
-moving end moved -> it follows, undo, edit_harness chain; saved + reloaded: the locks, spans, clips and chains kept holds
+moving end moved -> it follows, undo, edit_harness chain; a clip on a moving part 🔗 fixed to it (one undo step, it
+goes along, deleted with its joint, undo); a span keeps the chain end it enters over the full travel (an older file:
+decided on load); a point too close to a face end for its straight lead-out: a quiet note; saved + reloaded: the locks, spans, clips and chains kept holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -598,6 +600,7 @@ try:
       const V = a.view.camera.position.constructor, M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix), o = new V(...f.axis.o).applyMatrix4(M);
       return [window.__hnPoint(h, p).distanceTo(o), lib.id, lib.size];""")
     check("…the clip placed, the point on its axis (locked to it)", cid and on_axis[0] < 1e-3, [cid, on_axis])
+    check("…🔗 fixed to the PCB it was put on", js(f"return {A}.doc.mates.some(m => m.type === 'rigid' && m.move === '{cid}' && m.onto === 'I2')"), js(f"return {A}.doc.mates"))
     lst = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt .hn-pw")]
     check("…the list shows 📎 and the clip's part", lst and "📎" in lst[1] and cid in lst[1], lst)
     f = json.loads(call("get_assembly"))["harnesses"][-1]
@@ -651,6 +654,107 @@ try:
     check("edit_harness chain id null: not through it any more", not js(f"return {T}.get('{hid}').spans?.some(s => s.chain)"), r[:100])
     r = call("edit_harness", id=hid, chain={"span": 1, "id": ch})
     check("edit_harness chain {span, id}: through it again", js(f"return {T}.get('{hid}').spans?.[0]?.chain") == ch, r[:100])
+
+    # 21. 📎 a clip on a moving part (edit_harness clip on the motor's top): 🔗 fixed to it, one undo step; the motor
+    # moved: the clip goes with it, the point stays on its axis; the clip deleted: its joint goes too, undo: both back
+    r = call("add_harness", type="cable", d=6, points=[{"xyz": [100, -60, 60]}, {"part": "I3", "face": "F2:end"}, {"xyz": [220, 60, 70]}])
+    hm = r.split(" ")[0]
+    n_undo = js(f"return {A}.history.undo.length")
+    call("edit_harness", id=hm, clip={"point": 2})
+    mc = js(f"return {T}.get('{hm}').points[1].clip")
+    rig = js(f"return ({A}.doc.mates || []).filter(m => m.move === '{mc}').map(m => [m.type, m.onto])")
+    check("21. edit_harness clip on the motor: the clip 🔗 fixed to the motor (I3)", mc and rig == [["rigid", "I3"]], [mc, rig])
+    check("…one undo step (the clip put in, joined, the point on it)", js(f"return {A}.history.undo.length") == n_undo + 1, [n_undo, js(f"return {A}.history.undo.length")])
+
+    def axis_gap():
+        """How far the clip's harness point is off the clip's axis (world)."""
+        return js(f"""const a = {A}, h = {T}.get('{hm}'), p = h.points[1], it = a.inst(p.clip), lib = window.__app.project.parts.find(q => q.id === it.part).data.library;
+          const item = window.__cp.clipsFor(6).find(c => c.item.id === lib.id).item, f = window.__cp.clipFrames(item, lib.size, 6);
+          const M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix), V = a.view.camera.position.constructor;
+          const o = new V(...f.axis.o).applyMatrix4(M), dd = new V(...f.axis.d).transformDirection(M), w = window.__hnPoint(h, p).sub(o);
+          return w.sub(dd.multiplyScalar(w.dot(dd))).length();""")
+
+    c0, m0 = js(f"return {A}.inst('{mc}').matrix.slice(12, 15)"), js(f"return {A}.inst('I3').matrix.slice(12, 15)")
+    call("place_part", part="I3", x=m0[0] + 25)
+    time.sleep(0.6)
+    c1 = js(f"return {A}.inst('{mc}').matrix.slice(12, 15)")
+    check("…the motor moved 25 mm: the clip goes with it, the point stays on its axis", abs(c1[0] - c0[0] - 25) < 1e-6 and abs(c1[1] - c0[1]) < 1e-6 and axis_gap() < 1e-3, [c0, c1, axis_gap()])
+    js(f"{A}.removeInst('{mc}')")
+    time.sleep(0.5)
+    check("the clip deleted: its joint goes too", not js(f"return !!{A}.inst('{mc}') || ({A}.doc.mates || []).some(m => m.move === '{mc}' || m.onto === '{mc}')"))
+    js(f"{A}.history.go(-1)")
+    time.sleep(0.6)
+    check("…undo: the clip and its joint back", js(f"return !!{A}.inst('{mc}') && {A}.doc.mates.some(m => m.type === 'rigid' && m.move === '{mc}' && m.onto === 'I3')"))
+    for _ in range(2):
+        js(f"{A}.history.go(-1)")
+        time.sleep(0.6)
+    check("…undo again (the move, then the clip): the clip, its joint and the point's clip gone at once",
+          js(f"return !{A}.inst('{mc}') && !({A}.doc.mates || []).some(m => m.move === '{mc}') && !{T}.get('{hm}').points[1].clip"))
+    js(f"{A}.history.go(1)")
+    time.sleep(0.6)
+    check("…redo: all three back", js(f"return !!{A}.inst('{mc}') && {A}.doc.mates.some(m => m.move === '{mc}') && {T}.get('{hm}').points[1].clip === '{mc}'"))
+
+    # 22. ⛓ a span keeps the end of the chain it enters: its first point above the lower run, 100 mm along — the
+    # moving end is nearer it for some travels, the fixed end for others; it entered at the fixed end, it stays there
+    # over the full travel (no flip); an older file (no `enter`): decided on load, kept
+    rec = js(f"""const a = {A}, c = a.doc.chains.find(c => c.id === '{ch}'), r = window.__cp.travelRange({{ ...c.dims, links: c.links }});
+      return {{ min: r.min, max: r.max, R: c.dims.R }};""")
+    lo, hi = math.ceil(rec["min"]), math.floor(rec["max"])
+    js(f"const c = {A}.doc.chains.find(c => c.id === '{ch}'); c.travel = arguments[0]; {A}.commit()", lo)
+    time.sleep(0.5)
+    fr = js(f"""const a = {A}, it = a.inst(a.doc.chains.find(c => c.id === '{ch}').part), M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix), V = a.view.camera.position.constructor;
+      return [new V(0, 0, 0).applyMatrix4(M).toArray(), new V(1, 0, 0).transformDirection(M).toArray(), new V(0, 0, 1).transformDirection(M).toArray()];""")
+    Ap = [fr[0][i] + 100 * fr[1][i] + rec["R"] * fr[2][i] for i in range(3)]
+    Bp = [fr[0][i] + 320 * fr[1][i] + (2 * rec["R"] + 60) * fr[2][i] for i in range(3)]
+    hc = call("add_harness", type="cable", d=6, points=[{"xyz": Ap}, {"xyz": Bp}]).split(" ")[0]
+    call("edit_harness", id=hc, chain={"span": 1, "id": ch})
+    check("22. routed through the chain at its fixed end (the nearer one then): enter = fixed", js(f"return {T}.get('{hc}').spans[0].enter") == "fixed", js(f"return {T}.get('{hc}').spans"))
+
+    def entry(end=0):
+        """How far the route's first point after the span's first point is from the chain's end (0: fixed, -1: moving),
+        and whether the moving end is nearer the span's first point now."""
+        return js(f"""const a = {A}, h = {T}.get('{hc}'), r = window.__hn.routeAt(a, h), c = window.__hnChain('{ch}'), V = a.view.camera.position.constructor;
+          const q = r.points[r.where[0] + 1], E = new V(...c.points.at(arguments[0])), F = new V(...c.points[0]), M = new V(...c.points.at(-1)), A = window.__hnPoint(h, h.points[0]);
+          return [q.distanceTo(E), A.distanceTo(M) < A.distanceTo(F)];""", end)
+
+    flips, nearer_moving = [], 0
+    for k in range(9):
+        tr = lo + (hi - lo) * k / 8
+        js(f"const c = {A}.doc.chains.find(c => c.id === '{ch}'); c.travel = arguments[0]; {A}.draw()", tr)
+        e = entry()
+        nearer_moving += e[1]
+        if e[0] > 1e-6:
+            flips.append((tr, e[0]))
+    check("…over the full travel (9 places) it enters at the fixed end, no flip — though the moving end came nearer its first point",
+          not flips and nearer_moving > 0 and js(f"return {T}.get('{hc}').spans[0].enter") == "fixed", [flips, nearer_moving, lo, hi])
+    js(f"const c = {A}.doc.chains.find(c => c.id === '{ch}'); c.travel = 100; {A}.commit()")
+    old = js(f"const p = {A}.payload(); for (const h of p.harnesses) for (const s of h.spans || []) delete s.enter; return p;")
+    js(f"return {A}.load(arguments[0])", old)
+    wait(f"return Object.values({A}.bodies).every(b => b.body)", 60)
+    time.sleep(0.8)
+    check("…an older file (no enter): decided once on load (the moving end, nearer now), not an undo step",
+          js(f"return {T}.get('{hc}').spans[0].enter") == "moving" and entry(-1)[0] < 1e-6 and not js(f"return {A}.history.canUndo()"), js(f"return {T}.get('{hc}').spans"))
+    js(f"const c = {A}.doc.chains.find(c => c.id === '{ch}'); c.travel = arguments[0]; {A}.draw()", lo)
+    e = entry(-1)
+    check("…the chain moved far back (its fixed end nearer now): still in at the moving end", js(f"return {T}.get('{hc}').spans[0].enter") == "moving" and e[0] < 1e-6 and not e[1], e)
+
+    # 23. a cable leaving a face with its next point too close for its straight lead-out: a quiet note there
+    hl = call("add_harness", type="cable", d=6, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [0, 0, 0]}]).split(" ")[0]
+    p0 = js(f"const h = {T}.get('{hl}'); return window.__hnPoint(h, h.points[0]).toArray()")
+    need = js(f"return window.__hn.leadOf({T}.get('{hl}'))")
+    call("edit_harness", id=hl, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [p0[0] + 8, p0[1], p0[2] + 6]}])
+    js(f"{T}.sel = '{hl}'; {A}.render(); {A}.draw()")
+    time.sleep(0.6)
+    notes = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note")]
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hl)
+    check("23. the next point 10 mm from a face end: a quiet note “příliš blízko — kabel potřebuje rovný výstup X mm”",
+          any(f"příliš blízko — kabel potřebuje rovný výstup {round(need)} mm" in n for n in notes) and f.get("too_close", [{}])[0].get("lead_mm") == round(need, 1), [notes, f.get("too_close"), need])
+    d.save_screenshot(f"{OUT}/harness_12_lead_note.png")
+    call("edit_harness", id=hl, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [p0[0] + 8, p0[1], p0[2] + need + 30]}])
+    time.sleep(0.6)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hl)
+    check("…far enough: no note", not [e for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note") if "příliš blízko" in e.text] and "too_close" not in f, f.get("too_close"))
+    call("edit_harness", id=hl, remove=True)
 
     # 17. saved and reloaded: the locks kept
     keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")

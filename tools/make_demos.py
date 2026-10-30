@@ -424,8 +424,6 @@ try:
             call("edit_harness", id="H1", clip={"point": k, "item": "ht-hp-pclamp"})
         call("move_free", part="I3", motion=along, to=150)  # (the carriage's clip along +x: from the base's clip to the motor)
         call("edit_harness", id="H1", clip={"point": 4, "item": "ht-hp-pclamp"})
-        clip = js(f"return {A}.doc.harnesses[0].points[3].clip")  # (a clip is put in loose: joined, it goes with the carriage)
-        snap(type="rigid", move={"part": clip}, onto={"part": "I3"}, name="příchytka na vozíku")
         call("move_free", part="I3", motion=along, to=0)
         print(" ", call("edit_harness", id="H1", length_locked=True)[:1200])
         for i, color in (("I1", "#c9ced6"), ("I2", "#8f99a6"), ("I3", "#4a90d9"), ("I4", "#5b6470")):
@@ -481,9 +479,8 @@ try:
         print(" ", call("add_harness", type="wires", wires=[{"color": c, "d": 1.5} for c in ("brown", "blue", "black", "white")], name="Kabel snímače", points=[
             {"part": "I3", "face": "F4:end"}, {"part": "I2", "face": "F4:end"}, {"part": "I2", "face": "F6:end"},
             {"part": "I4", "face": top}])[:600])
-        for k in (2, 3):  # (a tie mount is put in loose: on the arm it goes with the arm)
+        for k in (2, 3):  # (a tie mount on the arm: fixed to it, it goes with the arm)
             call("edit_harness", id="H1", clip={"point": k, "item": "ht-mb-mount"})
-            snap(type="rigid", move={"part": js(f"return {A}.doc.harnesses[0].points[arguments[0]].clip", k - 1)}, onto={"part": "I2"}, name="příchytka na rameni")
         print(" ", call("edit_harness", id="H1", spans=[{"from": 1, "length": 150}])[:1200])
         for i, color in (("I1", "#c9ced6"), ("I2", "#e8a33d"), ("I3", "#5b6470")):
             call("set_look", part=i, color=color)

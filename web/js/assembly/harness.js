@@ -12,7 +12,8 @@
 //   "r_min": 30 (not said: the rule of thumb, autoRmin), "reserve": 5 (%), "name": "…", "length_locked": 400 (🔒 mm),
 //   "spans": [{"from": 2, "length": 140}] (➰ the cable between points from and from + 1 (0-based) that long: a loop of
 //   slack there; they win over length_locked; "chain": "C1" — ⛓ the span routed through that energy chain: the cable
-//   runs along the chain's path as it is laid out now, from the end nearer its first point),
+//   runs along the chain's path as it is laid out now; "enter": "fixed" | "moving" — the chain's end it goes in at,
+//   the one nearer its first point when it was routed (an older file's: when loaded), kept as the chain moves),
 //   "points": [{"inst": "I2", "at": [x, y, z] (in the part), "n": [x, y, z] (its face's normal: the cable lies on it;
 //   none: right there, a hole's centre), "face": "F2:end" (its name, for the list)} (🔒 locked on the part: it moves with
 //   it) | {"xyz": [x, y, z]} (in space) | {"xyz", "on": {inst, at, n, face}} (🔓 a point of a part unlocked: it stays in
@@ -201,12 +202,13 @@ const keyOf = (h, pts, n0, n1, chains = {}) => JSON.stringify([pts.map((p) => p.
 /** A harness's route through its world points (pts; n0 / n1: its ends' face normals): its leads, the detours worked
  *  out for these points, shaped to its radius with its spans' and its locked length's slack -> shape(…) with its
  *  bends, spans and taut spans told by the given points + {points (the points it runs through), where, dropped
- *  (spans whose own length a detour broke), clashes}. */
+ *  (spans whose own length a detour broke), clashes, short (points too close to the end on a face: shortLeads)}. */
 export function routeOf(h, pts, n0 = null, n1 = null, chains = {}) {
   const c = AVOID.get(h), hit = c && c.key === keyOf(h, pts, n0, n1, chains);
   const { E, where, tag } = hit ? { E: c.E.map((p) => p.clone()), where: c.where.slice(), tag: c.tag.slice() } : expandE(h, pts, n0, n1, chains);
   const r = routeE(h, E, where, hit ? c.clashes : [], stillOf(tag));
   r.detours = hit ? c.detours : 0;
+  r.short = shortLeads(h, pts, n0, n1, E, tag);
   return r;
 }
 
@@ -264,15 +266,50 @@ function inputsAt(asm, h, extra = []) {
 }
 
 /** ⛓ The spans routed through an energy chain -> {k: [Vector3]}: the chain's centre line as it is laid out now, from
- *  the end nearer the span's first point. */
+ *  the end the span enters (its `enter`; none: the nearer one to its first point). */
 function spanChains(asm, h, pts) {
   const out = {};
   for (const s of h.spans || []) {
     const a = pts[+s.from], r = s.chain && a && pts[+s.from + 1] ? chainRoute(asm, s.chain) : null;
     if (!r?.points?.length) continue;
     const P = r.points.map((p) => V(p));
-    out[+s.from] = a.distanceTo(P[0]) <= a.distanceTo(P[P.length - 1]) ? P : P.reverse();
+    out[+s.from] = (s.enter || nearerEnd(a, P)) === 'fixed' ? P : P.reverse();
   }
+  return out;
+}
+
+/** ⛓ The end of a chain's path P (fixed end first) nearer point a: 'fixed' | 'moving'. */
+const nearerEnd = (a, P) => (a.distanceTo(P[0]) <= a.distanceTo(P[P.length - 1]) ? 'fixed' : 'moving');
+
+/** ⛓ The end of chain `chain` span k of harness h enters, as they are placed now (the nearer one to its first point)
+ *  -> 'fixed' | 'moving' | null (the chain or the point is gone). */
+function enterNow(asm, h, k, chain) {
+  const p = h.points?.[k], it = p?.inst && asm.inst(p.inst); // (as placed, as the chain is: not as drawn — a view still showing the last assembly)
+  const a = p && (p.xyz || it) && pointAt(asm, h, p, it ? new THREE.Matrix4().fromArray(it.matrix) : null), r = chainRoute(asm, chain);
+  return a && r?.points?.length ? nearerEnd(a, r.points.map((q) => V(q))) : null;
+}
+
+/** ⛓ An opened assembly's spans through a chain with no `enter` (an older file): the end decided once, as the parts
+ *  stand when loaded, and kept from then on (the chain moving does not flip the cable's way through it). */
+export function settleEntries(asm) {
+  for (const h of asm.doc.harnesses || []) {
+    for (const s of h.spans || []) {
+      if (!s.chain || s.enter) continue;
+      const e = enterNow(asm, h, +s.from, s.chain);
+      if (e) s.enter = e;
+    }
+  }
+}
+
+/** A cable leaving a face goes straight out of it (leadOf, at least max(r_min, Ø) + Ø) before it bends: the points
+ *  closer than that to the end they follow (pts: its given points, E / tag: the route's points) -> [{p (that point,
+ *  world), need (mm)}] — a quiet note there, not a kink. */
+export function shortLeads(h, pts, n0, n1, E, tag) {
+  const out = [], need = leadOf(h), m = pts.length;
+  if (m < 2) return out;
+  const near = (a, i) => { if (i >= 0 && i < E.length && a.distanceTo(E[i]) < need - 1e-6) out.push({ p: E[i].clone(), need }); };
+  if (n0) near(pts[0], tag.findIndex((x, i) => i > 0 && x !== 'lead'));
+  if (n1) near(pts[m - 1], tag.map((x, i) => (i < tag.length - 1 && x !== 'lead' ? i : -1)).reduce((a, b) => Math.max(a, b), -1));
   return out;
 }
 
@@ -678,6 +715,7 @@ export function harnessFacts(asm, h) {
     ...(r.detours ? { detour_points: r.detours } : {}), ...(r.dropped.length ? { spans_not_kept: r.dropped.map((k) => `${k + 1}–${k + 2}`) } : {}),
     ...(r.clashes.length ? { still_hits: [...new Set(r.clashes.map((c) => c.inst))] } : {}),
     ...(r.bends.some((b) => !b.ok) ? { bends_too_tight: r.bends.filter((b) => !b.ok).map((b) => ({ point: b.at + 1, r_mm: +b.r.toFixed(1), min_mm: rMinOf(h) })) } : {}),
+    ...(r.short.length ? { too_close: r.short.map((x) => ({ xyz: x.p.toArray().map((v) => +v.toFixed(2)), lead_mm: +x.need.toFixed(1) })) } : {}),
     ...(tool?.through.get(h.id)?.length ? { through_parts: tool.through.get(h.id), through_at: (tool.throughAt?.get(h.id) || []).map((c) => ({ part: c.inst, span: `${c.span}–${c.span + 1}`, xyz: c.at })) } : {}) };
 }
 
@@ -769,12 +807,29 @@ export class HarnessTool {
   /** ➰ Span `from` (to the next point) given its own length (null: none) — one undo step. */
   setSpan(id, from, length) { this.set(id, (x) => spanSet(x, from, { length: length > 0 ? +(+length).toFixed(1) : null })); }
 
-  /** ⛓ Span `from` routed through chain `chain` (its id C…; null: not any more) — one undo step. */
-  setSpanChain(id, from, chain) { this.set(id, (x) => spanSet(x, from, { chain: chain || null })); }
+  /** ⛓ Span `from` routed through chain `chain` (its id C…; null: not any more) — one undo step. It enters the chain at
+   *  the end nearer its first point now, and keeps that end as the chain moves (`enter`). */
+  setSpanChain(id, from, chain) {
+    const h = this.get(id), enter = chain && h ? enterNow(this.asm, h, from, chain) : null;
+    this.set(id, (x) => spanSet(x, from, { chain: chain || null, enter }));
+  }
+
+  /** The part a point of a harness sits on (a clip's point: the part that clip is fixed to) or null (in space). */
+  hostOf(p) {
+    if (!p?.inst) return null;
+    return (p.clip && (this.asm.doc.mates || []).find((m) => m.move === p.clip && m.type === 'rigid')?.onto) || p.inst;
+  }
+
+  /** 🔗 A clip or a chain's first link just put in on part `host`, fixed to it (it goes with it — a carriage, an arm);
+   *  nothing when there is none. */
+  fixOn(inst, host) {
+    if (!host || host === inst || !this.asm.inst(host)) return;
+    try { this.asm.fixTogether(inst, host); } catch { /* (held where it is put) */ }
+  }
 
   /** 📎 A clip on point i of harness h (it lies on a part's face): choice (clipsFor's; default the snuggest for its
-   *  bundle) placed there with the cable along its way, the point then on the clip's axis, locked to the clip. ->
-   *  the clip's placed part (I…). */
+   *  bundle) placed there with the cable along its way, 🔗 fixed to that part (it goes with it), the point then on the
+   *  clip's axis, locked to the clip — one undo step. -> the clip's placed part (I…). */
   async clipAt(h, i, choice = null) {
     const a = this.asm, p = h.points?.[i];
     if (!p?.inst || !p.n) throw new Error(t('A clip goes on a point lying on a part\'s face.'));
@@ -782,29 +837,34 @@ export class HarnessTool {
     if (!c) throw new Error(t2('No clip in the library holds a bundle of Ø{d} mm.', { d: num(D) }));
     const pts = h.points.map((q) => pointAt(a, h, q)), w = pts[i], n = normalAt(a, p), face = w.clone().addScaledVector(n, -lift(h));
     const dir = (pts[i + 1] || w).clone().sub(pts[i - 1] || w);
-    const r = await placeClip(a, c, face, n, dir.lengthSq() > 1e-9 ? dir : null, { d: D });
+    const mark = a.history.mark(), r = await placeClip(a, c, face, n, dir.lengthSq() > 1e-9 ? dir : null, { d: D });
+    this.fixOn(r.inst, this.hostOf(p));
     const o = r.axis ? V(r.axis.o) : face;
     this.editPts(h, (P) => { P[i] = { inst: r.inst, at: localOf(a, r.inst, o), clip: r.inst }; });
+    a.history.squash(mark);
     return r.inst;
   }
 
   /** ⛓ Span k of harness h routed through chain `id` (C… or its first link I…); none given: one from the library put in,
-   *  sized for its bundle (its opening, its bend ≥ the harness's radius), its fixed end at the span's first point ->
-   *  the chain's id. */
+   *  sized for its bundle (its opening, its bend ≥ the harness's radius), its fixed end at the span's first point and
+   *  🔗 fixed to the part that point is on — one undo step -> the chain's id. */
   async chainSpan(h, k, id = undefined) {
     const a = this.asm, P = h.points || [];
     if (!(k >= 0 && k + 1 < P.length)) throw new Error(t2('A span runs from a point to the next: 1 … {n}.', { n: P.length - 1 }));
     if (id === null) { this.setSpanChain(h.id, k, null); return null; }
     let rec = id ? chainRec(a, id) : null;
     if (id && !rec) throw new Error(t2('No energy chain “{id}” in the assembly.', { id }));
+    const mark = a.history.mark();
     if (!rec) {
       const c = chainsFor(outerD(h), rMinOf(h))[0];
       if (!c) throw new Error(t2('No energy chain in the library takes a bundle of Ø{d} mm bent at R {r} mm or more.', { d: num(outerD(h)), r: num(rMinOf(h)) }));
       const A = pointAt(a, h, P[k]), B = pointAt(a, h, P[k + 1]), placed = await placeChain(a, c, A, B.clone().sub(A));
       rec = addChain(a, placed.inst, placed.dims);
+      this.fixOn(placed.inst, this.hostOf(P[k]));
       drawChains(a);
     }
     this.setSpanChain(h.id, k, rec.id);
+    a.history.squash(mark);
     return rec.id;
   }
 
@@ -1142,6 +1202,7 @@ export class HarnessTool {
         label('hn-warn', `⚠ ${t2('R {r} mm — no room for {min}', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
       });
       if (taut) label('hn-warn hn-taut', `⚠ ${tautText(taut)}`, curve.getPoint(0.5));
+      if (!extra.length) for (const x of r.short) label('hn-note', t2('too close — the cable needs a straight lead-out of {x} mm', { x: num(Math.round(x.need)) }), x.p); // (quiet: where the next point is)
       const marks = [...(this.throughAt?.get(h.id) || []).map((c) => ({ at: c.at, name: c.name })), ...r.clashes.filter((c, i, all) => all.findIndex((x) => x.inst === c.inst) === i && !(this.throughAt?.get(h.id) || []).some((x) => x.inst === c.inst)).map((c) => ({ at: c.at, name: `${this.asm.partName(this.asm.inst(c.inst)?.part)} ${c.inst}` }))];
       for (const c of marks) label('hn-clash', `⚠ ${t2('the cable hits {part}', { part: c.name })}`, V(c.at)); // (where it could not get clear of a part)
       const own = extra.length ? routeAt(this.asm, h).length : r.length; // (its own length: not to the point under the mouse)

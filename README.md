@@ -1221,17 +1221,20 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   it, pulled too far it goes straight with *⚠ Úsek 3–4 je napnutý — krátký o 12 mm*. The spans' lengths win over a
   locked length of the whole cable (the panel says so).
   **It keeps clear of the parts**: an end on a face leaves it straight out (as far as its bend needs), so the bundle
-  never sits in the part it starts on, and where a span would go through or graze another part the cable goes round
+  never sits in the part it starts on (a next point closer than that straight lead-out gets a quiet note there:
+  *příliš blízko — kabel potřebuje rovný výstup 36 mm*, rather than a kink), and where a span would go through or graze another part the cable goes round
   it — a point of its own put in beside the part (and moved further out until the bend clears it), your clicked
   points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
   once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
   sits at the spot. A span with its own length that needs a detour loses that length (the AI is told).
   **📎 Clip here**: choose a point lying on a face (click it, or 📎 in its row) and the suggestions offer the clips of
   the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); the clip goes on the face along
-  the cable and the point moves onto the clip's axis, locked to it. Deleting the point leaves the clip with *✕ Odebrat
+  the cable, 🔗 fixed to the part it was put on (on a carriage or an arm it goes along), and the point moves onto the
+  clip's axis, locked to it — one step, one Ctrl+Z. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
   i ji* in the panel. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
-  its bend ≥ the minimum radius) — put in at the span's first point. The cable then runs the chain's path as it is laid
+  its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
+  cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid
   out, so it follows the moving end (its travel slider, a part it moves with, ▶), and its length counts the chain. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
