@@ -148,7 +148,12 @@ the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole 
 **Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
 snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,
 centres (and ◔ quadrants of circles, once switched on — off by default, so a click on a rim takes the rim). The row bottom left switches them: Snap (what Measure and a click catch) and
-Hover (⟋ Edges, • Snap points); both are remembered. Hovering stays quick on big parts and assemblies: the 44 MB board
+Hover (⟋ Edges, • Snap points); both are remembered. What lights up is what a click takes: a snap point marked
+under the mouse (its name beside it, within a few px) is picked before the face under it — also a quadrant or the
+centre on a round face or near its rim (in an assembly the table then says e.g. *Quadrant Ø4.76* and offers 📏 Measure
+from here, ⧉ Copy its coordinates, ◎ Select the round face); a click away from the points picks the face. A ring
+smaller than about 9 px (radius) on the screen — a thin pin seen from afar — shows no centre / quadrant dots and a
+click there picks its round face; hidden (👁) parts are not snapped to. Hovering stays quick on big parts and assemblies: the 44 MB board
 (almost a million triangles) or a model with real threads answers the mouse at once instead of freezing for seconds —
 the part is searched through a tree of its triangles, built while the app is idle after it opens.
 

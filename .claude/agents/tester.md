@@ -141,6 +141,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_slider_grow.py <url> <dir>` covers soft vs hard ranges (pattern count 10 typed past its "2 – 4+": kept,
    the slider grown, a warning, 10 holes' volume; the label editor takes 24; fillet 15 held at ≈ 9.94 saying why, in
    the panel and the label editor; draft 50° held at 44.5°).
+   `tools/e2e_snap_click.py <url> <dir>` covers a shown snap point being what a click takes (Quadrants on): in an
+   assembly a boss' quadrant, its centre and a block corner clicked 2 px off -> that point (the table "A quadrant Ø16",
+   Measure from here, Copy its coordinates), not the face; the hovered face's dots; the face away -> the face; a hidden
+   part's point not taken; an imported STEP's (nist_ctc_01) hole quadrant; the same three in the 3D model workspace.
    `tools/e2e_select_from_point.py <url> <dir>` covers a snap point offering what it belongs to (a hole's centre:
    Select the hole M5 in the top 3 -> its Type / Size table, Select the circle -> the edge's; a pocket: the round face;
    an edge's middle: Select the edge; a sketch circle's centre; an assembly hole's centre -> Concentric).

@@ -31,13 +31,13 @@ export function datumFrame(plane) {
 }
 
 /** The snap points of edges: an edge's ends (corner), its middle (midpoint), a round edge's centre (centre) —
- *  matrix: where the part is placed; kinds: the snap filters -> [{point, kind}]. */
+ *  matrix: where the part is placed; kinds: the snap filters -> [{point, kind, r?}] (r: a centre's / quadrant's ring radius). */
 export function snapPoints(edges, matrix = null, kinds = null) {
   const key = `${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
   const memo = edges && memoOf(SNAPS, edges), had = memo?.get(key);
-  if (had) return had.map(({ point, kind }) => ({ point: point.clone(), kind }));
+  if (had) return had.map((q) => ({ ...q, point: q.point.clone() }));
   const pts = pointsOf(edges, matrix, kinds);
-  if (memo) keep(memo, key, pts.map(({ point, kind }) => ({ point: point.clone(), kind })));
+  if (memo) keep(memo, key, pts.map((q) => ({ ...q, point: q.point.clone() })));
   return pts;
 }
 const SNAPS = new WeakMap(); // edge list -> key -> pts (hovering asks for the same points again and again)
@@ -52,7 +52,7 @@ function memoOf(memos, edges) {
 const keep = (memo, key, v) => { if (memo.size >= 1024) memo.clear(); memo.set(key, v); return v; };
 
 function pointsOf(edges, matrix, kinds) {
-  const out = [], push = (point, kind) => { if (!kinds || kinds[kind]) out.push({ point, kind }); };
+  const out = [], push = (point, kind, r) => { if (!kinds || kinds[kind]) out.push(r ? { point, kind, r } : { point, kind }); };
   for (const e of edges || []) {
     const n = e.pts.length;
     if (n < 6) continue;
@@ -62,16 +62,17 @@ function pointsOf(edges, matrix, kinds) {
       const c = new THREE.Vector3();
       for (let k = 0; k < n - 3; k += 3) c.add(new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]));
       c.multiplyScalar(3 / (n - 3));
+      const r0 = Math.hypot(e.pts[0] - c.x, e.pts[1] - c.y, e.pts[2] - c.z); // (its radius: how big the ring is on the screen says whether its points are taken)
       if (!kinds || kinds.quadrant) { // its four quadrant points: along the world axis lying best in its plane, and across
         const a = new THREE.Vector3(e.pts[0], e.pts[1], e.pts[2]).sub(c), b = new THREE.Vector3(e.pts[3 * Math.floor((n / 3 - 1) / 4)], e.pts[3 * Math.floor((n / 3 - 1) / 4) + 1], e.pts[3 * Math.floor((n / 3 - 1) / 4) + 2]).sub(c);
         const nn = a.clone().cross(b).normalize(), rad = a.length();
         if (nn.lengthSq() > 0.5 && rad > 0) {
           const ax = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)].sort((p, q) => Math.abs(p.dot(nn)) - Math.abs(q.dot(nn)))[0];
           const u = ax.clone().addScaledVector(nn, -ax.dot(nn)).normalize().multiplyScalar(rad), w = nn.clone().cross(u);
-          for (const d of [u, w, u.clone().negate(), w.clone().negate()]) { const q = c.clone().add(d); out.push({ point: matrix ? q.applyMatrix4(matrix) : q, kind: 'quadrant' }); }
+          for (const d of [u, w, u.clone().negate(), w.clone().negate()]) { const q = c.clone().add(d); out.push({ point: matrix ? q.applyMatrix4(matrix) : q, kind: 'quadrant', r: rad }); }
         }
       }
-      push(matrix ? c.applyMatrix4(matrix) : c, 'centre');
+      push(matrix ? c.applyMatrix4(matrix) : c, 'centre', r0);
       continue;
     }
     if (e.faces.length < 2) continue; // a seam on a round face: not a real edge
@@ -114,12 +115,23 @@ export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = 
     for (let k = 0; k < pts.length; k++) {
       if (scr[k * 3 + 2] > 1) continue; // (behind the camera)
       const d = Math.hypot(scr[k * 3] - clientX, scr[k * 3 + 1] - clientY);
-      if (d < bd && (!seen || seen(pts[k].point))) { bd = d; best = { point: pts[k].point.clone(), kind: pts[k].kind, inst }; }
+      if (d < bd && (!seen || seen(pts[k].point))) { bd = d; best = { point: pts[k].point.clone(), kind: pts[k].kind, inst, ...(pts[k].r ? { r: pts[k].r } : {}) }; }
     }
   }
   return best;
 }
 const SNAP_SCREEN = new WeakMap(); // edge list -> its placement and filters -> {key, pts, scr: x, y, z on the screen per point}
+
+/** How big (px, its radius) the ring a centre / quadrant s ({point, r}) belongs to looks on the screen; Infinity for
+ *  another snap point. A small ring's points are neither shown nor taken: its few px would be all snap points, and a
+ *  click there means its round face. */
+export function ringPx(s, camera, rect) {
+  if (!s?.r) return Infinity;
+  camera.updateMatrixWorld();
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize().multiplyScalar(s.r);
+  const a = s.point.clone().project(camera), b = s.point.clone().add(up).project(camera);
+  return Math.hypot((b.x - a.x) / 2 * rect.width, (b.y - a.y) / 2 * rect.height);
+}
 
 /** The camera as it looks now (its place, its lens) and the canvas: a key that changes when anything moves on screen. */
 export function camKey(camera, rect) {
@@ -1086,7 +1098,7 @@ export class ModelView {
     }
     if (ref) s = { point: ref.point.clone(), kind: 'point', id: ref.id, name: ref.name };
     if (!s && !h) return null;
-    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null, ...(s?.id ? { id: s.id, name: s.name } : {}) };
+    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null, ...(s?.id ? { id: s.id, name: s.name } : {}), ...(s?.r ? { r: s.r } : {}) }; // (r: a ring's radius)
   }
 
   /** ⊕ The origin (0, 0, 0) — its x / y / z arrows are shown — within px of the mouse on the screen: how far (px), or
