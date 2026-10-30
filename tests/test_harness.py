@@ -131,6 +131,8 @@ class TestRoute(unittest.TestCase):
             self.assertGreaterEqual(min(circum_r(*s[k - 1:k + 2]) for k in range(1, len(s) - 1)), R * (1 - 1e-3))
             self.assertLess(math.dist(s[0], moved[0]) + math.dist(s[-1], moved[-1]), 1e-9)
             self.assertLess(min(q[2] for q in s), 100)  # (it sags: below its lowest point)
+        for few in ([], [[1, 2, 3]], [[1, 2, 3], [1, 2, 3]]):  # (fewer than two points: nothing to shape, no error)
+            self.assertEqual(H.shape(few, R, total=400)["length"], 0.0)
         far = [[-300, 0, 100]] + pts[1:]
         straight = H.route(far, R)["length"]
         r = H.shape(far, R, total=400)

@@ -40,7 +40,19 @@ Date: 2026-10-25. Written by the architect agent.
   minus the outgoing one's, square to the span, + a little −z), h = λ × the span's length, λ bisected until the
   shaped length is the locked one —, the fillet routing above rounds them; shorter than the straight route: straight,
   `taut` {short} — drawn red, a note in the view and the panel, a toast once (as a collision), get_assembly `taut`.
-  The step's `length` gives STEP / GLB the same. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  The step's `length` gives STEP / GLB the same.
+  Points (2026-10-30, the owner + an app report on placing them exactly): a point clicked on a face keeps its `face`
+  name; 🔒 locked = {inst, at, n, face} (moves with the part), 🔓 = {xyz, on: {inst, at, n, face}} (stays in space;
+  lockPoint sticks it back where it is then); `adopt` takes a loaded point in space lying on a face (6 axis rays, Ø/2 +
+  0.5 ± 0.75 off) as locked to it. The panel's points list (pointsList / pointsHandlers: part · face, x / y / z typed,
+  ↑ ↓ ✕, ＋ between, 🗑 all, the hovered row lit — this.hl), editPts for every change of the points. candidate():
+  a flat face with a cylinder of the part square on it round its centre (axisOf: a pin's top, a ring) snaps to its
+  centre (frame.o) before a hole's centre snap; Alt + click takes the face behind (altDepth; again at the same spot:
+  one further; its outward normal); ◎ centreItem moves a point to its face's centre / onto a hole's axis. checkThrough
+  keeps the first spot inside each part and the span it is on (throughAt: ⚠ label there, get_assembly `through_at`).
+  The panel's length is the cable's own (the next point's preview "· s dalším bodem …" beside it; no preview with the
+  mouse off the view — it made the label jump on ✎). AI: get_assembly `point_list` [{n, part, locked, face, xyz}],
+  edit_harness lock_points / unlock_points. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
   turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
   against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
   10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
@@ -50,7 +62,7 @@ Date: 2026-10-25. Written by the architect agent.
   (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
   tests/test_harness.py (straight, L = straight parts + πR/2, an L sampled G1 with curvature radius ≥ R, a Z / two
   45° turns shaped to R, only a U turn flagged, 🔒 400 mm kept ± 0.5 with the ends moved closer (curvature ≥ R,
-  sagging), taut with the shortfall moved apart, a locked cable's solid π(d/2)²·L + STEP, bundle Ø 1 / 3 / 7, cable volume
+  sagging), taut with the shortfall moved apart, a locked cable's solid π(d/2)²·L + STEP, fewer than 2 points, bundle Ø 1 / 3 / 7, cable volume
   π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
   Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
   through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the

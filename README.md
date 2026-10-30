@@ -1149,7 +1149,17 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   parts with a real cable: when its ends move (a part dragged, ▶ a mechanism, a slider) the cable keeps that length —
   the slack sags in a bow out of its corners (down where nothing else decides), still at the bend radius; pulled
   further than it reaches it goes straight and **red**, with *⚠ Kabel je napnutý — krátký o 12 mm* in the view, the
-  panel and a message, like a collision. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  panel and a message, like a collision.
+  **The points list** (*Body* in the panel) shows every point in order — its part and face (*Krabice I1 · F2:end*)
+  or *volný bod* — with x / y / z you can type, ↑ ↓ to reorder, ✕, **＋ between two rows** for a point in the middle,
+  and *🗑 Smazat všechny body*; the row under the mouse lights its point in the view. A point on a part is **🔒
+  locked** to it (it moves with it: a drag, ▶, a slider); 🔓 leaves it where it is in space, 🔒 again sticks it to the
+  part from there. Older files: a point in space lying on a face is taken as locked to that part. A click on a **round
+  face** (a pin's top, a ring round a hole) puts the point on its axis, so the length holds as a joint turns about it;
+  *◎ Bod do středu této plochy / díry* in the suggestions moves the chosen (or last) point to its face's centre.
+  **Alt + click** picks the face behind the one you see (a groove underneath, the inside of a hole; again at the same
+  spot: the next one behind). Dragging a point snaps to hole and face centres. Where the cable goes through a part,
+  a small *⚠ Motor I3* sits at the spot and the panel names the span (*úsek 3–4*). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

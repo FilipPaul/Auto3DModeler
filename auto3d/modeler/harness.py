@@ -217,6 +217,8 @@ def shape(points, r_min, spans=None, total=None):
     keep = [k for k, p in enumerate(P) if k == 0 or np.linalg.norm(p - P[k - 1]) > 1e-6]
     P = [P[k] for k in keep]
     r_min = max(0.0, float(r_min or 0))
+    if len(P) < 2:
+        return dict(route(P, r_min), spans=[], taut=[], total_ignored=False)
     want = {keep.index(k): float(v) for k, v in (spans or {}).items() if k in keep and keep.index(k) < len(P) - 1 and v and float(v) > 0}
 
     def run(h):

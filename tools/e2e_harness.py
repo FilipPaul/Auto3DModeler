@@ -7,7 +7,11 @@ the mouse -> a corner with no room for the radius: a quiet ⚠ note in the view 
 a Z clicked with two sharp corners 6 mm apart: shaped to the radius, no note, the drawn tube's centre on arcs of R
 -> a point deleted (Delete) -> undo -> 🔒 its length locked (the panel's button): the motor moved closer, the cable
 keeps its length (the slack sags, as harness.py's shape), moved far away: taut, red, "Kabel je napnutý — krátký o …"
--> STEP export holds
+-> STEP export -> the AI -> the points list (part · face, x / y / z typed, ＋ between, ↑ ↓ ✕, a row lit in the view,
+🗑 all + undo), a pin's top clicked off its axis: on the axis; that point 🔒 on the pin follows it, 🔓 stays in space;
+a point dragged onto the pin: on its axis; Alt + click: the box's bottom (hidden); ◎ to the face's centre; the length
+label not changed by ✎; where it goes through a part (span, spot, ⚠ in the view); a point in space on a face taken as
+locked; saved + reloaded: the locks kept holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -85,7 +89,8 @@ def typein(sel, text):
 
 def table():
     box = d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest")
-    return [" ".join(b.text.split()) for b in box[0].find_elements(By.CSS_SELECTOR, ".vs-list button")] if box else []
+    # (read in the page at once: the table is drawn again while the mouse moves)
+    return js("return [...document.querySelectorAll('#asmViewport .view-suggest .vs-list button')].map(b => b.textContent.split(/\\s+/).join(' ').trim())") if box else []
 
 
 def world_points(hid="H1"):
@@ -313,6 +318,179 @@ try:
     r = call("edit_harness", id="H2", remove=True)
     check("edit_harness remove", r.startswith("H2 removed") and len(json.loads(call("get_assembly"))["harnesses"]) == 1, r)
     d.save_screenshot(f"{OUT}/harness_6_done.png")
+
+    # 10. the points list in the panel
+    def rows_text():
+        return [" ".join(e.text.split()) for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt .hn-pw")]
+
+    def pts_n():
+        return js(f"return {T}.get('H1').points.length")
+
+    js(f"{T}.sel = 'H1'; {A}.sel = null; {A}.render(); {A}.draw()")
+    time.sleep(0.4)
+    rows = rows_text()
+    check("10. the points list: every point with its part and face", len(rows) == 4 and "DPS I2 · F" in rows[0] and "Krabice I1 · F" in rows[2] and "Motor I3" in rows[3], rows)
+    ActionChains(d).move_to_element(d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt")[2]).perform()
+    time.sleep(0.3)
+    check("…a row under the mouse lights its point in the view", js(f"return {T}.hl") == 2)
+    d.find_elements(By.CSS_SELECTOR, "#asmRight [data-pins]")[0].click()
+    time.sleep(0.4)
+    P = world_points()
+    check("＋ between 1 and 2: a point in the middle, on the PCB too", pts_n() == 5 and math.dist(P[1], [(P[0][i] + P[2][i]) / 2 for i in range(3)]) < 0.01 and js(f"return {T}.get('H1').points[1].inst") == "I2", P[:3])
+    el = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-pxyz='1:0']")
+    el.click()
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).send_keys("33").send_keys(Keys.ENTER).perform()
+    time.sleep(0.5)
+    check("x typed: the point moves there (still on its part)", abs(world_points()[1][0] - 33) < 0.01 and js(f"return {T}.get('H1').points[1].inst") == "I2", world_points()[1])
+    before = js(f"return JSON.stringify({T}.get('H1').points)")
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='1:1']").click()
+    time.sleep(0.4)
+    swapped = json.loads(js(f"return JSON.stringify({T}.get('H1').points)"))
+    check("↓ moves it later", swapped[2] == json.loads(before)[1] and swapped[1] == json.loads(before)[2])
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='2:-1']").click()
+    time.sleep(0.4)
+    check("↑ back", js(f"return JSON.stringify({T}.get('H1').points)") == before)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pdel='1']").click()
+    time.sleep(0.4)
+    check("✕ deletes it", pts_n() == 4)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=clearPts]").click()
+    time.sleep(0.4)
+    check("🗑 all points: none left, clicking new ones", pts_n() == 0 and js(f"return {T}.edit") == "H1")
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    time.sleep(0.6)
+    check("…Ctrl+Z brings them back", pts_n() == 4, pts_n())
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.3)
+
+    # 10b. the length label stays as it is on ✎ Upravit body (no next point until the mouse is over the view)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    was_len = d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text
+    d.find_element(By.CSS_SELECTOR, "[data-hx=edit]").click()  # (✎ in the view's corner)
+    time.sleep(0.4)
+    check("✎ Upravit body: the length label as it was", d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text == was_len, (was_len, d.find_element(By.CSS_SELECTOR, "#asmRight .hn-len").text))
+
+    # 11. a pin on the box: its top clicked 3 mm off the axis -> the point on its axis
+    call("new_model", name="Cep")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 12}}])
+    call("add_feature", type="extrude", sketch="F1", d=20)
+    call("open_part", id="Pohon")
+    call("insert_part", part="Cep")
+    call("place_part", part="I4", x=40, y=20, z=10)
+    wait(f"return Object.values({A}.bodies).every(b => b.body) && {A}.view.meshes.length === 4")
+    js(f"{A}.choose(null); {T}.editPoints('H1'); {A}.view.setView('iso')")
+    time.sleep(0.8)
+    lz = 30 + HM.bundle_d(4, 1.5) / 2 + 0.5
+    click_at([43, 20, 30])
+    pin = js(f"return {T}.get('H1').points.at(-1)")
+    check("11. a pin's top clicked off its axis: the point on the axis", pts_n() == 5 and pin.get("inst") == "I4" and math.hypot(pin["at"][0], pin["at"][1]) < 1e-3 and pin.get("face"), pin)
+    check("…in the world: over the axis, Ø/2 + 0.5 above the top", math.dist(world_points()[4], [40, 20, lz]) < 1e-3, world_points()[4])
+    js(f"{A}.renderProps ? {A}.renderProps() : {A}.render()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pmove='4:-1']").click()  # (a middle point now: before the motor's)
+    time.sleep(0.4)
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.3)
+    check("…moved before the motor's point (a middle point)", js(f"return {T}.get('H1').points[3].inst") == "I4")
+    call("place_part", part="I4", x=60, y=20, z=10)
+    time.sleep(0.6)
+    check("🔒 locked on the pin: the pin moved, the point with it (its matrix × its spot)", math.dist(world_points()[3], [60, 20, lz]) < 1e-3, world_points()[3])
+    check("…the cable shaped through it again (length = harness.py's route)", abs(page_length() - HM.route(world_points(), r_min)["length"]) < 1e-6)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-plock='3']").click()
+    time.sleep(0.4)
+    check("🔓 unlocked: a point in space (remembering its part)", js(f"const p = {T}.get('H1').points[3]; return !p.inst && !!p.xyz && p.on?.inst === 'I4'"))
+    call("place_part", part="I4", x=80, y=20, z=10)
+    time.sleep(0.6)
+    check("…the pin moved: the unlocked point stays put", math.dist(world_points()[3], [60, 20, lz]) < 1e-3, world_points()[3])
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-plock='3']").click()
+    time.sleep(0.4)
+    call("place_part", part="I4", x=90, y=20, z=10)
+    time.sleep(0.6)
+    check("🔒 again: stuck to the pin where it was, it follows from there (+10 mm)", math.dist(world_points()[3], [70, 20, lz]) < 1e-3, world_points()[3])
+    call("place_part", part="I4", x=40, y=20, z=10)
+    time.sleep(0.5)
+
+    # 12. a point dragged onto the pin's top (off its axis): on the axis
+    js(f"{T}.editPoints('H1')")
+    time.sleep(0.4)
+    p2 = world_points()[2]
+    cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
+    ActionChains(d, duration=60).move_to_element_with_offset(cv, *offset(p2)).click_and_hold().move_by_offset(10, 0).move_to_element_with_offset(cv, *offset([38, 21, 30])).release().perform()
+    time.sleep(0.6)
+    q = js(f"return {T}.get('H1').points[2]")
+    check("12. a point dragged onto the pin's top: on its axis", q.get("inst") == "I4" and math.hypot(q["at"][0], q["at"][1]) < 1e-3, q)
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    time.sleep(0.5)
+
+    # 13. Alt + click on the box's top: the face behind it — its bottom (hidden), the cable outside, below it
+    n0 = pts_n()
+    spot = next(s for s in ([120, 80, 10], [100, 90, 10], [150, 90, 10], [20, 10, 10], [80, 5, 10], [150, 60, 10]) if js(f"""
+      const v = {A}.view, V = v.camera.position.constructor, [sx, sy] = v.toScreen(new V(...arguments[0])), h = v.ray(sx, sy).intersectObjects(v.meshes, false);
+      return h.length >= 2 && h[0].object.userData.inst === 'I1' && Math.abs(h[0].point.z - 10) < 1e-3 && h[1].object.userData.inst === 'I1' && Math.abs(h[1].point.z) < 1e-3;""", s))
+    cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
+    ActionChains(d, duration=30).move_to_element_with_offset(cv, *offset(spot)).perform()
+    time.sleep(0.3)
+    ActionChains(d).key_down(Keys.ALT).click().key_up(Keys.ALT).perform()
+    time.sleep(0.5)
+    b = world_points()[-1]
+    check("13. Alt + click: the box's bottom, the cable under it", pts_n() == n0 + 1 and js(f"return {T}.get('H1').points.at(-1).inst") == "I1" and abs(b[2] - (0 - HM.bundle_d(4, 1.5) / 2 - 0.5)) < 1e-3, b)
+    d.find_element(By.CSS_SELECTOR, "[data-hx=undoPt]").click()
+    time.sleep(0.4)
+
+    # 14. ◎ the point to its face's centre (the box's top)
+    click_at(spot)
+    rows = table()
+    check("14. ◎ Bod do středu této plochy / díry offered", any("Bod do středu této plochy" in r for r in rows), rows)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Bod do středu')) { b.click(); break; }")
+    time.sleep(0.5)
+    check("…the point at the top's centre", js(f"return {T}.get('H1').points.at(-1).at") == [80, 50, 10], js(f"return {T}.get('H1').points.at(-1)"))
+    d.find_element(By.CSS_SELECTOR, "[data-hx=undoPt]").click()
+    time.sleep(0.3)
+    js(f"{T}.finish()")  # (✓ Done)
+    time.sleep(0.6)
+
+    # 15. where it goes through a part: the part, the span and the spot, a ⚠ there in the view
+    hs = json.loads(call("get_assembly"))["harnesses"][0]
+    check("15. point_list: each point with its part, lock and face", [p.get("locked") for p in hs["point_list"]] == [True] * 5 and hs["point_list"][3]["part"] == "I4" and all(p.get("face") for p in hs["point_list"]), hs["point_list"])
+    call("add_harness", type="cable", d=4, points=[{"xyz": [-20, 50, 5]}, {"xyz": [180, 50, 5]}])  # (straight through the box)
+    js(f"{T}.checkThrough()")
+    time.sleep(0.6)
+    h2 = json.loads(call("get_assembly"))["harnesses"][1]
+    check("…through_at: the box, span 1–2, a spot inside it", [(c["part"], c["span"]) for c in h2.get("through_at") or []] == [("I1", "1–2")] and 0 <= h2["through_at"][0]["xyz"][0] <= 160, h2.get("through_at"))
+    check("…a ⚠ at the spot in the view", any("Krabice I1" in e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-clash")), [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-clash")])
+    check("…the panel names the span", "úsek 1–2" in d.find_element(By.CSS_SELECTOR, "#asmRight .hn-thr").text, d.find_element(By.CSS_SELECTOR, "#asmRight .hn-thr").text)
+    d.save_screenshot(f"{OUT}/harness_7_points.png")
+    call("edit_harness", id="H2", remove=True)
+
+    # 16. a point in space lying on a face (as an older file's): taken as locked on that part
+    r = call("add_harness", type="cable", d=6, points=[{"xyz": [150, 90, 10 + 3.5]}, {"xyz": [150, 90, 60]}])
+    js(f"{A}.draw()")
+    time.sleep(0.4)
+    check("16. a point in space on the box's top: locked on it, the other stays free", js(f"return {T}.get('H2').points.map(p => p.inst || 'free')") == ["I1", "free"], js(f"return {T}.get('H2').points"))
+    r = call("edit_harness", id="H2", unlock_points=[1])
+    check("edit_harness unlock_points: in space", js(f"return !{T}.get('H2').points[0].inst"), r[:100])
+    r = call("edit_harness", id="H2", lock_points=[1])
+    check("edit_harness lock_points: on its part again", js(f"return {T}.get('H2').points[0].inst") == "I1", r[:100])
+    call("edit_harness", id="H2", unlock_points=[1])
+
+    # 17. saved and reloaded: the locks kept
+    keep = js(f"return JSON.stringify({T}.list().map(h => h.points.map(p => [p.inst || null, !!p.on, p.face || null])))")
+    js("return window.__app.autosave.saveNow()")
+    time.sleep(1)
+    d.refresh()
+    wait("return !!window.__app")
+    wait("return document.querySelector('.restore-bar')", 15)
+    d.find_element(By.CSS_SELECTOR, ".restore-bar [data-a=open]").click()
+    time.sleep(2)
+    call("open_part", id="Pohon")
+    wait(f"return {A}.active && Object.values({A}.bodies).every(b => b.body)", 60)
+    time.sleep(1)
+    got = js(f"return JSON.stringify({T}.list().map(h => h.points.map(p => [p.inst || null, !!p.on, p.face || null])))")
+    check("17. reloaded: every point's part, lock and face kept", got == keep, (keep, got))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

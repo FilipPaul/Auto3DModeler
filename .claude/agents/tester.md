@@ -691,7 +691,11 @@ Never report "works" without having run it; report failures with their output.
    another face; R 80: a quiet ⚠ note in the view and the panel (no red over the cable), R empty: 5 × Ø; a Z with two
    sharp corners 6 mm apart shaped to R 15 (no note, the tube's ring centres on arcs of R 15, length = harness.py); 🔒 its length locked with the panel's button,
    the motor moved closer: length kept ± 0.5 = harness.py's shape, moved far: taut — red, *Kabel je napnutý* in the
-   view and the panel, get_assembly `taut`, 🔓 again; a point clicked + Delete, Ctrl+Z, Enter; STEP export
+   view and the panel, get_assembly `taut`, 🔓 again; the points list (part · face, x typed, ＋ between, ↑ ↓ ✕, a lit
+   row, 🗑 all + Ctrl+Z), ✎ leaves the length label as it is, a pin's top clicked off its axis -> on the axis, 🔒 on
+   the pin it follows it, 🔓 it stays, 🔒 again from there; a point dragged onto the pin: on its axis; Alt + click:
+   the box's bottom; ◎ to the top's centre; through_at + ⚠ spots; a point in space on a face adopted as locked,
+   lock_points / unlock_points; saved + reloaded: parts, locks, faces kept; a point clicked + Delete, Ctrl+Z, Enter; STEP export
    with 3 parts + 4 wire solids; add_harness / edit_harness / get_assembly). Prints ALL OK / FAILED, exit code 1 on a
    failure.
    `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows

@@ -332,6 +332,10 @@ try:
     print("    edit_harness length 400 (slack, not taut):", "taut" not in tool("edit_harness", id="H1", length=400)[0])
     print("    edit_harness length 10 (taut):", "taut" in tool("edit_harness", id="H1", length=10)[0])
     tool("edit_harness", id="H1", length=None)
+    # 🔒 / 🔓 its first point (on the flange): unlocked it stays in space, locked again it is on the flange
+    print("    edit_harness unlock_points [1]:", json.loads(tool("edit_harness", id="H1", unlock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
+    print("    edit_harness lock_points [1]:", json.loads(tool("edit_harness", id="H1", lock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
+    print("    lock_points on a point in space:", tool("edit_harness", id="H1", lock_points=[2])[0][:90])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")
