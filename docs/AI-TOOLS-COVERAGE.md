@@ -29,6 +29,7 @@ The check found 12 tools the chat showed by their raw name and 3 no skill named 
 | Recent projects | (🕘 Nedávné projekty…) | — | gui (the user's own list) |
 | Save the project to a file | (Uložit projekt) | `export {format: "project", history}` | ok (was gui) |
 | New project (the one on screen kept) | Open ▾ › (📄 Nový projekt), Ctrl+Alt+N | `new_project {new_window}` | ok (2026-10-30, was gui) |
+| Close the project (back to the start screen) | Open ▾ › (✕ Zavřít projekt), the project widget's ⋯ | `close_project` | ok (2026-10-30) |
 | Widgets: docked left / right, floating, folded, ↕ automatic height, rows; the suggestions closed / automatic | a widget's header drag, its ⋯ menu; the table's ✕ / 💡 Automaticky | `set_layout` | ok (2026-10-30, was gui) |
 | Export STL / STEP / IGES / GLB / OBJ / PDF / 3MF / BOM / DXF | (Export ▾) | `export` | ok |
 | Part tabs: list, open, rename, duplicate, delete | tabs, ☰, part panel (⧉ Duplikovat jako nový díl) | `list_parts`, `open_part`, `rename_part`, `duplicate_part`, `delete_part` | ok |

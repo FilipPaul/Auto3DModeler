@@ -67,17 +67,21 @@ export class Autosave {
     }
   }
 
-  /** The kept project's picture: drawn after a save when this project has none yet or it is older than THUMB_EVERY. */
-  async keepThumb() {
-    if (!this.hooks.thumb || this.thumbing || (this.thumbFor === this.id && Date.now() - this.thumbAt < THUMB_EVERY)) return;
+  /** The kept project's picture: drawn after a save when this project has none yet or it is older than THUMB_EVERY;
+   *  force: drawn now (✕ Close project: the picture 🕘 Recent projects shows is the project as it was left) -> drawn. */
+  async keepThumb({ force = false } = {}) {
+    if (force) await this.thumbing; // (one drawing at a time: the one running first)
+    if (!this.hooks.thumb || this.thumbing || (!force && this.thumbFor === this.id && Date.now() - this.thumbAt < THUMB_EVERY)) return false;
     const id = this.id;
-    this.thumbing = true;
+    let done = null;
+    this.thumbing = new Promise((r) => { done = r; });
     try {
       const url = await this.hooks.thumb().catch(() => null);
-      if (!url?.startsWith('data:image/png') || id !== this.id) return; // (nothing to draw yet: tried again after the next save)
+      if (!url?.startsWith('data:image/png') || id !== this.id) return false; // (nothing to draw yet: tried again after the next save)
       const res = await fetch(`/api/projects/${encodeURIComponent(id)}/thumb`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thumbnail: url }) });
       if (res.ok) [this.thumbFor, this.thumbAt] = [id, Date.now()];
-    } catch { /* (the server away: next time) */ } finally { this.thumbing = false; }
+      return res.ok;
+    } catch { return false; /* (the server away: next time) */ } finally { this.thumbing = null; done(); }
   }
 
   showStatus(error) {
@@ -89,6 +93,7 @@ export class Autosave {
     el.title = error ? `The project could not be kept on the server: ${error}` : 'Kept on the server a few seconds after each change — 🕘 Recent projects opens it again.';
   }
 
+  /** first: the id of the project ✕ closed in this window — first in 🕘 Recent projects (one click opens it again). */
   async recent() { return (await (await fetch('/api/projects')).json()).projects || []; }
 
   async open(id) {
@@ -131,7 +136,8 @@ export class Autosave {
   async fillStart(el) {
     if (!el) return;
     let list = [];
-    try { list = (await this.recent()).filter((p) => p.id !== this.id).slice(0, 4); } catch { list = []; }
+    try { list = (await this.recent()).filter((p) => p.id !== this.id); } catch { list = []; }
+    list = [...list.filter((p) => p.id === this.first), ...list.filter((p) => p.id !== this.first)].slice(0, 4); // (✕ the project just closed: first)
     el.hidden = !list.length;
     if (!list.length) { el.innerHTML = ''; return; }
     el.innerHTML = `<span>${esc(t('🕘 Recent projects'))}</span><div class="st-recent-row">${list.map((p) => `<button class="st-proj" data-id="${esc(p.id)}" title="${esc(t('Open'))}: ${esc(p.name)}">
@@ -160,7 +166,8 @@ export class Autosave {
     back.addEventListener('pointerdown', (e) => { if (e.target === back) close(); });
     document.body.appendChild(back);
     const render = async () => {
-      const box = back.querySelector('.aih-list'), list = await this.recent().catch(() => []);
+      const box = back.querySelector('.aih-list'), all = await this.recent().catch(() => []);
+      const list = [...all.filter((p) => p.id === this.first), ...all.filter((p) => p.id !== this.first)]; // (✕ the project just closed: first)
       const open = await (this.hooks.elsewhere?.() || new Set()); // (open in another window: said on its row)
       if (!list.length) { box.innerHTML = '<p class="hint">Nothing kept yet.</p>'; return; }
       box.innerHTML = list.map((p) => `<div class="aih-row" data-id="${esc(p.id)}">${thumbHtml(p, 'aih-thumb')}<div class="aih-text">
