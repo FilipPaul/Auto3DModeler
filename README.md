@@ -1204,8 +1204,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the
   axis is set, or else a new joint is added onto the part it is joined to (flat faces across a move: *Flush* / *Gap*
-  at the distance they are; flat faces along a turn: *Parallel*). A toast says which joint did it; a flat-face joint
-  may hold its turn too. The AI: `lock_motion`.
+  at the distance they are; flat faces along a turn: *Parallel*). A toast says which joint did it and where the motion
+  is locked, as its slider reads (*-20 mm*); a flat-face joint may hold its turn too. Locking moves no part (nor any
+  part inside a sub-assembly), and one Ctrl+Z takes the lock back. The AI: `lock_motion`.
 - **🪶 Simplified** (a placed part's *Look*): the part is shown with a coarser mesh and less data — quicker to load
   and to show; its joints still work, its edges cannot be picked; collisions and drawings use the full part. A big
   imported part (thousands of faces: an assembled PCB, a maker's STEP) is simplified by itself; untick it for its

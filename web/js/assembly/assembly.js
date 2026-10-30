@@ -3595,24 +3595,41 @@ export class Assembly {
 
   /** 🔒 One free motion locked where the part is now: its joint's turn (angle) or distance along the axis (dist) set,
    *  else a new joint between faces of the parts it is joined to — flat faces across a move (flush / gap / touch, at
-   *  the distance they are), or flat faces along a turn (parallel). -> what was done (a text); throws when none
-   *  holds it. */
+   *  the distance they are), or flat faces along a turn (parallel). Locked where it is: no part moves (a try that would
+   *  move one is put back — every part, the places inside sub-assemblies too); one undo step. -> what was done (a
+   *  text, with where the motion is, as its slider reads); throws when none holds it. */
   lockMotion(id, mo) {
     if (mo.via) id = mo.via; // (fixed on another part: that one is locked)
     const count = () => { try { return this.motionsOf(id, true)?.count ?? 0; } catch { return 0; } };
     const before = count(), keep = structuredClone(this.doc.mates || []), dir = mo.dir.clone().normalize();
+    const places = this.doc.instances.map((it) => [it, [...it.matrix], structuredClone(it.inner), structuredClone(it.hang)]);
+    const putBack = () => { // (every part where it was: a solve after the lock moves none)
+      for (const [it, m, inner, hang] of places) {
+        const was = JSON.stringify(it.inner || null);
+        it.matrix = [...m];
+        if (inner) it.inner = structuredClone(inner); else delete it.inner;
+        if (hang) it.hang = structuredClone(hang); else delete it.hang;
+        if (JSON.stringify(it.inner || null) !== was) this.mergeAssembly(it.part, new Set(), it);
+      }
+      this.flatCache = null;
+      this.checkJoints();
+    };
+    let at = null;
+    try { at = this.motionPos(id, mo); } catch { at = null; }
+    const now = (v) => fmt(+(Number.isFinite(at) ? at : v).toFixed(2)); // (the value its slider and get_assembly show)
     const tried = (what) => {
       this.applyMates();
-      if (count() < before) { this.commit(); return what; }
-      this.doc.mates = structuredClone(keep);
-      this.applyMates();
+      const ok = count() < before;
+      if (!ok) this.doc.mates = structuredClone(keep);
+      putBack();
+      if (ok) { this.commit(); return what; }
       return null;
     };
     const m = mo.ref && (this.doc.mates || []).find((x) => x.id === mo.ref);
     if (m && !m.locked) { // its own joint first
       if (mo.kind === 'turn' && /:(turn|spin)$/.test(mo.key) && !Number.isFinite(m.angle)) {
         m.angle = +this.spinNow(m).toFixed(3); // (where it is: not rounded to a whole degree)
-        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: m.angle }));
+        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: now(m.angle) }));
         if (r) return r;
       }
       if (mo.kind === 'move' && /:along$/.test(mo.key) && m.type === 'axis' && !Number.isFinite(m.dist)) {
@@ -3620,7 +3637,7 @@ export class Assembly {
         try { g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)); } catch { g = null; }
         if (g) {
           Object.assign(m, { side: g.side, dist: +g.dist.toFixed(4) });
-          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: m.dist }));
+          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: now(m.dist) }));
           if (r) return r;
         }
       }

@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔒 A lock moves nothing, at the value its slider shows (2026-10-30)** (the AI's report: lock_motion of a concentric
+  slide answered "locked at -5.8 mm" while the slide read -20 mm, and swung the strut, a sub-assembly's inner stroke
+  and another one's hinge leaf; undo left them moved). Causes: the answer gave the joint's own number (the gap between
+  the round faces' ends), not motionPos; every try solved the assembly again and a failed try put back only the
+  joints — the parts stayed where that solve left them (a solve that did not keep its places, e.g. the inner-part
+  frames fixed above). lockMotion now notes every placement (matrix, `inner`, hang) first and puts them back after
+  each try, the bodies of sub-assemblies whose inner places changed merged again; one commit = one undo step; the
+  text says motionPos. Tests: tools/e2e_assembly_lock_still.py (new).
+
 - **🔗 Fixed onto a part inside a sub-assembly: it turns with it (2026-10-30)** (the AI's report: a gate frame fixed
   onto a hinge leaf inside "Sestava pant L" only shifted when the hinge turned 10°). Cause: worldFace gave a merged
   sub-assembly's face ("I14/F1:f5") the sub-assembly's own directions (xdir / ydir), so a 🔗 rigid joint's rot / pos

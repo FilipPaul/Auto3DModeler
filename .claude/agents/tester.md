@@ -905,6 +905,10 @@ Never report "works" without having run it; report failures with their output.
    a flag fixed onto the crank of "Pohon" placed in "Stroj": the inner mechanism driven 10° and 25° more turns the
    flag that much about the shaft, every corner of it, the joint held; back at the start it is where it was; an older
    file's joint measured against the sub-assembly's directions opens unmoved, measured again (fr 2), and follows).
+   `tools/e2e_assembly_lock_still.py <url> <dir>` covers 🔒 a lock that moves nothing (Czech: a flag concentric on
+   the inner crank's pin of "Pohon" in "Stroj", slid 3 mm and turned: lock_motion of its slide says "3 mm" as
+   get_assembly showed, the 🔒 of its turn in the panel says its degrees, no placement or inner place moved, two
+   undo steps; undo twice: the joints and every part as before; redo: locked again, nothing moved).
    `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
    angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
    of side faces, not moved; the AI's lock_motion, and on a held part refused).
