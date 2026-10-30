@@ -59,7 +59,7 @@ import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
 import { liveClashes, setClash, clashOn, scanDone, bandsOf } from './mechclash.js';
 import { saveAnimation } from './anim.js';
 import { CLEAR, displayOf, displayed, displayItems, displayKey, eyeHtml, clickEye, displayNote, setVisibility } from './visibility.js';
-import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
+import { pressDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
@@ -4054,15 +4054,16 @@ export class Assembly {
       if (!this.modelParts().some((q) => q.id === pid)) { this.hooks.toast(t('That part cannot go into this assembly (a drawing, or the assembly itself).'), 'warning', 5000); return; }
       await this.insert(pid);
     });
-    // the chosen part dragged: it moves the way its joints let it (a crank turns, the rod and slider follow) — before
-    // the view's own turning sees the press (capture); elsewhere a drag turns the view as always
+    // the chosen part, or any part of a ⚙ mechanism, dragged: it moves the way its joints let it (a crank turns, the rod
+    // and slider follow; the rod pressed: the crank goes where the rod's spot follows the mouse) — before the view's own
+    // turning sees the press (capture); elsewhere a drag turns the view as always. A click (under 4 px) still chooses.
     vp.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || e.target !== cv || !this.sel || this.mode !== 'idle' || this.measuring || this.painting || this.bolt || e.ctrlKey || e.metaKey || e.shiftKey) return;
-      const drag = startDrag(this, this.sel, e);
+      if (e.button !== 0 || e.target !== cv || this.mode !== 'idle' || this.measuring || this.painting || this.bolt || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const drag = pressDrag(this, e);
       if (!drag) return;
       this.mech?.stop(false);
       this.view.controls.enabled = false;
-      cv.style.cursor = dragCue(this, this.sel, true)?.cursor || 'grabbing'; // (the motion's symbol, filled: it is moving)
+      cv.style.cursor = dragCue(this, drag.id, true)?.cursor || 'grabbing'; // (the motion's symbol, filled: it is moving)
       this.dragging = true;
       cueLabel(vp, e, dragValue(this, drag.plan), true);
       const move = (ev) => { drag.move(ev); cueLabel(vp, ev, dragValue(this, drag.plan), true); }, up = (ev) => {
@@ -4071,7 +4072,7 @@ export class Assembly {
         this.view.controls.enabled = true;
         this.dragging = false;
         cueLabel(vp, ev, '');
-        cv.style.cursor = dragCue(this, this.sel)?.cursor || '';
+        cv.style.cursor = dragCue(this, drag.id)?.cursor || '';
         if (drag.end()) tipSeen(); // (dragged once: the first-time hint is not needed any more)
       };
       window.addEventListener('pointermove', move, true);
@@ -4106,7 +4107,7 @@ export class Assembly {
         cv.style.cursor = h?.face && this.faceFits(h) ? 'crosshair' : '';
         return;
       }
-      const id = h?.inst || null, cue = dragCue(this, id); // (the chosen part that can move: a drag moves it — the same check as the press)
+      const id = h?.inst || null, cue = dragCue(this, id); // (the chosen part that can move, a part of a mechanism: a drag moves it — the same check as the press)
       const moving = cue ? cue.parts : null;
       if (id !== this.hoverInst || String(moving || '') !== String(this.cueParts || '')) { this.hoverInst = id; this.cueParts = moving; this.draw(); } // (it and the parts that go with it glow)
       this.view.setSnapMark(this.idleSnap(e, h)); // (a corner, an edge's middle, a centre: it can be picked)

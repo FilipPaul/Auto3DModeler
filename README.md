@@ -1133,8 +1133,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
 - **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
   the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
   every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning
-  arm). Grabbing any part of a closed loop (the rod) turns the loop's driver. Elsewhere a drag turns the view as
-  always.
+  arm). **Any part of a ⚙ mechanism drags it, chosen or not** (the cursor shows ⚙ over all its parts): the crank
+  turns, the slider slides along its line (the crank turns after it), the four-bar's rocker swings; a part with no
+  motion of its own (the rod, a coupler) is followed by the mechanism — the crank turns to where the spot you grabbed
+  comes nearest the mouse. The driver's limits hold. A click without moving still chooses the part; one drag is one
+  undo step. Elsewhere a drag turns the view as always.
 - **Name the motions**: a free motion is named by its part — *Turn: Crank*, *Slide: Slider* (*Otáčení: Klika*,
   *Posuv: Smýkadlo*; two of a kind say how: *Slide: Lid (along X)*; the joint it comes from is in its tooltip).
   Double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu vlastní název"*) for your

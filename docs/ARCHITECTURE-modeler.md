@@ -7,6 +7,22 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Any part of a mechanism drags it (2026-10-30)** (the owner: pressing the rod lying over the crank did nothing —
+  only the chosen part dragged). assembly/drag.js: mechOf(asm, id) — the ⚙ mechanism (two parts or more, closed,
+  driven) a part is in, or rides on through its joints (a weight fixed on the crank); a single moving part stays as it
+  was (drags only chosen). pressDrag (Assembly.bindPointer's capture listener) starts a drag on the chosen part or on
+  any such part; dragCue shows ⚙ over them all. dragPlan: the part's own motion when the mechanism is driven by it
+  (one of its `drivers`, a part fixed on one: that one's — the slider's slide, the rocker's turn; moveFree, the loop
+  solver does the rest; pushed by another part than the driver, the driver's limits hold: past them the step is
+  undone and the driver put at its stop), else `grab`: seekDrag — at the first move the driver's travel is swept once
+  from where it is (quiet, ≈ 4° / 1 mm steps, each way to the limits or a dead point, the parts put back), the grabbed
+  point's screen path kept; each move takes the mouse's nearest spot on it (near the driver's value when about as
+  near: the path may cross itself), driveTo there in steps no longer than the path's (the branch kept). A drag starts
+  past 4 px (a click chooses), one undo step. Tests: tools/e2e_drag_mechanism_any_part.py (crank demo nothing chosen:
+  the rod dragged to its spot 60° on — the crank there, the spot 0.2 px off the mouse, the formula held, one Ctrl+Z;
+  the slider 40 px — 13 mm, the crank turns; the crank; a click chooses; limits 30 … 150° held by 8 drags of the rod and
+  the slider, both stops reached; the four-bar's coupler), e2e_assembly_dragcue (⚙ over the crank and rod unchosen).
+
 - **🏗 Big assemblies measured, the costs that showed fixed (2026-10-30)** (the owner: make large assemblies work well,
   measure first). tools/make_big_assembly.py builds three through the app (parts with the AI tools, the many fastener
   copies put in the document in bulk with their ◎ concentric + ▭ touch joints): big-150 (97 placed / 145 with the
