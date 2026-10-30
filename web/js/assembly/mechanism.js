@@ -211,7 +211,7 @@ export class MechanismPanel {
     this.more = new Set(); // the mechanisms whose ⋯ is open
     this.scans = {}; // mechanism key -> its travel scanned for ⚠ collisions while it moves (mechclash.js)
     this.warned = new Set(); // the broken joints driving has warned about (once each)
-    this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 230, close: () => this.close() });
+    this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 270, close: () => this.close() });
   }
 
   /** The mechanisms found again and the widget drawn (or hidden: none, or closed). */

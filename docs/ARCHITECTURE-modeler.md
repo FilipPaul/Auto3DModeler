@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **e2e_mechanism_by_mouse green again (2026-10-30)**: its first Ctrl+click (the base's pin) failed since 7b16693
+  (👁 Hide / show… and an always-shown ✎ made the floating suggestions two rows taller: the pin's spot the test aimed
+  at was under the panel — the click went to the panel's edge, not the view). The app picks fine; the test's AIM now
+  skips spots covered by a panel (`elementFromPoint` is not the canvas), as a user clicks what is in sight. Also ⚙
+  Mechanism scrolled at the missing-joint step since 9adae74 (the "no limits · ⇤⇥ Limits" line under each row): its
+  default height 230 -> 270 px (mechanism.js addWidget h). e2e_mechanism_by_mouse, _assembly_twoface, _hide_parts,
+  _ux_assembly, _left_pins, _mech_limits ALL OK; e2e_ai_gui's Ctrl+click via mods picks both faces.
 - **Any part of a mechanism drags it (2026-10-30)** (the owner: pressing the rod lying over the crank did nothing —
   only the chosen part dragged). assembly/drag.js: mechOf(asm, id) — the ⚙ mechanism (two parts or more, closed,
   driven) a part is in, or rides on through its joints (a weight fixed on the crank); a single moving part stays as it
