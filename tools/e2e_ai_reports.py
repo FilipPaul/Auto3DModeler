@@ -98,8 +98,9 @@ try:
     print("sheet_open:", json.loads(call("sheet_open", part="Plate"))["preset"])
     wait("return !!window.__app.sheet.svgEl")
     ck = json.loads(call("get_sheet"))["check"]
-    print("the check's missing:", len(ck["missing"]), "| none of the text:", not any(f"{dec['id']}:" in m for m in ck["missing"]),
-          "| each with its key:", all(m.endswith("]") and "[" in m for m in ck["missing"]), "| e.g.", ck["missing"][:1])
+    # (each missing size an object since 29310b0: {id, what, views, key})
+    print("the check's missing:", len(ck["missing"]), "| none of the text:", not any(f"{dec['id']}:" in json.dumps(m) for m in ck["missing"]),
+          "| each with its key:", all(m.get("key") and m.get("views") for m in ck["missing"]), "| e.g.", ck["missing"][:1])
     r = js(f"return {H}.get_screenshot({{}}).then(r => [r.text, r.image]).catch(e => ['ERROR ' + e.message, null])")
     print("sheet screenshot:", r[0], "| png", bool(r[1]) and base64.b64decode(r[1])[:4] == b"\x89PNG")
     if r[1]:
