@@ -2914,6 +2914,13 @@ export class Modeler {
     if (!this.cmd) this.hooks.toast(t2(what, { n }), 'ok', 3500); // (OK refused — a missing setting: the tool stays open)
   }
 
+  /** What a right-click in the view does now (actiondock.js): in a sketch it ends the drawing tool ({ word, run }) or
+   *  nothing (false) — the sketch is finished only by ✓ Finish sketch / Enter; elsewhere undefined (the OK button). */
+  rclickAction() {
+    if (!this.active || this.mode !== 'sketch' || !this.sk) return undefined;
+    return this.ctx ? false : this.sk.rclick() || false;
+  }
+
   /** What Esc does now (the hint at the cursor says it): 'cancel', 'keep' (it ends a tool that keeps what is placed)
    *  or null (something smaller, e.g. it ends a sketch tool or a hole's reference pick). */
   escMeaning() {

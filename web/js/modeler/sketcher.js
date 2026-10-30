@@ -24,6 +24,12 @@ const HV_DEG = 3; // a line drawn within 3° of horizontal / vertical becomes ex
 const SOLVE_WAIT_MS = 20000; // a sketch solve that takes longer is given up (the editor stays usable)
 const UNION_MAX = 400; // ∪ Union: the most pieces it trims (each a solve)
 const AUTO_DIM_MS = 30000; // 🪄 Auto-dimension's most time (each size it tries is a solve)
+// what a right-click in the view says while a tool is on (it ends the tool — the sketch stays open)
+const TOOL_END = {
+  rect: 'End rectangle', line: 'End line', circle: 'End circle', slot: 'End slot', spline: 'End curve', arc: 'End arc',
+  round: 'End rounding', trim: 'End trim', extend: 'End extend', mirror: 'End mirror', offset: 'End offset',
+  pattern: 'End pattern', relate: 'End relations', dim: 'End dimension',
+};
 
 /** An arc (centre c, from a counter-clockwise to b, radius |a - c|) as points from a to b. */
 export function arcPts(c, a, b, stepDeg = 5) {
@@ -2466,6 +2472,17 @@ export class Sketcher {
       this.sel = { kind: 'entity', id };
     } else this.chain.last = p;
     this.changed();
+  }
+
+  /** A right-click in the view ends what is being drawn, as in CAD apps — never the sketch: a line chain / a curve
+   *  being drawn ends (what is drawn stays; a second right-click leaves the tool), any other tool goes back to
+   *  ⬚ Select (a half-drawn shape goes). Null: no tool on (a right-click does nothing). */
+  rclick() {
+    if (this.merging) return { word: 'End merge', run: () => this.setTool('select') };
+    if (this.tool === 'line' && this.chain) return { word: 'End polyline', run: () => { this.chain = null; this.m.hint(this.hint()); this.changed(); } };
+    if (this.tool === 'spline' && this.spl) return { word: 'Finish curve', run: () => this.finishSpline() };
+    if (this.tool === 'select' || !TOOL_END[this.tool]) return null;
+    return { word: TOOL_END[this.tool], run: () => this.setTool('select') };
   }
 
   key(e) {

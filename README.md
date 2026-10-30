@@ -268,6 +268,12 @@ there is no right-click menu: the right button only pans.
 one again takes it away. The table then offers what fits them: the distance between two (and the gap between two
 parallel flat faces), turning all their steps off, deleting them together.
 
+**Right-click in a sketch ends the drawing tool, not the sketch** (as in CAD apps): drawing circles, a right-click in
+the view stops the circle tool (back to ⬚ Select, nothing more drawn); drawing lines, the first right-click ends the
+chain and the second leaves the tool (a curve being drawn is finished the same way). With no tool on, a right-click does
+nothing. The sketch is finished only by **✓ Finish sketch** (bottom right) or Enter. The hint by the cursor says what a
+right-click does now ("🖱 Konec kružnice"). In feature commands (Extrude, Hole, Fillet …) a right-click is still their OK.
+
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
 by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the

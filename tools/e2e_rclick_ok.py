@@ -1,10 +1,11 @@
 """A right-click in the view confirms the current command (as its OK / ✓ Finish sketch / Done button), as in
 SolidWorks — with REAL mouse input, in the Czech UI: a new model -> ▭ a 40 × 30 rectangle -> a right-click in the
-view: the sketch is finished (the Extrude panel opens); the OK button's tooltip says "Pravé tlačítko myši = OK" -> a
+view ends the ▭ tool, not the sketch (that is e2e_sketch_rclick's subject) -> ✓ Finish sketch (the Extrude panel
+opens); the OK button's tooltip says "Pravé tlačítko myši = OK" -> a
 right-click: the extrude step is added -> ◎ Hole: 1 position clicked -> a right-click in a text field of its panel:
 nothing confirmed -> a right-DRAG in the view: the view pans, the hole is not confirmed -> a right-click: the hole is
 kept with its 1 position -> no command: a right-click changes nothing (no step, no error).
-The hint by the cursor over the view: "🖱 Dokončit skicu" in the sketch (no Esc: there it only ends a tool); "🖱 OK ·
+The hint by the cursor over the view: "🖱 Konec obdélníku" in the sketch (no Esc: there it only ends a tool); "🖱 OK ·
 Esc Zrušit" (red) with the Extrude panel and with ◎ Hole before a position; "🖱 OK · Esc Hotovo" (muted) once one is
 placed (Esc keeps it); hidden while right-dragging and with no command. Console errors: none.
 
@@ -153,16 +154,19 @@ try:
     fin = d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]")
     tip = fin.get_attribute("title")
     print("✓ Finish sketch tooltip:", repr(tip))
-    check("the finish button's tooltip says the right button confirms (Czech)", "Pravé tlačítko myši = OK" in tip, tip)
+    check("the finish button's tooltip does not say a right-click finishes the sketch", "Pravé tlačítko myši" not in tip, tip)
     hover(free_spot())
     h = hint()
     print("hint in the sketch:", h)
-    check("hint in the sketch: 🖱 Dokončit skicu, no Esc", h[0] and "Dokončit skicu" in h[1] and h[2] is None and "Esc" not in h[1], h)
+    check("hint in the sketch: 🖱 Konec obdélníku, no Esc", h[0] and "Konec obdélníku" in h[1] and h[2] is None and "Esc" not in h[1], h)
     d.save_screenshot(f"{OUT}/rclick_hint_sketch.png")
     right_click(o=free_spot())
+    check("sketch: a right-click ended the ▭ tool, the sketch stays open",
+          js(f"return {M}.mode") == "sketch" and js(f"return {SK}.tool") == "select", [js(f"return {M}.mode"), js(f"return {SK}.tool")])
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.mode === 'part' && !!{M}.cmd", 20)
     d.save_screenshot(f"{OUT}/rclick_finished_sketch.png")
-    check("sketch: a right-click finished it (the Extrude panel opened)", js(f"return {M}.mode") == "part" and js(f"return {M}.cmd?.feature.type") == "extrude")
+    check("sketch: ✓ Finish sketch opened the Extrude panel", js(f"return {M}.mode") == "part" and js(f"return {M}.cmd?.feature.type") == "extrude")
 
     # ---- the Extrude panel: a right-click is its OK
     settled()

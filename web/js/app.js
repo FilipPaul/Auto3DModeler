@@ -2582,9 +2582,9 @@ var autosave = new Autosave({
 });
 
 // OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view; a right-click in the view = its OK
-// (a hint by the cursor says it, and what Esc does in the 3D model)
+// (a hint by the cursor says it, and what Esc does in the 3D model; in a sketch it ends the drawing tool, not the sketch)
 for (const [vp, right] of [['modelViewport', 'modelRight'], ['asmViewport', 'asmRight'], ['shViewport', 'shRight'], ['dwgViewport', 'dwgRight']]) {
-  actionDock($(vp), [$(vp), $(right)], vp === 'modelViewport' ? { esc: () => modeler.escMeaning() } : {});
+  actionDock($(vp), [$(vp), $(right)], vp === 'modelViewport' ? { esc: () => modeler.escMeaning(), rclick: () => modeler.rclickAction() } : {});
 }
 
 // ⧉ a part in a window of its own (another monitor): every window has the project, a change in one goes to the others

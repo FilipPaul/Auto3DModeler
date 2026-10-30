@@ -171,9 +171,14 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
    click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_rclick_ok.py <url> <dir>` covers right-click = OK with real mouse, in Czech (a sketch's rectangle: a
-   right-click finishes it; the Extrude panel: a right-click adds the step; ◎ Hole with 1 position: kept; a right-click
-   in a panel field and a right-drag (pans) confirm nothing; no command: nothing) and the cursor hint ("🖱 Dokončit
-   skicu"; "OK · Esc Zrušit" red; "OK · Esc Hotovo" once a hole is placed; hidden while dragging / with no command).
+   right-click ends the ▭ tool, not the sketch — ✓ Finish sketch does; the Extrude panel: a right-click adds the step;
+   ◎ Hole with 1 position: kept; a right-click in a panel field and a right-drag (pans) confirm nothing; no command:
+   nothing) and the cursor hint ("🖱 Konec obdélníku"; "OK · Esc Zrušit" red; "OK · Esc Hotovo" once a hole is placed;
+   hidden while dragging / with no command).
+   `tools/e2e_sketch_rclick.py <url> <dir>` covers right-click in a sketch = end the drawing tool, real mouse, Czech
+   (◯ 2 circles, a right-click: the tool ends, a 3rd click draws nothing, the sketch stays open; ⟋ lines: the 1st
+   right-click ends the chain, the 2nd the tool; no tool: the sketch stays open; the hint "🖱 Konec kružnice" / "Konec
+   lomené čáry" while a tool is on, no 🖱 without one; Extrude: a right-click is still OK; no console errors).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
    part, no assembly in itself).
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and

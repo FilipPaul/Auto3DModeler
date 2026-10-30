@@ -10,6 +10,9 @@
 // (copy / paste in a field). Nothing to confirm: nothing happens (the view's own menus stay).
 // While the mouse is over the view a small hint by the cursor says it ("🖱 OK"), with what Esc does when the
 // workspace tells (esc(): 'cancel' -> "Esc Cancel" in red, 'keep' -> "Esc Done", null -> not said).
+// A workspace may take the right-click over (rclick()): { word, run } -> a right-click runs that and the hint says its
+// word (a sketch: "🖱 End circle" — it ends the drawing tool, not the sketch); false -> it does nothing (no 🖱 in the
+// hint); undefined -> the primary button, as above.
 
 import { t } from './i18n.js';
 
@@ -23,7 +26,7 @@ const MOUSE = `<svg class="rc-mouse" viewBox="0 0 10 14" width="9" height="13" a
 
 const usable = (b) => b && !b.disabled && b.isConnected && !!b.offsetParent;
 
-export function actionDock(viewport, sources, { esc } = {}) {
+export function actionDock(viewport, sources, { esc, rclick } = {}) {
   const dock = document.createElement('div');
   dock.className = 'view-actions';
   dock.hidden = true;
@@ -38,12 +41,19 @@ export function actionDock(viewport, sources, { esc } = {}) {
   const primaries = () => [...dock.querySelectorAll('.mp-actions .primary'), ...marked()];
   /** The button a right-click presses now, or null. */
   const confirmBtn = () => primaries().find(usable) || null;
+  /** What a right-click does now: { word, run } or null (nothing). */
+  const rcAction = () => {
+    const own = rclick?.();
+    if (own !== undefined) return own ? { word: t(own.word), run: own.run } : null;
+    const b = confirmBtn();
+    return b ? { word: b.textContent.replace(/^[^\p{L}\p{N}]+/u, '').trim() || 'OK', run: () => b.click() } : null;
+  };
   let shown = ''; // the hint's html
   let at = null; // where the mouse is over the view (client x, y), null: not over it / dragging
   const showTip = () => {
-    const b = at && confirmBtn(), e = at ? esc?.() : null;
+    const b = at && rcAction(), e = at ? esc?.() : null;
     if (!b && !e) { tip.hidden = true; return; }
-    const word = b ? b.textContent.replace(/^[^\p{L}\p{N}]+/u, '').trim() || 'OK' : '';
+    const word = b ? b.word : '';
     const html = `${b ? `${MOUSE}<b>${word.replace(/[&<>]/g, '')}</b>` : ''}${b && e ? '<i>·</i>' : ''}${e ? `<span class="rc-esc ${e}"><kbd>Esc</kbd> ${t(e === 'cancel' ? 'Cancel' : 'Done')}</span>` : ''}`;
     if (shown !== html) { shown = html; tip.innerHTML = html; } // (the same: not again — the observer would call this again)
     const r = viewport.getBoundingClientRect();
@@ -69,7 +79,9 @@ export function actionDock(viewport, sources, { esc } = {}) {
     for (const [ph, row] of held) if (!ph.isConnected) { held.delete(ph); row.remove(); }
     for (const row of held.values()) if (row.parentNode !== dock) dock.appendChild(row);
     dock.hidden = !held.size;
-    for (const b of primaries()) { // its tooltip says a right-click presses it (also when its tooltip changes later)
+    // its tooltip says a right-click presses it (also when its tooltip changes later) — not where the workspace takes
+    // the right-click over (a sketch: there it ends the drawing tool)
+    if (rclick?.() === undefined) for (const b of primaries()) {
       const tp = b.title || '';
       if (!tp.includes(RC_TIP) && !tp.includes(t(RC_TIP))) b.title = tp ? `${tp}\n${RC_TIP}` : RC_TIP;
     }
@@ -98,17 +110,17 @@ export function actionDock(viewport, sources, { esc } = {}) {
     const p = press;
     if (e.button !== 2 || !p || e.pointerId !== p.id) return;
     press = null;
-    if (Math.hypot(e.clientX - p.x, e.clientY - p.y) >= RC_MOVE || performance.now() - p.t > RC_MS || !confirmBtn()) return;
+    if (Math.hypot(e.clientX - p.x, e.clientY - p.y) >= RC_MOVE || performance.now() - p.t > RC_MS || !rcAction()) return;
     const f = document.activeElement; // a value still being typed counts (as when OK is clicked: the field loses focus)
     if (f && f !== document.body && f.matches?.('input, textarea, select')) f.blur();
-    const b = confirmBtn(); // (again: the field's change may have drawn the panel again)
-    if (!b) return;
+    const a = rcAction(); // (again: the field's change may have drawn the panel again)
+    if (!a) return;
     confirmedAt = performance.now();
-    b.click();
+    a.run();
     showTip();
   }, true);
   viewport.addEventListener('contextmenu', (e) => { // no browser menu over the view while a command can be confirmed
-    if (onView(e.target) && (confirmBtn() || performance.now() - confirmedAt < 1000)) e.preventDefault();
+    if (onView(e.target) && (rcAction() || performance.now() - confirmedAt < 1000)) e.preventDefault();
   }, true);
   return dock;
 }
