@@ -898,7 +898,7 @@ const CS = {
   'Mirror: click the shapes to mirror (a rectangle or a joined outline goes whole). Esc = done.': 'Zrcadlit: klikněte na tvary ke zrcadlení (obdélník nebo spojený obrys celý). Esc = hotovo.',
   'Mirror: click the line to mirror across — or choose the X / Y axis in the box.': 'Zrcadlit: klikněte na čáru, podle které se zrcadlí — nebo v okénku vyberte osu X / Y.',
   'Across the Y axis (left ↔ right).': 'Podle osy Y (vlevo ↔ vpravo).', 'Across the X axis (up ↔ down).': 'Podle osy X (nahoře ↔ dole).', 'Across the line you clicked.': 'Podle čáry, na kterou jste klikli.',
-  'Across:': 'Podle:', 'Y axis': 'Osa Y', 'X axis': 'Osa X', 'up ↔ down': 'nahoře ↔ dole', 'or click a line of the sketch.': 'nebo klikněte na čáru skici.',
+  'Across:': 'Podle:', 'Y axis': 'Osa Y', 'X axis': 'Osa X', 'Z axis': 'Osa Z', 'up ↔ down': 'nahoře ↔ dole', 'or click a line of the sketch.': 'nebo klikněte na čáru skici.',
   'Move (do not keep the original)': 'Přesunout (původní nezachovat)', Done: 'Hotovo',
   'Click a line to mirror across — or choose the X / Y axis.': 'Klikněte na čáru, podle které se zrcadlí — nebo vyberte osu X / Y.',
   'Repeat the selected shapes in a row or around a point: select them (⬚ Select, Ctrl+click or a box), then type how many and how far apart — the copies follow the original': 'Opakovat vybrané tvary v řadě nebo kolem bodu: vyberte je (⬚ Výběr, Ctrl+klik nebo rámeček), pak napište kolik a jak daleko od sebe — kopie sledují originál',

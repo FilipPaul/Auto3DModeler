@@ -1077,7 +1077,9 @@ export class ModelView {
    *  surface. (A reference point: snap 'point', its step's id.) */
   measurePoint(clientX, clientY) {
     const h = this.pick(clientX, clientY), rect = this.renderer.domElement.getBoundingClientRect();
-    let s = snapNear([{ edges: this.body?.edges }], this.camera, rect, clientX, clientY, 10, snapKinds()), ref = null;
+    const kinds = snapKinds();
+    let s = snapNear([{ edges: this.body?.edges }], this.camera, rect, clientX, clientY, 10, kinds), ref = null;
+    s = this.withOrigin(s, clientX, clientY, 10, kinds);
     for (const p of this.refPoints || []) { // (a reference point beats a corner under it)
       const q = p.point.clone().project(this.camera), d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
       if (q.z <= 1 && d < 10 && (!ref || d < ref.d)) ref = { d, ...p };
@@ -1085,6 +1087,41 @@ export class ModelView {
     if (ref) s = { point: ref.point.clone(), kind: 'point', id: ref.id, name: ref.name };
     if (!s && !h) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null, ...(s?.id ? { id: s.id, name: s.name } : {}) };
+  }
+
+  /** ⊕ The origin (0, 0, 0) — its x / y / z arrows are shown — within px of the mouse on the screen: how far (px), or
+   *  null. */
+  originNear(clientX, clientY, px = 10) {
+    if (!this.origin?.visible) return null;
+    const q = new THREE.Vector3().project(this.camera);
+    if (q.z > 1) return null; // (behind the camera)
+    const [x, y] = this.toScreen(new THREE.Vector3()), d = Math.hypot(x - clientX, y - clientY);
+    return d < px ? d : null;
+  }
+
+  /** A snap s (snapNear's, or null) — or the ⊕ origin instead when it is as near the mouse: a snap point like a corner
+   *  (the Corners filter says whether it is taken), named "Origin"; a corner on the origin is the origin. */
+  withOrigin(s, clientX, clientY, px = 10, kinds = snapKinds()) {
+    const d = kinds.corner ? this.originNear(clientX, clientY, px) : null;
+    if (d === null) return s;
+    if (s) { const [x, y] = this.toScreen(s.point); if (Math.hypot(x - clientX, y - clientY) + 1 < d) return s; }
+    return { point: new THREE.Vector3(), kind: 'origin', inst: null };
+  }
+
+  /** The origin's x / y / z arrow under the mouse (within px, not at the origin itself): 'X', 'Y', 'Z' or null. */
+  originAxis(clientX, clientY, px = 6) {
+    if (!this.origin?.visible) return null;
+    const [ox, oy] = this.toScreen(new THREE.Vector3()), k = this.origin.scale.x;
+    if (Math.hypot(ox - clientX, oy - clientY) < 10) return null; // (the origin itself: a snap point)
+    let best = null;
+    for (const [name, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
+      const [ex, ey] = this.toScreen(new THREE.Vector3(...dir).multiplyScalar(k)), dx = ex - ox, dy = ey - oy, L = dx * dx + dy * dy;
+      if (L < 4) continue; // (seen end-on)
+      const s = Math.max(0, Math.min(1, ((clientX - ox) * dx + (clientY - oy) * dy) / L));
+      const d = Math.hypot(ox + s * dx - clientX, oy + s * dy - clientY);
+      if (d < px && (!best || d < best.d)) best = { d, name };
+    }
+    return best?.name || null;
   }
 
   /** The reference points (point steps): a small ✛ and its name each — [{id, name, xyz, on}] (on: the chosen one). */
@@ -1192,7 +1229,7 @@ export class ModelView {
     dot.renderOrder = 14;
     const el = document.createElement('div');
     el.className = 'm-snap';
-    el.textContent = mp.snap === 'point' ? mp.name : t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant' }[mp.snap]);
+    el.textContent = mp.snap === 'point' ? mp.name : t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant', origin: 'Origin' }[mp.snap]);
     const lab = new CSS2DObject(el);
     lab.position.copy(mp.point);
     this.snapGroup.add(dot, lab);

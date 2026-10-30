@@ -327,7 +327,7 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
+    const kinds = snapKinds(), s = this.withOrigin(snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, kinds, (p) => this.sees(p)), clientX, clientY, px, kinds); // (⊕ the origin too)
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
@@ -3967,7 +3967,7 @@ export class Assembly {
    *  or a small pin seen from afar would be all snap circles; joining wants the face). */
   idleSnap(e, h) {
     const sp = this.view.measurePoint(e.clientX, e.clientY, 5);
-    if (sp?.snap && sp.snap !== 'corner' && (h?.face?.type === 'cylinder' || this.view.roundEdgeAt(e.clientX, e.clientY))) return null;
+    if (sp?.snap && sp.snap !== 'corner' && sp.snap !== 'origin' && (h?.face?.type === 'cylinder' || this.view.roundEdgeAt(e.clientX, e.clientY))) return null;
     return sp;
   }
 
@@ -4139,9 +4139,11 @@ export class Assembly {
       const id = h?.inst || null, cue = dragCue(this, id); // (the chosen part that can move, a part of a mechanism: a drag moves it — the same check as the press)
       const moving = cue ? cue.parts : null;
       if (id !== this.hoverInst || String(moving || '') !== String(this.cueParts || '')) { this.hoverInst = id; this.cueParts = moving; this.draw(); } // (it and the parts that go with it glow)
-      this.view.setSnapMark(this.idleSnap(e, h)); // (a corner, an edge's middle, a centre: it can be picked)
+      const sp = this.idleSnap(e, h);
+      this.view.setSnapMark(sp); // (a corner, an edge's middle, a centre, the origin: it can be picked)
       cv.style.cursor = cue ? cue.cursor : !h ? '' : 'pointer';
-      cueLabel(vp, e, cue ? firstTip(cue) : '');
+      const ax = !cue && !sp?.snap && this.view.originAxis(e.clientX, e.clientY); // (the origin's arrows: named)
+      cueLabel(vp, e, cue ? firstTip(cue) : ax ? t({ X: 'X axis', Y: 'Y axis', Z: 'Z axis' }[ax]) : '');
     };
     cv.addEventListener('pointerleave', () => {
       this.hoverEv = null;

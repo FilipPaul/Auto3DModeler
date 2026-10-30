@@ -1,14 +1,15 @@
 // Snapping a spot on a flat face of the part (a hole's centre, where a text / picture goes), like Sketcher.snap: onto
-// the face's corners, edge midpoints, round edges' centres, its own centre, • reference points and other holes; onto
-// its edges; else in line with one of those along the face's x / y, or on an edge's extension (dashed green guides),
-// both: where they cross. The snap filters (suggest.js snapKinds) say which; Shift (or Alt) = no snapping.
+// the face's corners, edge midpoints, round edges' centres, its own centre, ⊕ the origin seen square onto it (when on the
+// face), • reference points and other holes; onto its edges; else in line with one of those along the face's x / y, or
+// on an edge's extension (dashed green guides), both: where they cross. The snap filters (suggest.js snapKinds) say
+// which; Shift (or Alt) = no snapping.
 import { snapPoints } from './view.js';
 import { snapKinds } from '../suggest.js';
 import { t } from '../i18n.js';
 
 const GUIDE = 0x7ee787;
 const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
-const NAMES = { corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant', face: 'centre of the face', hole: 'hole centre',
+const NAMES = { origin: 'Origin', corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant', face: 'centre of the face', hole: 'hole centre',
   edge: 'on the edge of the part', ext: "on the edge's extension", line: 'in line', cross: 'where the lines cross' };
 
 /** A face frame's axes as arrays: {o, x, y, n} (y = n × x). */
@@ -44,6 +45,8 @@ export function faceKeys(view, face, fr, { skip = '', extra = [], kinds = snapKi
   }
   const sp = kinds.centre ? view.faceSpan(face.name, fr) : null;
   if (sp) keys.push({ uv: [(sp[0] + sp[1]) / 2, (sp[2] + sp[3]) / 2], kind: 'face' });
+  const box = kinds.corner ? sp || view.faceSpan(face.name, fr) : null, o = box && toFace(fr, [0, 0, 0]); // ⊕ the origin (a point, as a corner)
+  if (o && o[0] >= box[0] - 1e-6 && o[0] <= box[1] + 1e-6 && o[1] >= box[2] - 1e-6 && o[1] <= box[3] + 1e-6) keys.push({ uv: o, kind: 'origin' });
   for (const p of view.refPoints || []) keys.push({ uv: toFace(fr, p.point), kind: 'point', name: p.name }); // (• reference points, also off the face: in line with them)
   return { keys, edges };
 }

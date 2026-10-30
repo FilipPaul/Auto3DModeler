@@ -842,7 +842,7 @@ export class Modeler {
    *  then measure from it, copy it, ask the AI; an edge's middle (edge `ei` under it): round / bevel that edge. */
   pickSnap(sp, ei = -1, at = null) {
     const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
-    const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
+    const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant', origin: 'Origin' }[sp.snap]);
     if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
     this.view.setMeasure([p]);
     const ref = ei >= 0 && this.edgeRef(ei);
@@ -4352,7 +4352,16 @@ export class Modeler {
       if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
       cv.title = '';
       if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
-      this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
+      const sp = this.view.measurePoint(e.clientX, e.clientY);
+      this.view.setSnapMark(sp); // (a corner, an edge's middle, a centre, the origin: it can be picked)
+      const ax = !sp?.snap && this.view.originAxis(e.clientX, e.clientY);
+      if (ax) { // the origin's arrows (drawn over the part): named
+        this.view.setHover(-1);
+        this.view.clearHoverMarks();
+        this.tip({ x: e.clientX, y: e.clientY, text: t({ X: 'X axis', Y: 'Y axis', Z: 'Z axis' }[ax]) });
+        cv.style.cursor = '';
+        return;
+      }
       // a made hole: it can be dragged on its face (holedrag.js) — said at the mouse, its step lit
       const hd = !this.painting && holeUnder(this, e.clientX, e.clientY);
       if (hd) {

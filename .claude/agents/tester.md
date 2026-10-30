@@ -574,6 +574,10 @@ Never report "works" without having run it; report failures with their output.
    note). Exits 1.
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
+   `tools/e2e_origin_hover.py <url> <dir>` covers ⊕ the origin lit like a snap point, real mouse, Czech (a sketch's ⟋
+   Line near 0, 0: the marker and "Počátek", the line starts at exactly [0, 0]; the 3D model, no tool on: "Počátek",
+   its X arrow "Osa X", Rohy off: not caught; 📏 origin -> a corner 30.332 with "Počátek" in the row; a hole spot snaps
+   to the origin on a face over it; the assembly: "Počátek", "Osa Z"; no console errors).
    `tools/e2e_measure_table.py <url> <dir>` covers the 📏 Measurements table (Czech, 1280 × 800, real mouse; a block
    with a hole and a boss: two corners 28.284 with ΔX ΔY ΔZ, an edge L 20, the hole's rim Ø6, parallel tops 5 apart,
    90° between two faces — each a row that stays; hovering a row lights its mark; ✕ removes one; a row's copy value;

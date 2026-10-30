@@ -1434,7 +1434,8 @@ export class Sketcher {
       : this.tool === 'extend' ? ((x) => x && { kind: 'piece', grow: true, pts: [x.from, x.to], key: `ext:${x.e.id}:${x.end}` })(this.extensionAt(uv))
       : this.tool === 'round' ? this.cornerAt(uv)
       : this.tool === 'dim' || this.tool === 'relate' ? this.pickTarget(uv)
-      : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
+      : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h
+        || (this.snapKinds.origin && Math.hypot(uv[0], uv[1]) < this.mpp() * 9 ? { kind: 'point', end: ORIGIN, uv: [0, 0] } : null)))(this.hit(uv)) // (⊕ the origin: lit and named too)
       : this.cursor.id || this.cursor.ref || this.cursor.on ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id || null, uv: this.cursor.uv,
         ...(this.cursor.mid ? { mid: this.cursor.mid } : this.cursor.on ? { onShape: this.ent(this.cursor.on)?.t } : this.cursor.edge || this.cursor.onCircle ? { onShape: 'edge' } : this.cursor.refKind ? { refKind: this.cursor.refKind } : {}) } : null;
     const key = hv?.key || JSON.stringify(hv && { ...hv, d: undefined });
@@ -3815,7 +3816,7 @@ export class Sketcher {
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
         else name = hv.mid ? 'midpoint' : hv.onShape ? { line: 'on the line', circle: 'on the circle', arc: 'on the arc', edge: 'on the edge of the part' }[hv.onShape] || 'on it'
           : hv.refKind ? { corner: 'corner of the part', midpoint: "middle of the part's edge", centre: 'centre on the part', quadrant: 'quadrant on the part' }[hv.refKind]
-          : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : hv.end?.axis ? 'axis of the round face' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
+          : hv.corner ? 'corner' : hv.end === ORIGIN ? 'Origin' : hv.end?.axis ? 'axis of the round face' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
         for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], hv.grow ? 0x7ee787 : 0xff7b72]);

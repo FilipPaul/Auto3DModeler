@@ -89,7 +89,7 @@ function shapeOf(ent) {
 }
 
 const at = (ent) => V(ent.at || ent.p || [0, 0, 0]);
-const ptLabel = { corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant', point: 'point' };
+const ptLabel = { corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant', point: 'point', origin: 'Origin' };
 
 /** One thing's own measure -> a row (without id): icon, its name, the value (+ unit), details, its mark. */
 export function single(ent) {
@@ -183,7 +183,7 @@ function label(ent) {
  *  edge itself is measured (a small hole's rim is within the 10 px of its centre). */
 export function snapWins(view, mp, e) {
   if (!mp?.snap) return false;
-  if (mp.snap === 'corner' || mp.snap === 'point') return true;
+  if (mp.snap === 'corner' || mp.snap === 'point' || mp.snap === 'origin') return true;
   const [x, y] = view.toScreen(mp.point);
   return Math.hypot(x - e.clientX, y - e.clientY) <= 6;
 }

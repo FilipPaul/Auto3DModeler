@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⊕ The origin lit like a snap point (2026-10-30)** (the owner: "I'm missing highlighting of the origin, similarly as
+  for a point"). Sketch: the origin already snapped and was pickable; hovering it now also shows "Počátek" (was
+  "počátek"), in ⬚ Select too (by the Snap › Origin filter). 3D model and assembly: ModelView.withOrigin adds ⊕ (0, 0, 0)
+  to measurePoint (kind 'origin', within the same px as corners, by the Corners filter; a corner on it is the origin)
+  -> no tool on: a green point and "Počátek" (setSnapMark), a click offers 📏 Measure from here / Copy its coordinates;
+  📏 Measure picks it (snapWins as a corner; the row says "Počátek"). ModelView.originAxis: the mouse on the triad's
+  X / Y / Z arrow -> "Osa X" / "Osa Y" / "Osa Z" at the mouse. facesnap: the origin seen square onto a flat face (when
+  within the face's box) is a key for a hole / text spot ("Počátek"; the face's centre wins a tie). Not done: 🔌
+  harness points in space do not snap to it; the base planes keep their fixed Top / Front / Right labels.
+  Tests: tools/e2e_origin_hover.py (new).
+
 - **👁 Hide / show… opens a list beside its row (2026-10-30)** (the owner, on the 150-part demo: its choices appended
   at the end of a 22-row table, out of sight — "I would rather expect a NEW selection list to pop up"). suggest.js: a
   row item with `sub: [items]` shows › and opens subMenu — suggestMenu(…, {beside: row, focus, cls: 'sg-fly'}): an

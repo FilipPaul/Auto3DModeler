@@ -242,7 +242,9 @@ the sketch's small boxes: drag the header (or the **⠿** strip), **resize** wit
 the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
-corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it
+corners, edge midpoints, centres — and **⊕ the origin** (0, 0, 0), named *Origin* at the mouse (it goes with
+*Corners*); the origin's X / Y / Z arrows say *X axis* … when the mouse is on them. In a sketch the origin lights up
+and is named the same way, and a hole or a text placed on a face over the origin snaps to it. With **no tool on**, the snap point under the mouse shows too and a click picks it
 (in an assembly: with its part) — *📏 Measure from here*, *Copy its coordinates*, ✨. In the 3D model it also offers
 **• Reference point here**: a step "Point 1" (a small marker with its name) that stays on that corner, edge middle or
 round edge's centre when earlier steps change. Sketches snap to it and ↔ Dimension measures from it (seen square onto
