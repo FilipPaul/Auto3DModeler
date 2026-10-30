@@ -426,6 +426,13 @@ Date: 2026-10-25. Written by the architect agent.
   skill); the chat (agent.js): 📎 Attach the recording (n events) on a stopped one -> its events as lines with the next
   message. Tests: test_agent_wiring (recorder.js handlers), tools/e2e_recording.py (29 checks), e2e_agent. Left out:
   saving a recording to the data folder; a sketch's shapes are diffed as "shapes: n → m items", not shape by shape.
+  📋 Copy the recording (2026-10-30, the owner: paste it into a chat with the developer, not only the in-app AI):
+  recorder.copyText() — a header (/api/version's text + the page's commit when it differs, date, workspace, project,
+  part, window, length, count, screenshots left out with their number) and devLine() per event ("── in" lines when the
+  place changes, ‼ errors / ! warnings, drags start · 3 points · end); over COPY_MAX (90 kB) the first 30 % and the
+  last events, the middle summed up with its errors. recorder.copy(id) writes it with navigator.clipboard.writeText in
+  the click; refused: .rec-copy panel (Select all). On the pill (stop, then copy), next to 📎 in the chat and on each ▾
+  row; the past recordings keep their copy text (dropped when sessionStorage is full). e2e_recording 7b / 7c / 8d / 10.
 
   1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another). 2026-10-30 (an app
   report from before this: ui pixels "off the screen", a drag by fractions turned the view): checked for

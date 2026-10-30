@@ -11,23 +11,35 @@
 // cursor only on a press / a release, a drag's samples kept as plain numbers, the session's copy written at most once a
 // second when the browser is idle and only its newest chunk of events (never the whole log, never the pictures again),
 // a screenshot taken when idle, the page walked in slices, encoded off the main thread.
+// 📋 Copy the recording (the pill, the chat's 📎): the recording as plain text for the clipboard — a header (the app's
+// version and commit, date, workspace, project, part, window, length) and one line per event — to paste into a chat
+// with a developer; a blocked clipboard: the text in a panel to copy by hand.
 import { t } from './i18n.js';
 import { History } from './history.js';
+import { pageBuild } from './stale.js';
 
 const KEY = 'a3d.rec', SHOTS_KEY = 'a3d.recShots', PART = 'a3d.rec.'; // the header; (old copies: the pictures); its chunks / pictures
 const PAST_KEY = 'a3d.recPast', MAX_PAST = 2;                       // the recordings before the last one, as the chat's text (the last 3 in all)
 const MAX = 2000, MAX_SHOTS = 12, SHOT_GAP_MS = 5000, SHOT_W = 800; // events kept; screenshots kept / how often / how wide
 const PATH_MS = 50, PATH_PX = 8, DRAG_PX = 5;                       // a drag's samples: every 50 ms and 8 px; a click moves less than 5 px
 const CHUNK = 100, SAVE_MS = 1000;                                  // events per stored chunk; the copy written at most once a second
+const COPY_MAX = 90000, COPY_HEAD = 0.3;                            // 📋 the copied text's bytes at most; its first events' share of them
 const chunkKey = (c) => `${PART}c${c}`, shotKey = (id) => `${PART}s${id}`;
 const PASSIVE = { capture: true, passive: true }; // (the page's events heard first, never held up or stopped)
 const idle = (fn, timeout = 1000) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout }) : setTimeout(fn, 1));
 const MODS = (e) => ['ctrl', 'shift', 'alt'].filter((m) => e[`${m}Key`] || (m === 'ctrl' && e.metaKey));
-const OFF = '#aiDrawer, #tab-ai, .ai-drawer, .rec-pill, #recBtn'; // (the chat and the recording's own controls: not recorded)
+const OFF = '#aiDrawer, #tab-ai, .ai-drawer, .rec-pill, #recBtn, .rec-copy'; // (the chat and the recording's own controls: not recorded)
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const r3 = (v) => +(+v).toFixed(3);
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const short = (v, n = 60) => { const s = typeof v === 'string' ? v : JSON.stringify(v); return s === undefined ? '—' : s.length > n ? `${s.slice(0, n - 1)}…` : s; };
+const bytes = (s) => new TextEncoder().encode(s).length;
+const two = (v) => String(v).padStart(2, '0');
+/** A time as "2026-10-30 11:24:05 (UTC+01:00)". */
+const stamp = (ms) => {
+  const d = new Date(ms), o = -d.getTimezoneOffset();
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())} (UTC${o < 0 ? '-' : '+'}${two(Math.floor(Math.abs(o) / 60))}:${two(Math.abs(o) % 60)})`;
+};
 
 /** The view on screen (the 3D view, the drawing, the sheet). */
 const viewEl = () => [...document.querySelectorAll('section.viewport')].find((v) => v.offsetParent && v.getBoundingClientRect().width > 0);
@@ -74,6 +86,8 @@ class Recorder {
     this.dirty = new Set(); // the chunks of events changed since the last write
     this.stored = new Set(); // the chunks / the pictures in the session's copy
     this.cost = { ms: 0, max: 0, n: 0 }; // the time the recording took from the page (its handlers): the e2e test reads it
+    this.meta = {};        // 📋 the project and the window when it started / stopped: {project, w, h, dpr}
+    this.version = '';     // 📋 the app's version and commit (/api/version), for the copied text's header
   }
 
   /** fn timed into this.cost (a handler of the page's events). */
@@ -92,7 +106,7 @@ class Recorder {
       this.past = JSON.parse(sessionStorage.getItem(PAST_KEY) || '[]');
       const s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
       if (!s) return;
-      Object.assign(this, { on: !!s.on, by: s.by || 'user', reason: s.reason || '', t0: s.t0 || 0, tEnd: s.tEnd || 0, n: s.n || 0, sent: s.sent ?? -1, nShot: s.nShot || 0 });
+      Object.assign(this, { on: !!s.on, by: s.by || 'user', reason: s.reason || '', t0: s.t0 || 0, tEnd: s.tEnd || 0, n: s.n || 0, sent: s.sent ?? -1, nShot: s.nShot || 0, meta: s.meta || {} });
       const chunks = s.chunks || [];
       this.events = s.events || chunks.flatMap((c) => JSON.parse(sessionStorage.getItem(chunkKey(c)) || '[]')).filter((e) => e.i >= (s.first || 0)); // (the oldest chunk: from the first kept)
       this.shots = s.shots ? s.shots.map((x) => ({ ...x, data: sessionStorage.getItem(shotKey(x.id)) })).filter((x) => x.data)
@@ -138,7 +152,7 @@ class Recorder {
     for (const x of [...this.shots]) if (!this.stored.has(shotKey(x.id)) && !put(shotKey(x.id), x.data)) this.shots.splice(this.shots.indexOf(x), 1); // (not even alone: not kept)
     const keep = new Set([...chunks.map(chunkKey), ...this.shots.map((x) => shotKey(x.id))]);
     for (const key of [...this.stored]) if (!keep.has(key) && key !== KEY) this.drop(key);
-    put(KEY, JSON.stringify({ on: this.on, by: this.by, reason: this.reason, t0: this.t0, tEnd: this.tEnd, n: this.n, sent: this.sent, nShot: this.nShot, first,
+    put(KEY, JSON.stringify({ on: this.on, by: this.by, reason: this.reason, t0: this.t0, tEnd: this.tEnd, n: this.n, sent: this.sent, nShot: this.nShot, first, meta: this.meta,
       chunks, shots: this.shots.filter((x) => this.stored.has(shotKey(x.id))).map(({ id, i, t: s }) => ({ id, i, t: s })) }));
   }
 
@@ -161,10 +175,12 @@ class Recorder {
   start(by = 'user', reason = '') {
     if (this.on) return false;
     if (this.events.length > 2) { // the one before: kept for the chat's 📎 ▾ (as its text — the events themselves go)
-      this.past = [{ id: this.t0, t0: this.t0, seconds: this.seconds, count: this.events.length, sent: this.sent >= this.n - 1, text: this.chatText() }, ...this.past].slice(0, MAX_PAST);
-      try { sessionStorage.setItem(PAST_KEY, JSON.stringify(this.past)); } catch { /* full: not kept */ }
+      this.past = [{ id: this.t0, t0: this.t0, seconds: this.seconds, count: this.events.length, sent: this.sent >= this.n - 1, text: this.chatText(), copy: this.copyText() }, ...this.past].slice(0, MAX_PAST);
+      try { sessionStorage.setItem(PAST_KEY, JSON.stringify(this.past)); } catch { // full: kept without their 📋 texts (then the chat's text is copied)
+        try { sessionStorage.setItem(PAST_KEY, JSON.stringify(this.past.map(({ copy, ...r }) => r))); } catch { /* not kept */ }
+      }
     }
-    Object.assign(this, { on: true, by, reason, t0: Date.now(), tEnd: 0, n: 0, events: [], shots: [], nShot: 0, lastShot: {}, sent: -1, where: '' });
+    Object.assign(this, { on: true, by, reason, t0: Date.now(), tEnd: 0, n: 0, events: [], shots: [], nShot: 0, lastShot: {}, sent: -1, where: '', meta: this.metaNow() });
     this.clear();
     this.push('start', { by, ...(reason ? { reason } : {}) });
     this.save(true);
@@ -178,9 +194,15 @@ class Recorder {
     this.push('stop', { by });
     this.on = false;
     this.tEnd = Date.now();
+    this.meta = { ...this.meta, ...this.metaNow() };
     this.save(true);
     this.changed();
     return true;
+  }
+
+  /** The project and the window now (the 📋 header). */
+  metaNow() {
+    return { project: this.ctx?.state?.projectName || '', w: innerWidth, h: innerHeight, dpr: +(devicePixelRatio || 1).toFixed(2) };
   }
 
   get seconds() { return this.t0 ? ((this.on ? Date.now() : this.tEnd || Date.now()) - this.t0) / 1000 : 0; }
@@ -242,6 +264,7 @@ class Recorder {
     window.addEventListener('pagehide', () => this.save(true));
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.save(true); });
     window.addEventListener('wheel', this.timed((e) => this.onWheel(e)), PASSIVE);
+    idle(() => this.appVersion(), 3000); // (the 📋 header's version: asked once, before a copy needs it)
     this.changed(); // (a recording kept over a reload: the chat offers its 📎)
   }
 
@@ -256,10 +279,12 @@ class Recorder {
     if (!this.on) return;
     if (full || !p.firstChild || p.dataset.lang !== t('Recording moves')) {
       p.dataset.lang = t('Recording moves');
-      p.innerHTML = `<span class="rec-dot"></span><b>${esc(t('Recording moves'))}</b><span class="rec-time"></span><span class="rec-by"></span><button type="button" class="rec-stop" title="${esc(t('Stop the recording — the AI can read it then'))}">■ ${esc(t('Stop'))}</button><button type="button" class="rec-stop rec-send" title="${esc(t('Stop the recording and send it to the AI chat now'))}">➤ ${esc(t('Stop and send to the AI'))}</button>`;
+      p.innerHTML = `<span class="rec-dot"></span><b>${esc(t('Recording moves'))}</b><span class="rec-time"></span><span class="rec-by"></span><button type="button" class="rec-stop" title="${esc(t('Stop the recording — the AI can read it then'))}">■ ${esc(t('Stop'))}</button><button type="button" class="rec-stop rec-send" title="${esc(t('Stop the recording and send it to the AI chat now'))}">➤ ${esc(t('Stop and send to the AI'))}</button><button type="button" class="rec-stop rec-copy-btn" title="${esc(t('Stop the recording and copy it as text — paste it (Ctrl+V) into a chat with a developer or another AI'))}">📋 ${esc(t('Copy the recording'))}</button>`;
       p.querySelector('.rec-stop').addEventListener('click', (e) => { e.stopPropagation(); this.stop('user'); });
       // (the chat hears it: opens, attaches this recording and sends — agent.js)
       p.querySelector('.rec-send').addEventListener('click', (e) => { e.stopPropagation(); if (this.stop('user')) window.dispatchEvent(new CustomEvent('a3d:rec-send', { detail: { id: this.t0 } })); });
+      // (📋 stopped, then copied — in the click itself: the clipboard needs the user's gesture)
+      p.querySelector('.rec-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); this.stop('user'); this.copy(); });
       for (const ev of ['pointerdown', 'pointerup', 'dblclick']) p.addEventListener(ev, (x) => x.stopPropagation());
     }
     const set = (el, k, v) => { if (el[k] !== v) el[k] = v; }; // (the page not touched when nothing changed — every event draws)
@@ -590,6 +615,124 @@ class Recorder {
   recordings() {
     const now = !this.on && this.events.length > 2 ? [{ id: this.t0, t0: this.t0, seconds: this.seconds, count: this.events.length, sent: this.sent >= this.n - 1 }] : [];
     return [...now, ...this.past];
+  }
+
+  // ------------------------------------------------------------------ 📋 copied as text (for a developer's chat)
+  /** The app's version and commit as the problem reports write them ("0.9.0 (main @ 2900fde, 2026-10-27)"), asked once. */
+  async appVersion() {
+    if (this.version) return this.version;
+    try {
+      const v = await (await fetch('/api/version')).json(), page = pageBuild();
+      this.version = `${v.text || v.version}${page && v.commit && page !== v.commit ? `; page loaded at ${page} — reload it` : ''}`;
+    } catch { /* the server restarting: said unknown */ }
+    return this.version;
+  }
+
+  /** One event as a compact line for a developer: a mark (‼ an error, ! a warning), time, kind, what, where, value. */
+  devLine(e) {
+    const { i, t: s, kind, where, shot, ...r } = e;
+    const tm = `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+    const pt = (q) => (q ? `[${q.join(', ')}]` : '—');
+    const place = (x) => [x.at ? `at ${pt(x.at)}` : '', x.px ? `px ${pt(x.px)}` : ''].filter(Boolean).join(' ');
+    const q = (v) => `"${short(v, 160)}"`;
+    const btn = `${r.button || ''}${r.keys ? `+${r.keys.join('+')}` : ''}`;
+    let mark = ' ', body;
+    if (kind === 'click' || kind === 'suggest') {
+      body = [`${btn}${r.double ? ' double' : ''}`, kind === 'suggest' ? `row ${q(r.row)} in ${q(r.table)}${r.about ? ` about ${r.about}` : ''}` : '',
+        r.control ? `on button ${q(r.control)}` : r.on ? `on ${r.on}` : '', place(r)].filter(Boolean).join(' ');
+    } else if (kind === 'drag') { // (the path shortened: its start, three points on the way, its end)
+      const path = r.path || [], px = r.path_px || [], n = Math.max(path.length, px.length);
+      const pick = [...new Set([0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round(3 * (n - 1) / 4), n - 1])].filter((j) => j >= 0 && j < n);
+      const way = pick.map((j) => (path[j] ? pt(path[j]) : `px ${pt(px[j])}`)).join(' → ');
+      body = `${btn} of the ${r.of || 'view'}: from ${r.from || '?'} to ${r.to || '?'}; path (${n} points) ${way}${px.length ? `; px ${pt(px[0])} → ${pt(px[px.length - 1])}` : ''}`;
+    } else if (kind === 'toast') {
+      mark = r.level === 'error' ? '‼' : r.level === 'warning' ? '!' : ' ';
+      body = `${r.level === 'error' ? 'ERROR' : r.level === 'warning' ? 'WARNING' : r.level || 'info'}: ${q(r.text)}`;
+    } else if (kind === 'value') body = `${q(r.field)} = ${q(r.value)}`;
+    else if (kind === 'key') body = `${r.key}${r.in ? ` in ${q(r.in)}` : ''}`;
+    else if (kind === 'press') body = `button ${q(r.control)}${r.via ? ` (${r.via})` : ''}`;
+    else if (kind === 'view') body = `zoom ${r.zoom > 0 ? '+' : ''}${r.zoom} ${place(r)}`;
+    else body = Object.entries(r).map(([k, v]) => `${k}: ${short(v, 160)}`).join(', ');
+    return `${mark} ${tm.padStart(6)}  ${kind.padEnd(13)} ${body}${shot ? ` [screenshot ${shot} left out]` : ''}`;
+  }
+
+  /** The recording as self-contained text for a developer: its header, then a line per event (a "── in" line when the
+   *  workspace / part / step changes); longer than COPY_MAX bytes: its first and last events, the middle summed up. */
+  copyText() {
+    const list = this.read(), m = this.meta || {}, last = this.events[this.events.length - 1] || {};
+    const ws = [...new Set(this.events.map((e) => e.ws).filter(Boolean))], parts = [...new Set(this.events.map((e) => e.part).filter(Boolean))];
+    const head = [
+      '# Auto3DModeler — recording of the user\'s moves (⏺)',
+      `App version: ${this.version || 'unknown'}`,
+      `Recorded: ${stamp(this.t0)}, ${clock(this.seconds)} long, ${list.length} events${this.on ? ' (still running)' : ''}; started by ${this.by === 'ai' ? 'the AI' : 'the user'}${this.reason ? ` — ${this.reason}` : ''}`,
+      `Workspace: ${last.ws || '—'}${ws.length > 1 ? ` (visited: ${ws.join(', ')})` : ''} · Project: ${m.project ? `"${m.project}"` : '—'} · Part: ${last.part || '—'}${parts.length > 1 ? ` (also: ${parts.filter((x) => x !== last.part).join(', ')})` : ''}`,
+      `Window: ${m.w || innerWidth} × ${m.h || innerHeight} px (device pixel ratio ${m.dpr || 1}); "at [x, y]" = 0…1 across / down the view, "px [x, y]" = window pixels scaled to at most 1400 px wide`,
+      ...(this.events[0]?.i ? [`Not kept: the oldest ${this.events[0].i} events (the recording keeps the newest ${MAX})`] : []),
+      `Screenshots: ${this.shots.length ? `${this.shots.length} taken (${this.shots.map((x) => x.id).join(', ')}) — left out of this text` : 'none'}`,
+      'Lines: mark (‼ error, ! warning) · time m:ss.s · event · what (button, under the cursor, place, value)',
+      '',
+    ].join('\n');
+    const lines = [];
+    let at = '';
+    for (const e of list) {
+      if (e.where !== undefined) { at = e.where; lines.push({ e, at, s: `── in ${at || '—'}` }); }
+      lines.push({ e, at, s: this.devLine(e) });
+    }
+    const size = lines.reduce((a, l) => a + bytes(l.s) + 1, 0), room = COPY_MAX - bytes(head) - 4000; // (4000: the summary)
+    let body = lines;
+    if (size > room) { // the first and the last events, the middle summed up (its errors and warnings kept)
+      let a = 0, b = 0, h = 0, k = lines.length;
+      while (h < lines.length && a + bytes(lines[h].s) + 1 <= room * COPY_HEAD) a += bytes(lines[h++].s) + 1;
+      while (k > h && b + bytes(lines[k - 1].s) + 1 <= room * (1 - COPY_HEAD)) b += bytes(lines[--k].s) + 1;
+      const mid = lines.slice(h, k).filter((l) => !l.s.startsWith('──')).map((l) => l.e), count = {};
+      for (const e of mid) count[e.kind] = (count[e.kind] || 0) + 1;
+      const errs = mid.filter((e) => e.kind === 'toast' && (e.level === 'error' || e.level === 'warning')).slice(-20);
+      body = [...lines.slice(0, h),
+        { s: `… ${mid.length} events left out (${Object.entries(count).map(([x, n]) => `${n}× ${x}`).join(', ')})${errs.length ? ` — their last ${errs.length} errors / warnings:` : ''} …` },
+        ...errs.map((e) => ({ s: this.devLine(e) })), ...(errs.length ? [{ s: '… (end of the left-out part) …' }] : []),
+        ...(k < lines.length && !lines[k].s.startsWith('──') ? [{ s: `── in ${lines[k].at || '—'}` }] : []), // (where the kept end starts)
+        ...lines.slice(k)];
+    }
+    return `${head}${body.map((l) => l.s).join('\n')}\n`;
+  }
+
+  /** 📋 Copy a recording (id: one of recordings(); none: this one) to the clipboard as copyText(); the clipboard
+   *  blocked: the text in a panel to copy by hand. Called in the click (the user's gesture). -> true when copied. */
+  async copy(id = null) {
+    const old = id !== null && id !== this.t0 ? this.past.find((r) => r.id === id) : null;
+    if (!old && !this.version) await Promise.race([this.appVersion(), new Promise((ok) => setTimeout(ok, 1500))]);
+    const text = old ? old.copy || old.text : this.copyText(), count = old ? old.count : this.events.length;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('no clipboard');
+      await navigator.clipboard.writeText(text);
+    } catch {
+      this.copyPanel(text);
+      return false;
+    }
+    const kb = Math.max(1, Math.round(bytes(text) / 1024));
+    this.ctx?.toast?.(t('Recording copied ({n} events, {kb} kB) — paste it with Ctrl+V').replace('{n}', count).replace('{kb}', kb), 'ok');
+    return true;
+  }
+
+  /** The clipboard blocked: the text in a panel — Select all, then Ctrl+C. */
+  copyPanel(text) {
+    document.querySelector('.rec-copy')?.remove();
+    const el = document.createElement('div');
+    el.className = 'rec-copy';
+    el.dataset.noI18n = '';
+    el.innerHTML = `<div class="rec-copy-head"><b>📋 ${esc(t('Copy the recording'))}</b><button type="button" class="btn small rec-copy-x" title="${esc(t('Close'))}">✕</button></div>
+      <p class="hint">${esc(t('The browser did not let the app write to the clipboard — select all, press Ctrl+C, then paste it (Ctrl+V) into the chat.'))}</p>
+      <textarea readonly spellcheck="false"></textarea>
+      <div class="rec-copy-acts"><span class="hint">${Math.max(1, Math.round(bytes(text) / 1024))} kB</span><button type="button" class="btn small primary rec-copy-all">${esc(t('Select all'))}</button></div>`;
+    const ta = el.querySelector('textarea');
+    ta.value = text;
+    el.querySelector('.rec-copy-all').addEventListener('click', () => { ta.focus(); ta.select(); });
+    el.querySelector('.rec-copy-x').addEventListener('click', () => el.remove());
+    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); el.remove(); } });
+    document.body.appendChild(el);
+    ta.focus();
+    ta.select();
+    return el;
   }
 
   /** A recording in a few words: "11:24 · 0:22 · 22 events". */

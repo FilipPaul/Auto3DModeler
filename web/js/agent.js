@@ -141,6 +141,7 @@ async function photoData(file) {
 
 const when = (s) => new Date(s * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const tn = (text, n) => t(text).replace('{n}', n);
+const COPY_TIP = 'Copy the recording as text — paste it (Ctrl+V) into a chat with a developer or another AI';
 const session = { get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { if (v) sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch { /* private window */ } } };
 
@@ -241,7 +242,8 @@ export class ChatPanel {
   }
 
   /** 📎 Attach the recording (n events): a stopped recording of moves goes with the next message (a click; again: not) —
-   *  the last one; ▾ an earlier one (the last 3 are kept, with their time and length). */
+   *  the last one; ▾ an earlier one (the last 3 are kept, with their time and length); 📋 one copied as text (for a
+   *  developer's chat). */
   renderRec() {
     const box = this.$('.ai-rec'), recs = recorder.recordings();
     if (!recs.some((r) => r.id === this.recOn)) this.recOn = null;
@@ -255,13 +257,16 @@ export class ChatPanel {
     box.innerHTML = (on
       ? `<button type="button" class="btn small on ai-rec-btn" title="${escapeHtml(`${recorder.describe(on)} — ${t('Click: the recording does not go with the message')}`)}">📎 ${escapeHtml(t('The recording goes with the message'))} ✕</button>`
       : `<button type="button" class="btn small ai-rec-btn" title="${escapeHtml(`${recorder.describe(recs[0])} — ${t('Your recorded moves go with the next message — the AI reads what you did')}`)}">📎 ${escapeHtml(tn('Attach the recording ({n} events)', recs[0].count))}</button>`)
+      + `<button type="button" class="btn small ai-rec-copy" data-id="${recs[0].id}" title="${escapeHtml(`${recorder.describe(recs[0])} — ${t(COPY_TIP)}`)}">📋 ${escapeHtml(t('Copy the recording'))}</button>`
       + (recs.length > 1 ? `<button type="button" class="btn small ai-rec-more" title="${escapeHtml(t('Choose one of the last recordings'))}">▾</button>` : '')
-      + (this.recMenu ? `<div class="ai-rec-menu">${recs.map((r) => `<button type="button" class="${r.id === this.recOn ? 'on' : ''}" data-id="${r.id}">⏺ ${escapeHtml(recorder.describe(r))}${r.sent ? ' ✓' : ''}</button>`).join('')}</div>` : '');
+      + (this.recMenu ? `<div class="ai-rec-menu">${recs.map((r) => `<div class="ai-rec-row"><button type="button" class="ai-rec-pick ${r.id === this.recOn ? 'on' : ''}" data-id="${r.id}">⏺ ${escapeHtml(recorder.describe(r))}${r.sent ? ' ✓' : ''}</button>`
+        + `<button type="button" class="ai-rec-copy" data-id="${r.id}" title="${escapeHtml(t(COPY_TIP))}">📋</button></div>`).join('')}</div>` : '');
     box.querySelector('.ai-rec-btn').addEventListener('click', () => { this.recOn = on ? null : recs[0].id; this.recMenu = false; this.renderRec(); this.$('textarea').focus(); });
     box.querySelector('.ai-rec-more')?.addEventListener('click', () => { this.recMenu = !this.recMenu; this.renderRec(); });
-    for (const b of box.querySelectorAll('.ai-rec-menu button')) {
+    for (const b of box.querySelectorAll('.ai-rec-menu .ai-rec-pick')) {
       b.addEventListener('click', () => { this.recOn = +b.dataset.id; this.recMenu = false; this.renderRec(); this.$('textarea').focus(); });
     }
+    for (const b of box.querySelectorAll('.ai-rec-copy')) b.addEventListener('click', () => recorder.copy(+b.dataset.id)); // (📋 the text to the clipboard)
   }
 
   // ------------------------------------------------------------------ 🕘 previous conversations (kept on the server)

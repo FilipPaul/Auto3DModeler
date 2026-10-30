@@ -1582,7 +1582,15 @@ can open them.
   the chat a stopped recording goes with your next message in one click: **📎 Attach the recording (n events)** —
   offered whenever a stopped recording exists (also after a reload, and after it was sent once); **▾** picks one of
   the last 3 recordings (time · length · events). **➤ Stop and send to the AI** on the red pill stops the recording,
-  opens the chat and sends it at once.
+  opens the chat and sends it at once. **📋 Copy the recording** (on the red pill: stops, then copies; next to 📎 in
+  the chat; and on each row of its ▾ list) puts the recording on the clipboard as plain text, to paste (Ctrl+V) into a
+  chat with a developer or another AI: a header (the app's version and commit, date, workspace, project and part,
+  window size, length, number of events), then one line per event — time, kind, what, where, the value; clicks with
+  their place and what was under the cursor, drags with their path shortened (start, a few points, end), errors
+  marked **‼** and warnings **!**; screenshots are left out (the header says how many there were). A long recording
+  stays under ~90 kB: its first and last events are kept, the middle is summed up (*"… n events left out …"*, its
+  errors still listed). A toast says *"Recording copied (n events, x kB) — paste it with Ctrl+V"*; when the browser
+  blocks the clipboard, the text opens in a panel with **Select all** to copy it by hand.
   Recording does not slow the app down: orbiting, clicking, typing and dragging feel the same with it on (well under
   a millisecond per event; the log is saved in small pieces when the browser is idle, the screenshots are taken in
   the background).

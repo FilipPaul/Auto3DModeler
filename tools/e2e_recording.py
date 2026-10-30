@@ -5,12 +5,14 @@ rovině from the table, a rectangle clicked, ✓ Hotovo, the extrude's distance 
 Esc -> Ctrl+Z -> a drag with the button held (one drag event: its points, from / to) -> an assembly: the pill there too
 -> get_recording (the page's handler and /api/agent/call): the events in order with their ids and the toast's text,
 paths: false leaves the points out, a screenshot (get_recording_screenshot) -> ■ Zastavit hides the pill -> the chat's
+📋 Kopírovat záznam: the clipboard (CDP-granted, read back) has the header (version, commit, window …) and the events as
+lines, the toast says so; writeText rejecting: the panel with Vybrat vše -> the chat's
 📎 Přiložit záznam (n událostí) -> a reload: still offered, attached -> the events in the next message (caught before the
 server), still offered -> ➤ Zastavit a poslat AI on the pill: stopped and sent -> ▾ the last two recordings, the older one
-sent -> the AI's start_recording: "(spustila AI)" -> a reload: it goes on (a reload event)
--> stop_recording -> cheap: a long recording (2000 events, 12 pictures), a 2 s orbit, 25 clicks + 25 keys, an error:
-under 2 ms per recorder handler call, no recorder run over 50 ms (the CDP profiler), the session's copy a small header
-and chunks. Console errors: none.
+sent -> 📋 on the pill: stopped and copied; ▾ 📋 the oldest one -> the AI's start_recording: "(spustila AI)" -> a reload:
+it goes on (a reload event) -> stop_recording -> cheap: a long recording (2000 events, 12 pictures), a 2 s orbit, 25
+clicks + 25 keys, an error: under 2 ms per recorder handler call, no recorder run over 50 ms (the CDP profiler), the
+session's copy a small header and chunks; its 📋 text under 100 kB (the middle summed up). Console errors: none.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_recording.py http://127.0.0.1:5199 <out dir>
 """
@@ -71,6 +73,25 @@ def call(tool_name, **args):
 
 def recording(**args):
     return json.loads(call("get_recording", **args)["text"])
+
+
+def clip_set(text=""):
+    js("return navigator.clipboard.writeText(arguments[0])", text)
+
+
+def clip(old="", t=8):
+    """The clipboard's text once it is not `old` any more (the copy is async: the version asked first)."""
+    end = time.time() + t
+    while time.time() < end:
+        v = d.execute_async_script("const done = arguments[arguments.length - 1]; navigator.clipboard.readText().then(done, (e) => done('ERR ' + e.message))")
+        if v != old and not str(v).startswith("ERR"):
+            return v
+        time.sleep(0.2)
+    return v
+
+
+def toasts():
+    return js("return [...document.querySelectorAll('#toasts .toast')].map(t => t.textContent).join(' | ')")
 
 
 def canvas():
@@ -264,6 +285,53 @@ try:
     r = recording()
     check("get_recording: not running, the stop at the end", not r["running"] and r["events"][-1]["kind"] == "stop", r["events"][-1])
 
+    print("7b. 📋 Kopírovat záznam next to 📎 in the chat: the clipboard has the header and the events")
+    d.execute_cdp_cmd("Browser.grantPermissions", {"origin": URL.rstrip("/"), "permissions": ["clipboardReadWrite", "clipboardSanitizedWrite"]})
+    clip_set("")
+    ver = json.loads(urllib.request.urlopen(f"{URL}/api/version", timeout=30).read())
+    d.find_element(By.ID, "aiBtn").click()
+    time.sleep(0.6)
+    cp = d.find_elements(By.CSS_SELECTOR, "#aiDrawer .ai-rec .ai-rec-copy")
+    check("the chat: 📋 Kopírovat záznam next to 📎 Přiložit záznam", cp and "Kopírovat záznam" in cp[0].text, [b.text for b in cp])
+    cp[0].click()
+    text = clip("")
+    (OUT / "rec_copy.txt").write_text(text, encoding="utf-8")
+    head = text.split("\n\n")[0]
+    check("the header: version and commit as /api/version, date, workspace, project, part, window, length, count",
+          "# Auto3DModeler" in head and f"App version: {ver['text']}" in head and (not ver.get("commit") or ver["commit"] in head)
+          and "Recorded: 20" in head and "Workspace: assembly" in head and "Project:" in head and "Part:" in head
+          and f"Window: {js('return innerWidth')} × {js('return innerHeight')} px" in head and f"{r['count']} events" in head, head)
+    check("screenshots left out, with a note how many", "Screenshots: " in head and "left out" in head and "iVBOR" not in text, head)
+    lines = text.split("\n")
+    check("the click: its button, place and what was under it", any(" click " in l and "left" in l and "face F2:end" in l and "at [" in l and "px [" in l for l in lines))
+    check("the error toast marked ‼ ERROR with its text", any(l.startswith("‼") and "ERROR" in l and "nula" in l for l in lines))
+    check("the drag: from / to and a shortened path (start → … → end)", any(" drag " in l and "from " in l and l.count("→") >= 3 and "points)" in l for l in lines))
+    check("the value typed, the suggestion row, the step added, where it happened", any(" value " in l and '= "10"' in l for l in lines)
+          and any(" suggest " in l and "Díra" in l for l in lines) and any("step added" in l and "F2" in l for l in lines) and any(l.startswith("── in model") for l in lines))
+    check("the stop at the end; well under 100 kB", "stop" in lines[-2] and len(text.encode()) < 100000, lines[-3:])
+    tt = toasts()
+    check("the toast: Záznam zkopírován (n událostí, x kB) — vložte Ctrl+V", f"Záznam zkopírován ({r['count']} událostí" in tt and "kB) — vložte Ctrl+V" in tt, tt)
+
+    print("7c. the clipboard blocked (writeText rejects): the text in a panel, Vybrat vše")
+    js("navigator.clipboard.writeText = () => Promise.reject(new DOMException('blocked', 'NotAllowedError'))")
+    d.find_element(By.CSS_SELECTOR, "#aiDrawer .ai-rec .ai-rec-copy").click()
+    panel = wait("const p = document.querySelector('.rec-copy'); return p && p.getBoundingClientRect().width > 100 ? p : null", 10)
+    check("the panel: Czech, the text in it", "Kopírovat záznam" in panel.text and "Ctrl+C" in panel.text
+          and js("return document.querySelector('.rec-copy textarea').value.startsWith('# Auto3DModeler')"), panel.text[:200])
+    js("const ta = document.querySelector('.rec-copy textarea'); ta.setSelectionRange(0, 0); ta.blur();")
+    sel_all = [b for b in panel.find_elements(By.CSS_SELECTOR, "button") if b.text == "Vybrat vše"]
+    check("…with Vybrat vše", bool(sel_all))
+    if sel_all:
+        sel_all[0].click()
+        got = js("const ta = document.querySelector('.rec-copy textarea'); return [ta.selectionStart, ta.selectionEnd, ta.value.length, document.activeElement === ta]")
+        check("Vybrat vše selects the whole text", got[0] == 0 and got[1] == got[2] and got[3], got)
+    d.save_screenshot(str(OUT / "rec_03_copy_panel.png"))
+    panel.find_element(By.CSS_SELECTOR, ".rec-copy-x").click()
+    check("✕ closes the panel", not js("return !!document.querySelector('.rec-copy')"))
+    js("delete navigator.clipboard.writeText")
+    d.find_element(By.ID, "aiBtn").click()
+    time.sleep(0.3)
+
     print("8. the chat: 📎 Přiložit záznam (n událostí)")
     d.find_element(By.ID, "aiBtn").click()
     time.sleep(0.6)
@@ -320,10 +388,10 @@ try:
     if more:
         more[0].click()
         time.sleep(0.2)
-        items = js("return [...document.querySelectorAll('#tab-ai .ai-rec-menu button')].map(b => b.textContent)")
+        items = js("return [...document.querySelectorAll('#tab-ai .ai-rec-menu .ai-rec-pick')].map(b => b.textContent)")
         check("the menu: the last recordings with time, length, events", len(items) == 2 and f"{second['count']} událostí" in items[0]
               and f"{first_count} událostí" in items[1] and all(":" in x for x in items), items)
-        d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-rec-menu button")[1].click()
+        d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-rec-menu .ai-rec-pick")[1].click()
         chip = js("return document.querySelector('#tab-ai .ai-rec .ai-rec-btn')?.textContent")
         check("the older one chosen: it goes with the message", chip and "Záznam se pošle" in chip, chip)
         ta = d.find_element(By.CSS_SELECTOR, "#tab-ai textarea")
@@ -333,6 +401,37 @@ try:
         js("window.__chat.setBusy(false)")
         check("the older recording's events in the message", f"[⏺ Recording of my moves: {first_count} events" in sent, sent[:200])
     js("window.fetch = window.__fetch0")
+    d.find_element(By.ID, "aiBtn").click() if js("return !document.getElementById('aiDrawer').hidden") else None
+    time.sleep(0.3)
+
+    print("8d. 📋 Kopírovat záznam on the pill: stopped, then copied; ▾ an older recording copied")
+    js("document.getElementById('recBtn').click()")
+    time.sleep(0.4)
+    for k in range(4):
+        js("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'F8', bubbles: true}))")
+        time.sleep(0.1)
+    p = pill()
+    check("the pill: 📋 Kopírovat záznam", p and "Kopírovat záznam" in p["text"], p)
+    clip_set("")
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, ".rec-pill .rec-copy-btn")).click().perform()
+    text = clip("")
+    third = recording()
+    check("stopped (no pill) and copied: this recording's header, its F8 keys, the stop", pill() is None and not third["running"]
+          and f"{third['count']} events" in text.split("\n\n")[0] and sum(1 for l in text.split("\n") if " key " in l and "F8" in l) == 4
+          and any(" stop " in l and "by: user" in l for l in text.split("\n")), text[-400:])
+    tt = toasts()
+    check("…and said so: Záznam zkopírován", f"Záznam zkopírován ({third['count']} událostí" in tt, tt)
+    js("window.__chat.onShow()")
+    time.sleep(0.4)
+    d.find_element(By.CSS_SELECTOR, "#tab-ai .ai-rec .ai-rec-more").click()
+    time.sleep(0.2)
+    rows = d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-rec-menu .ai-rec-row")
+    check("▾ the last 3 recordings, each with 📋", len(rows) == 3 and all(x.find_elements(By.CSS_SELECTOR, ".ai-rec-copy") for x in rows), [x.text for x in rows])
+    if len(rows) == 3:
+        clip_set("")
+        rows[2].find_element(By.CSS_SELECTOR, ".ai-rec-copy").click()
+        text = clip("")
+        check("📋 of the oldest: its own text (its count, its version header)", f"{first_count} events" in text.split("\n\n")[0] and "App version: " in text, text[:400])
     d.find_element(By.ID, "aiBtn").click() if js("return !document.getElementById('aiDrawer').hidden") else None
     time.sleep(0.3)
 
@@ -418,6 +517,10 @@ try:
     check("no long task from the recorder (its longest run under 50 ms), its total CPU under 150 ms", longest < 50 and total < 150, (longest, total))
     check("the session's copy: a small header and chunks of events (not the whole log rewritten)", got["header"] < 5000 and got["chunks"] in (20, 21) and got["stored"], got)
     call("stop_recording")
+    big = js("const s = window.__rec.copyText(); return {kb: new TextEncoder().encode(s).length / 1024, cut: (s.match(/… (\\d+) events left out/) || [])[1], "
+             "first: s.includes('Not kept: the oldest'), last: s.trimEnd().split('\\n').pop(), err: s.includes('‼'), shots: s.includes('12 taken'), pic: s.includes('iVBOR')}")
+    check("📋 of a long recording: under 100 kB, its first and last events, the middle summed up (n events left out), errors kept, no pictures",
+          big["kb"] < 100 and big["cut"] and int(big["cut"]) > 100 and big["first"] and " stop " in big["last"] and big["err"] and big["shots"] and not big["pic"], big)
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     check("no console errors", not errs, errs)
