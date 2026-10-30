@@ -1331,6 +1331,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   for the list — each pair and how much (mm³), the parts glowing red and the overlap boxed in red; hover a row for
   just that pair, **click a row: the view goes to that collision**, the other parts see-through (click again or
   *⤢ Show all* to go back); ↗ chooses the two parts (their joints and moves). Slide a part and see it clear. Big imported parts (a whole assembled PCB) are checked quickly: two of them overlapping in many places show an estimate (**≈**) after a change — *↻ Check again* computes it exactly.
+  Each pair of parts checked is remembered: after a change only the pairs that moved are computed again (a 521-part
+  rack: 2.7 s the first time, 0.1 s after a change).
+- **Big assemblies** (hundreds of placed parts, many alike fasteners) stay quick: a part's shape is built and drawn
+  once however often it is placed, parts that look alike share their look, a click or the mouse looks only at the parts
+  near it, choosing a part keeps the parts list as it is, and a geared mechanism moves only what hangs on each gear.
+  Measured with `tools/e2e_big_assembly.py` on the benchmark assemblies of `tools/make_big_assembly.py` (also 🎬 demos):
+  choosing a part in a 521-part assembly takes ~50 ms, hovering < 25 ms, opening it about a second.
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
 - **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side); each part's cut

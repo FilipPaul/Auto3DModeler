@@ -7,6 +7,36 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🏗 Big assemblies measured, the costs that showed fixed (2026-10-30)** (the owner: make large assemblies work well,
+  measure first). tools/make_big_assembly.py builds three through the app (parts with the AI tools, the many fastener
+  copies put in the document in bulk with their ◎ concentric + ▭ touch joints): big-150 (97 placed / 145 with the
+  sub-assemblies' parts, 105 joints, 20 distinct parts, a STEP part), big-500 (521 placed, 4 × screw + washer + nut on
+  40 plates), mech-30 (a gear train of 30). tools/e2e_big_assembly.py opens one in headless Edge (software GL by
+  default: SwiftShader; --gpu) and measures open → first frame / interactive (no long task for 0.5 s), orbit fps and
+  render ms, pick / hover / select / drag latency, the joint solve, a driven step, ▶, collisions, BOM, autosave, a
+  version, JS heap, GPU buffers (estimated); --profile a CDP CPU profile; the server's GET /api/timings
+  (auto3d/timings.py: per route and kernel op). What the data said and what was done:
+  - ⚠ Collisions (the biggest cost: big-500 7 s on the server, run after every change, holding a kernel process — a
+    part's rebuild waited up to 8 s behind it): kernel.interference sorts the boxes along x (no O(n²) pairs) and keeps
+    each pair computed (_PAIRS: the two parts' keys + the second's placement seen from the first, overlaps in the
+    first's frame) — the check after a change computes only the pairs that moved, alike pairs once; the job goes to a
+    process by the parts it is made of. big-500: cold 3.9 → 2.7 s (640 → 166 booleans), again 3.8 → 0.07 s.
+  - Choosing a part (big-500 175 → 51 ms p50): smart.js pinFits placed every round face of every part (worldFace
+    filtering all faces) — rounds kept per body, filtered by Ø first; inst() indexed; worldFace a name map per body;
+    the parts list kept when only the choice changes (listKey / litRows); the mechanisms found again only when the
+    assembly changed (mechanism.js foundKey); AsmView.nearMouse — snaps and round edges only of the parts near the
+    mouse; view.js snap memos one per placement (500 alike screws overwrote one memo).
+  - draw(): each placed part keeps its mesh, alike parts share a material (lookMaterial): 9.6 → 3.9 ms on big-500.
+  - A geared mechanism: followCouplings placed every part again per gear — placeAll(mates, from) only what hangs on
+    the gear; a driven step of mech-30 8.7 → 2.1 ms.
+  - Not changed, by the data: draw calls (one per part + its edges: 1043 on big-500, 3.4 ms render with a GPU at
+    60 fps; under SwiftShader merging all into one draw gave 3.5 → 4.5 fps — the cost there is shading 260 000
+    triangles with the studio's reflections), picking (BVH per geometry already: 0.03 ms), body fetch (per part,
+    parallel, cached: first frame 0.3–1.4 s), the joint solve (≤ 2.4 ms), autosave (≤ 0.1 s), lazy loading (`package:
+    2`: not needed — the files are 20–50 kB, the parts are rebuilt). Next: the kernel's first build after a server
+    start (the 160-hole base 4 s, in each process that needs it), SwiftShader frames, the first collision check.
+  They are 🎬 demos too (Velká sestava — 150 dílů, … 500 dílů, Soukolí — 30 kol).
+
 - **💾 Project files are `.a3d` packages (2026-10-30)** (the owner: a real 35 MB `.a3d.json` was 35 MB of base64 STEP;
   an own extension). auto3d/package.py: a ZIP — `project.json` (the project, `"format": "a3d-package", "package": 1`,
   `blob_files` {sha: entry}), `blobs/<original name>` (each imported file byte for byte; the same name twice or none:
