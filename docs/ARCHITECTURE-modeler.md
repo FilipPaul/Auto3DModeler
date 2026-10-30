@@ -53,6 +53,14 @@ Date: 2026-10-25. Written by the architect agent.
   Tests: test_cableparts (frames and ranges of every clip size, clips_for, catalogue numbers, the U = 2 × run + πR and
   its ends for two travels, each part built by the kernel to its sizes), e2e_library_cableparts (ALL OK),
   e2e_library_build 317/317.
+- **Booleans leave their arguments alone (2026-10-30)** (app reports: a Ø4 hole down a pin cut nothing, then −891 mm³
+  and two solids; a Ø4 cut through −227.9 and two solids; a 3 mm slot cut +189.8). kernel.bop ran OCCT's booleans
+  destructively: an argument's edge whose tolerance had to grow was grown in place — on the steps' bodies that doc's
+  prefix cache keeps and every preview cuts again. Two hole previews grazing the pin's rim grew its top edge to 12 mm,
+  and every later cut of that body went wrong. bop now sets SetNonDestructive (a sub-shape to change is copied into
+  the result; the history still names it for _carry). tests/test_kept_shapes.py: the report's part, the previews,
+  then the hole (through and 24 deep), the cut and the slot — analytic volumes, one watertight solid, STEP read back;
+  the kept body's tolerance unchanged (the three tests reproduce the report's numbers without the fix).
 
 - **🔗 Library parts that go with each other (2026-10-29)** (the owner: "i u šroubů napáruj matice + podložky … a
   projdi knihovnu, jestli tam nejsou další věci k párování"). An item's `pairs` [{ref, role, back, size: "same" | a
@@ -146,6 +154,10 @@ Date: 2026-10-25. Written by the architect agent.
   message. Tests: test_agent_wiring (recorder.js handlers), tools/e2e_recording.py (29 checks), e2e_agent. Left out:
   saving a recording to the data folder; a sketch's shapes are diffed as "shapes: n → m items", not shape by shape.
 
+  1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another). 2026-10-30 (an app
+  report from before this: ui pixels "off the screen", a drag by fractions turned the view): checked for
+  get_screenshot {ui: true} too — a harness point in ✎ Edit points dragged by ui pixels and by the fitted picture's
+  pixels lands where aimed, the view does not turn; pixels outside the last picture are refused with its size.
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

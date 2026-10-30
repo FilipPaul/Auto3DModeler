@@ -679,7 +679,9 @@ The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process
 app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
 (`py -m pip install -r requirements-modeler.txt`, about 175 MB installed). Without them the rest of the app
 works, and the workspace says what to install. Its booleans (cuts, joins, splits, clash checks) use all the
-processor's cores; `A3D_PARALLEL_BOOL=0` (an environment setting) makes them use one — the results are the same.
+processor's cores; `A3D_PARALLEL_BOOL=0` (an environment setting) makes them use one — the results are the same. They
+never change the shapes they cut: the earlier steps' results are kept and cut again by every preview, so a
+hole dragged across a pin's rim cannot spoil the holes and cuts made after it.
 
 The kernel runs as a small pool of processes, so one long job — a big STEP import, a drawing set, a print
 split — does not hold up the rest: another part, another window or another assembly part is built meanwhile, and

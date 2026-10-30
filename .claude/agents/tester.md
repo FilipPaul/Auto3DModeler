@@ -679,7 +679,9 @@ Never report "works" without having run it; report failures with their output.
    `at` in get_screenshot's pixels at 1600 × 800 and in a narrow view: a block's edge projected with the picture's
    camera, clicked in ◜ Fillet -> that edge picked (the old view fractions miss it), the view's camera back; pick
    answers `at` in the picture's pixels; gui_highlight at them rings that face; mods ["ctrl"]: the top face, then the
-   front one Ctrl+clicked -> both selected (a plain click: one), a wrong key refused.
+   front one Ctrl+clicked -> both selected (a plain click: one), a wrong key refused; a harness in ✎ Edit points at
+   1920 × 1080: a point dragged by get_screenshot {ui: true} pixels and one by the fitted 1200 × 900 picture's pixels
+   land where aimed (the view does not turn), a click at ui pixels picks the part, pixels outside the picture refused.
    `tools/e2e_assembly_lever.py <url> <dir>` covers a lever fixed on a bearing on a shaft (the arm moves "— with
    Bearing": move_free and its slider turn the bearing, the arm goes along), 🔓 free / 🔒 locked on a touch joint
    (locked: the bearing fully held), a joint named by double-click and by edit_joint, and Explode with Respect joints
