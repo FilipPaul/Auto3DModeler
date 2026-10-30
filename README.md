@@ -1455,7 +1455,15 @@ can open them.
   came from (`auto3d/version.py`: VERSION and the git commit, e.g. *0.9.0 (main @ 2900fde, 2026-10-27)*; also
   `/api/version`). When the checkout moved on since the server started (a merge, a pull), the line says both — *0.9.0
   (server started at main @ 92d0e37, …; checkout now at 1e35a8d — restart the app to run it)* — and the page's commit
-  when the browser page was loaded with another one.
+  when the browser page was loaded with another one; the portable / installed app says the commit it was built from:
+  *0.9.0 (portable, built from main @ abc1234, 2026-10-30)*. Each report carries the **project** on screen, so someone
+  else can reproduce it: `<report>.a3d.json.gz` next to the `.md` (the Save project file, gzip-compressed, without
+  its version history; an imported file over 3 MB — then the largest ones until it is under about 5 MB — left out
+  with a note of its name and size) — open it with 📂 Open ▾ › File… (the app reads `.a3d.json.gz`). A ⏺ recording
+  of moves running or stopped in the last 30 minutes goes along as `<report>.recording.json` (its events, without the
+  screenshots). The report's lines *Project:* / *Recording:* name them; `list_reports` says which reports have them.
+  Both are git-ignored (`RealSWReports/*.gz`, `*.recording.json`); `A3D_REPORTS=<folder>` sends a (test) server's
+  reports elsewhere.
 - **⟳ New version — restart the app**: a small mark in the top bar when the app's files were updated but its server
   still runs the code it started with (checked every minute and when the window comes to the front); its tooltip
   says what to do. *⟳ New version — reload the page*: the server was restarted under an older page (a click reloads

@@ -1,8 +1,13 @@
 """The AI's problem reports (RealSWReports/*.md, written by the server's report_problem): what is reported already,
 and whether a new report says the same as one of them — so the AI does not file one thing twice. Standard library only.
+
+Next to a report: the project on screen when it was written (<base>.a3d.json.gz — the Save project file, compacted, so
+someone else can open it and reproduce the problem) and a ⏺ recording of the user's moves (<base>.recording.json).
 """
 from __future__ import annotations
 
+import gzip
+import json
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -11,6 +16,9 @@ from pathlib import Path
 STOP = set("a an the of in on at to for and or with without is are be not no does do it its this that from by as when "
            "can cannot should into than then one".split())
 SIMILAR = 0.6  # how alike two titles must be to count as the same report
+KEEP_FILE = 3 << 20  # bytes: an imported file (a blob) larger than this is left out of an attached project
+CAP = 5 << 20        # bytes: about how large an attached project (gzip) may get — the largest imported files go first
+PROJECT_EXT, RECORDING_EXT = ".a3d.json.gz", ".recording.json"
 
 
 def _stem(w: str) -> str:
@@ -38,7 +46,8 @@ def similarity(a: str, b: str) -> float:
 
 
 def read(folder: Path) -> list[dict]:
-    """Every report in the folder, newest first: [{file, title, kind, date}]."""
+    """Every report in the folder, newest first: [{file, title, kind, date, project, recording}] (project / recording:
+    the file attached to it, else '')."""
     out = []
     if not folder.is_dir():
         return out
@@ -50,8 +59,10 @@ def read(folder: Path) -> list[dict]:
         title = next((ln[2:].strip() for ln in head.splitlines() if ln.startswith("# ")), f.stem)
         kind = re.search(r"\*\*Kind:\*\*\s*([^\n]+)", head)
         date = re.search(r"\*\*Date:\*\*\s*([^\n]+)", head)
+        proj, rec = f.with_name(f.stem + PROJECT_EXT), f.with_name(f.stem + RECORDING_EXT)
         out.append({"file": f.name, "title": title, "kind": kind.group(1).strip() if kind else "bug",
-                    "date": date.group(1).strip() if date else f.name[:10]})
+                    "date": date.group(1).strip() if date else f.name[:10],
+                    "project": proj.name if proj.exists() else "", "recording": rec.name if rec.exists() else ""})
     out.sort(key=lambda r: r["file"], reverse=True)
     return out
 
@@ -72,3 +83,45 @@ def search(folder: Path, query: str = "", kind: str = "", limit: int = 40) -> li
         rows = [r for r in rows if q & _words(r["title"])]
         rows.sort(key=lambda r: -similarity(query, r["title"]))
     return rows[:limit]
+
+
+def _files(proj: dict) -> dict:
+    """The imported files' names by their hash (the ▣ Solid steps that use them)."""
+    out = {}
+    for p in proj.get("parts") or []:
+        for f in ((p.get("model") or {}).get("features") or []) if isinstance(p.get("model"), dict) else []:
+            if isinstance(f, dict) and f.get("blob"):
+                out.setdefault(f["blob"], f.get("file") or "")
+    return out
+
+
+def compact_project(proj: dict, keep_file: int | None = None, cap: int | None = None) -> tuple[bytes, list[dict]]:
+    """A project file (as Save project writes it) for a report -> (its gzip bytes, what was left out). Everything that
+    rebuilds it stays (parts, features, sketches, assemblies, cables, joints, sheets); left out: the version history
+    and an imported file over `keep_file` bytes (KEEP_FILE) — then the largest ones until it is under about `cap` (CAP) — each replaced
+    by a note in the file's "left_out" (its name and size)."""
+    keep_file, cap = KEEP_FILE if keep_file is None else keep_file, CAP if cap is None else cap
+    proj = dict(proj)
+    proj.pop("versions", None)
+    blobs, names = dict(proj.get("blobs") or {}), _files(proj)
+    size = {sha: len(b) * 3 // 4 - b[-2:].count("=") for sha, b in blobs.items() if isinstance(b, str)}  # (base64)
+    left = []
+
+    def leave(sha):
+        blobs.pop(sha, None)
+        left.append({"what": "imported file", "blob": sha, "name": names.get(sha, ""), "bytes": size.get(sha, 0)})
+
+    for sha in [s for s, n in size.items() if n > keep_file]:
+        leave(sha)
+    while True:
+        out = {**proj, "blobs": blobs, **({"left_out": left} if left else {})}
+        data = gzip.compress(json.dumps(out, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), 6)
+        if len(data) <= cap or not blobs:
+            return data, left
+        leave(max(blobs, key=lambda s: size.get(s, 0)))
+
+
+def read_project(path: Path) -> dict:
+    """An attached project (.a3d.json.gz) back as the project file."""
+    return json.loads(gzip.decompress(Path(path).read_bytes()).decode("utf-8"))
+

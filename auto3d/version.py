@@ -27,13 +27,13 @@ def _git(*args: str) -> str:
 
 @lru_cache(maxsize=1)
 def build() -> dict:
-    """{version, commit, date, branch, dirty} — the commit fields empty when git is not there. The built app
-    (tools/build) has no git: its BUILD.json, written by the build, says which commit it was made from."""
+    """{version, commit, date, branch, dirty, portable} — the commit fields empty when git is not there. The built app
+    (tools/build) has no git: its BUILD.json, written by the build, says which commit it was made from (portable: True)."""
     stamp = ROOT / "BUILD.json"
     if stamp.exists():
         try:
             return {"version": VERSION, "commit": "", "date": "", "branch": "", "dirty": False,
-                    **json.loads(stamp.read_text(encoding="utf-8"))}
+                    **json.loads(stamp.read_text(encoding="utf-8")), "portable": True}
         except (OSError, ValueError):
             pass
     commit = _git("rev-parse", "--short", "HEAD")
@@ -65,14 +65,15 @@ def stale() -> str:
 
 
 def text(page: str = "") -> str:
-    """'0.9.0 (main @ 2900fde, 2026-10-27, with local changes)' or '0.9.0'; the checkout moved on since the server
+    """'0.9.0 (main @ 2900fde, 2026-10-27, with local changes)' or '0.9.0'; the built app (BUILD.json): '0.9.0 (portable,
+    built from main @ abc1234, 2026-10-30)'; the checkout moved on since the server
     started: '0.9.0 (server started at main @ 92d0e37, …; checkout now at 1e35a8d — restart the app to run it)'.
     page: the commit the browser page was loaded with — said too when it is not the server's."""
     b = build()
     if not b["commit"]:
         return b["version"]
     moved = stale()
-    out = (f"{b['version']} ({'server started at ' if moved else ''}{b['branch']} @ {b['commit']}, {b['date']}"
+    out = (f"{b['version']} ({'portable, built from ' if b.get('portable') else ''}{'server started at ' if moved else ''}{b['branch']} @ {b['commit']}, {b['date']}"
            f"{', with local changes' if b['dirty'] else ''}")
     if moved:
         out += f"; checkout now at {moved} — restart the app to run it"

@@ -448,6 +448,11 @@ Never report "works" without having run it; report failures with their output.
    changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
+   `tools/e2e_report_project.py <url> <dir>` covers the project attached to an AI problem report (run the server with
+   `A3D_REPORTS=<scratch>/reports`: a part, a second one and an assembly, a ⏺ recording of clicks, stopped ->
+   report_problem writes the .md, `<base>.a3d.json.gz` and `<base>.recording.json`, the Project / Recording lines,
+   list_reports names them -> a new project, the .gz opened through 📂 Open › File…: the same parts and steps; no
+   console errors). Exits 1 on a failed check.
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
    fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap
    row gone while ▢ Shell is on; engraved text AB: the sheet check's missing sizes leave it out, each with its key; the wall's extrude says went +z 0 … 30 and its volume change, flipped -z; a wall flush on the plate: its back one face with both names; find_refs of_step: the

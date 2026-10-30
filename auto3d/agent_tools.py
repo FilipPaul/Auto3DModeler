@@ -714,7 +714,8 @@ TOOLS = [
                     "find it, or it did what they did not expect). title (short), what (what happened / what is missing), "
                     "expected (what should have happened / how it should work), steps (the tool calls / what you did), "
                     "workaround (what you did instead, if anything). A report whose title says the same as one written before is "
-                    "not written again — you get the similar one(s) instead; again: true only when yours is really another problem.",
+                    "not written again — you get the similar one(s) instead; again: true only when yours is really another problem. "
+                    "The project on screen (and a ⏺ recording of the last 30 min) goes along with it, so it can be reproduced.",
      "inputSchema": _obj({"title": STR, "what": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}, "expected": STR, "steps": STR,
                           "workaround": STR, "again": {"type": "boolean"}}, ["title", "what"])},
     {"name": "list_reports", "where": "server",

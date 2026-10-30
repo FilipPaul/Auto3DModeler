@@ -2871,6 +2871,15 @@ Date: 2026-10-25. Written by the architect agent.
   list; restart the app" (the MCP server sends listed: true; it also rewrites an old server's "Unknown tool").
   tests: test_launcher test_moved_head, test_agent test_older_app_server / test_report_says_the_page_build;
   tools/e2e_stale_notice.py.
+- **A problem report carries the project done:** report_problem (a server tool) asks the page (an internal handler,
+  report_attachments: app.js savedProject without versions / save point, recorder.forReport: a ⏺ recording running or
+  stopped in the last 30 min, events only) and writes `<base>.a3d.json.gz` (auto3d/reports.compact_project: no
+  versions, imported files over KEEP_FILE 3 MB left out, then the largest until under CAP 5 MB, each noted in
+  "left_out") and `<base>.recording.json` next to the .md, with *Project:* / *Recording:* lines; no page: the .md alone.
+  reports.read / list_reports give project / recording. openProject reads .a3d.json.gz (DecompressionStream). A3D_REPORTS
+  overrides the folder; .gitignore RealSWReports/*.gz, *.recording.json. version.text in the built app: "0.9.0
+  (portable, built from main @ abc1234, …)". tests: test_agent test_report_with_project, test_launcher
+  test_build_stamp; tools/e2e_report_project.py (11 checks).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
