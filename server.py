@@ -78,7 +78,10 @@ def _request_time(resp):
     """Each API request's time and size by its route (GET /api/timings)."""
     t0 = request.environ.get("a3d.t0")
     if t0 is not None and request.path.startswith("/api/") and request.url_rule is not None:
-        timings.note(f"{request.method} {request.url_rule.rule}", (time.perf_counter() - t0) * 1000, resp.calculate_content_length() or 0)
+        # a streamed answer (the chat's events, a file): its header only — calculate_content_length() would read the
+        # whole stream first, and the chat's never ends (nothing reached the page: the chat looked dead)
+        size = resp.content_length if resp.is_streamed or resp.direct_passthrough else resp.calculate_content_length()
+        timings.note(f"{request.method} {request.url_rule.rule}", (time.perf_counter() - t0) * 1000, size or 0)
     return resp
 
 

@@ -6,10 +6,12 @@ with its session id, then for each message a tool line and an answer that tells 
 
 Its sessions are files under $CLAUDE_CONFIG_DIR/projects/fake/<id>.jsonl (where the server looks for a session to
 resume); `--resume <id>` of a session that is not there fails as Claude Code does ("No conversation found …", exit 1).
+A message with "SLOW" in it is answered slowly: a piece of text every 0.5 s for a minute first (to press Stop in).
 """
 import json
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -48,6 +50,11 @@ def main():
         said = text.split("]\n\n", 1)[1] if summary == "yes" else text
         out({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "mcp__auto3d__get_model", "input": {}}]}})
         out({"type": "user", "message": {"content": [{"type": "tool_result", "content": "a model"}]}})
+        if "SLOW" in said:
+            out({"type": "stream_event", "event": {"type": "message_start"}})
+            for i in range(120):
+                out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": f"{i} "}}})
+                time.sleep(0.5)
         out({"type": "assistant", "message": {"content": [{"type": "text", "text":
              f"Echo #{n}: {said[:60]} | resumed: {resume or 'no'} | summary: {summary}"}]}})
         out({"type": "result", "is_error": False, "result": "", "total_cost_usd": 0, "duration_ms": 1})
