@@ -125,6 +125,11 @@ const CS = {
   'Show the part unbent (to edit masks and dimensions)': 'Zobrazit díl neohnutý (pro úpravu masek a kót)', 'Flat view': 'Rovný pohled',
   'Building 3D…': 'Sestavuji 3D…', 'Stop this (the part stays as it was)': 'Zastavit (díl zůstane, jak byl)', 'Apply and close (Enter)': 'Použít a zavřít (Enter)', 'Close without changing anything (Esc)': 'Zavřít beze změny (Esc)', Cancel: 'Zrušit', 'Cancelling…': 'Ruším…',
   'Right mouse button = OK': 'Pravé tlačítko myši = OK',
+  'End rectangle': 'Konec obdélníku', 'End line': 'Konec čáry', 'End polyline': 'Konec lomené čáry', 'End circle': 'Konec kružnice',
+  'End slot': 'Konec drážky', 'End curve': 'Konec křivky', 'Finish curve': 'Dokončit křivku', 'End arc': 'Konec oblouku',
+  'End rounding': 'Konec zaoblení', 'End trim': 'Konec ořezávání', 'End extend': 'Konec prodlužování', 'End mirror': 'Konec zrcadlení',
+  'End offset': 'Konec odsazení', 'End pattern': 'Konec pole', 'End relations': 'Konec vazeb', 'End dimension': 'Konec kótování',
+  'End merge': 'Konec slučování',
   "Drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture here (Shift = trace a picture's outline)": 'Přetáhněte sem PDF, DXF / DWG, STL / OBJ / 3MF / STEP nebo obrázek (Shift = obkreslit obrys obrázku)',
   'Building the part': 'Sestavuji díl', 'Building the 3D view': 'Sestavuji 3D pohled', 'Starting…': 'Spouštím…',
   // right tabs

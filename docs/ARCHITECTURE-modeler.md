@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Right-click in a sketch ends the drawing tool, not the sketch (2026-10-30)** (the owner: finishing the sketch by
+  right-click was wrong — it should end the tool, e.g. no more circles). actionDock takes `rclick()` from the
+  workspace: `{ word, run }` -> a right-click runs that and the cursor hint says its word; `false` -> nothing (no 🖱 in
+  the hint); `undefined` -> the primary button as before. Modeler.rclickAction: in a sketch Sketcher.rclick() — a line
+  chain ends ("Konec lomené čáry"; a second right-click leaves the tool, "Konec čáry"), a curve being drawn is finished
+  ("Dokončit křivku"), any other tool (rect, circle, slot, arc, round, trim, extend, mirror, offset, pattern, relations,
+  dimension, ⛓ merge) goes back to ⬚ Select ("Konec kružnice" …, a half-drawn shape goes); ⬚ Select: nothing. ✓ Finish
+  sketch no longer gets the "Right mouse button = OK" tooltip. Elsewhere unchanged (right-click = OK; the hint's look
+  and presence as before). Tests: tools/e2e_sketch_rclick.py (new), e2e_rclick_ok updated.
+
 - **e2e_mechanism_by_mouse green again (2026-10-30)**: its first Ctrl+click (the base's pin) failed since 7b16693
   (👁 Hide / show… and an always-shown ✎ made the floating suggestions two rows taller: the pin's spot the test aimed
   at was under the panel — the click went to the panel's edge, not the view). The app picks fine; the test's AIM now
