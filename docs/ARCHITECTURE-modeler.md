@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **☝ A message points at the control it names (2026-10-30)** (report 111438: "klikněte nejdřív na ＋ Přidat
+  pozici" — the user searched the panel for it). web/js/pointat.js: `pointAt(target, {key, again, ms})` — target an
+  element, a CSS selector (the first one on screen) or `{suggest: id}` (a suggestions row from an item's `id`:
+  suggest.js `data-sgid`); `reveal(el)` unfolds its widget (leftDock.fold), raises a floating one (fb-front), opens
+  closed suggestions / `<details>`, scrolls to it; the AI's gui_highlight ring (`.teach-ring.pt-ring`, no dimming),
+  ~2.6 s, gone on the next press, one at a time, the same key again within 8 s not pointed again. app.js `toast(msg,
+  kind, ms, {point, action})`: `point` rings the control, a click on the toast's text points again (it stays);
+  `action: {label, run}` a button that does it. Modeler `hint(text, point)`. Wired: ✏ Sketch (Draw a sketch first), ⌖
+  Move by clicking, 🔓 unlock (Edit it here), the red joints. tools/e2e_point_at_control.py.
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

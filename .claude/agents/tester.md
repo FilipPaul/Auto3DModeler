@@ -649,6 +649,10 @@ Never report "works" without having run it; report failures with their output.
    window (--client <window id>, as its chat starts it) lists and changes only its own window's project; a call for
    no window goes to the window in use; the second window closed: its chat's call fails at once ("… was closed"),
    the first one's still works; a reload and 📄 New project keep the window's chat id, a new window has its own.
+   `tools/e2e_point_at_control.py <url> <dir>` covers a message pointing at the control it names (Czech: E with no
+   sketch -> "Nejprve nakreslete skicu (✏ Skica)" and a ring on ✏ Skica, no dimming; gone in ~3 s; the same message at
+   once: no ring; a click on the toast's text: the ring again, the toast stays; a press elsewhere: gone; a step row in
+   the folded step-tree widget: unfolded, ringed, one ring at a time; no console errors). Prints ALL OK / FAILED.
    `tools/e2e_ai_teach.py <url> <dir>` covers the AI's gui_highlight: a ring around ✏ Sketch with its tip (the rest
    dimmed, nothing blocked), a click elsewhere keeps it, the user's real click starts the sketch and removes it (the
    next call says "the user clicked it"), Escape closes it without cancelling the sketch, a new tip replaces the old,

@@ -51,6 +51,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor, cogText } from './materials.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
+import { pointAt } from '../pointat.js';
 import { MeasureTool, snapWins } from '../measure.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
@@ -361,11 +362,13 @@ export class Modeler {
 
   toast(...a) { this.hooks.toast(...a); }
 
-  hint(text) {
+  /** The line under the toolbar; point: the control it names (pointat.js — a short ring on it). */
+  hint(text, point = null) {
     const h = this.$('.m-hint'), bar = this.$('.m-cmdbar');
     h.hidden = !text;
     h.textContent = text || '';
     if (bar) h.style.top = `${bar.offsetTop + bar.offsetHeight + 8}px`; // below the bar, also when it wraps to two rows
+    if (text && point) pointAt(point, { key: text });
   }
 
   // ------------------------------------------------------------------ feature tree
@@ -2612,7 +2615,7 @@ export class Modeler {
     if (this.mode !== 'part' || this.cmd) return;
     const used = new Set(this.part.features.flatMap(sketchesOf));
     const sks = this.sketches();
-    if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
+    if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning', 4500, { point: '.m-cmdbar [data-a=sketch]' }); return; }
     const sk = [...sks].reverse().find((s) => !used.has(s.id)) || sks[sks.length - 1];
     this.openExtrude(this.newExtrude(sk.id), true);
   }
@@ -3528,7 +3531,7 @@ export class Modeler {
     if (this.mode !== 'part' || this.cmd) return;
     const used = new Set(this.part.features.flatMap(sketchesOf));
     const sks = this.sketches();
-    if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
+    if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning', 4500, { point: '.m-cmdbar [data-a=sketch]' }); return; }
     const sk = [...sks].reverse().find((x) => !used.has(x.id)) || sks[sks.length - 1];
     const helper = (sk.entities || []).find((e) => e.t === 'line' && e.construction); // (a construction line drawn for it: the axis)
     this.openCommand({ id: this.newId(), type: 'revolve', name: this.nextName('revolve', sk.id), sketch: sk.id, axis: helper ? helper.id : 'y', angle: 360, op: 'add' }, true);
@@ -3618,7 +3621,7 @@ export class Modeler {
 
   clickDecal(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
-    if (!this.cmd.place) { this.hooks.toast(t('To move it by clicking, click ⌖ Move by clicking first.'), 'info', 3000); return; }
+    if (!this.cmd.place) { this.hooks.toast(t('To move it by clicking, click ⌖ Move by clicking first.'), 'info', 3000, { point: '[data-a=movepos]' }); return; }
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
     const same = f.plane && f.plane.face?.name === h.face.name;
     if (!same) f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };

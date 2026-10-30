@@ -562,6 +562,7 @@ const CS = {
   'Click at least one edge first.': 'Nejprve klikněte alespoň na jednu hranu.', 'Click on a flat face where the hole goes.': 'Klikněte na rovnou plochu, kam patří díra.',
   'Holes go on flat faces — click a flat face.': 'Díry patří na rovné plochy — klikněte na rovnou plochu.',
   'The holes of one step go on one face — press OK, then make another Hole for the other face.': 'Díry jednoho kroku jsou na jedné ploše — stiskněte OK a pro druhou plochu udělejte další Díru.',
+  'Click: show me where': 'Kliknutím ukážu, kde to je',
   'Click ✏ Sketch, then a flat face of the part, to add a pocket or a boss — or ◎ Hole, ◜ Fillet, ◸ Chamfer. Double-click a step to change it.':
     'Klikněte na ✏ Skica a pak na rovnou plochu dílu — přidáte kapsu nebo výstupek — nebo použijte ◎ Díra, ◜ Zaoblení, ◸ Zkosení. Dvojklikem na krok ho změníte.',
   'There is no solid yet to round.': 'Zatím není těleso k zaoblení.', 'There is no solid yet to drill into.': 'Zatím není těleso k vrtání.',

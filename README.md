@@ -1463,6 +1463,12 @@ can open them.
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D
   view) with a short tip, the rest of the screen dimmed a little. Nothing is blocked — you click the control itself;
   the tip goes when you click it, press **Esc** or ✕, and Claude waits for your click before it shows the next step.
+- **Messages point at the control they name**: when a message asks you to use a control — *"Nejprve nakreslete skicu
+  (✏ Skica)"*, *"klikněte nejdřív na ⌖ Přesunout kliknutím"*, a row of the suggestions — that control gets the same
+  pulsing ring for a few seconds (no dimming) and is brought into view: a folded widget unfolds, a floating one comes to
+  the front, the suggestions open, its panel scrolls to it. In moderation: one ring at a time, gone on your next click,
+  and the same message again right away does not point again — click the message's text (*"Kliknutím ukážu, kde to
+  je"*) to see it once more.
 - **⏺ Recording of moves — "look what I'm doing"**: the **⏺** in the top bar (or the AI, when you ask it to watch:
   `start_recording`) records what you do, so the AI sees the problem instead of you describing it. While it runs, a
   small red pill at the top of the view says **⏺ Recording moves · 0:42 · ■ Stop** (with "(started by the AI)" when the

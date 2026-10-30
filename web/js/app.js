@@ -30,6 +30,7 @@ import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
 import { leftDock, layoutHandlers } from './leftdock.js';
+import { pointToast, toastAction } from './pointat.js';
 import { Autosave } from './autosave.js';
 import { Windows } from './windows.js';
 import { actionDock } from './actiondock.js';
@@ -168,15 +169,19 @@ const STATUS_LABEL = {
   reference: 'reference', aligned: 'assumed', conflict: 'conflict',
 };
 
-function toast(msg, kind = 'info', ms = 4500) {
+/** A message in the bottom-right corner. opts.point: the control it names (pointat.js: a ring on it; a click on the
+ *  text shows it again); opts.action: {label, title, run} — a button that does what it suggests. */
+function toast(msg, kind = 'info', ms = 4500, { point, action } = {}) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
   t.textContent = msg;
   t.title = 'Click to close it';
-  t.addEventListener('click', (e) => { if (!e.target.closest('button, a')) t.remove(); }); // (its own buttons — ↶ — still work)
+  t.addEventListener('click', (e) => { if (!e.target.closest('button, a') && !t.classList.contains('pt-toast')) t.remove(); }); // (its own buttons — ↶ — still work)
   const stack = $('toasts');
   stack.appendChild(t);
   while (stack.children.length > 4) stack.firstElementChild.remove(); // (a calm corner: the 4 newest)
+  if (action) toastAction(t, action);
+  if (point) pointToast(t, point);
   setTimeout(() => t.remove(), ms);
   return t;
 }

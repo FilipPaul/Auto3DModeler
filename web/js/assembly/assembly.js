@@ -576,7 +576,7 @@ export class Assembly {
     this.sel = nj.move;
     this.sel2 = null;
     const fights = this.unmet().filter((m) => !before.has(m.id));
-    if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES.axis.name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
+    if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES.axis.name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000, { point: '.as-jrow.bad' });
     else if (tj) this.hooks.toast(t2('{a} + {b}: {part} sits on the face around the pin and can still turn (Ctrl+Z: back).', { a: t('Concentric'), b: t('Touch'), part: this.partName(this.inst(nj.move)?.part) }), 'ok', 4000);
     else this.hooks.toast(`${JOINT_TYPES.axis.name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
     this.commit();
@@ -1871,7 +1871,7 @@ export class Assembly {
     const it = this.inst(instId);
     if (!it || !this.hooks.editInPlace) return;
     if (this.kindOf(it.part) !== 'model') { this.hooks.toast('Only 3D model parts can be changed here — open a quick part in its own tab.', 'info', 4000); return; }
-    if (!this.editable(it.part)) { this.hooks.toast('Editing this part from the assembly is locked — 🔓 unlock it in its panel first.', 'warning', 5000); return; }
+    if (!this.editable(it.part)) { this.hooks.toast('Editing this part from the assembly is locked — 🔓 unlock it in its panel first.', 'warning', 5000, { point: '#asmRight [data-a=editLock]' }); return; }
     const Mi = new THREE.Matrix4().fromArray(it.matrix).invert();
     const context = this.doc.instances.filter((o) => o.id !== instId && this.bodyOf(o)?.body).map((o) => ({
       positions: this.bodyOf(o).body.positions, matrix: Mi.clone().multiply(new THREE.Matrix4().fromArray(o.matrix)).toArray() }));
@@ -3724,7 +3724,7 @@ export class Assembly {
       this.sel = nj.move; // (the part that moved: the first one's, or the other one when that hangs on it)
       const refused = had.has(nj.id) ? null : this.turnOnlyRefused(nj, was), fights = this.unmet().filter((m) => !before.has(m.id));
       if (refused) this.hooks.toast(refused, 'warning', 8000);
-      else if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
+      else if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000, { point: '.as-jrow.bad' });
       else if (kept !== null && kept !== 0) this.hooks.toast(t2('{type} — the offset {gap} mm kept, as the parts stand (0 in the panel lines them up).', { type: t(JOINT_TYPES[type].name), gap: fmt(kept) }), 'ok', 5000);
       else if (nj.id === this.doc.mates[this.doc.mates.length - 1].id) this.hooks.toast(`${JOINT_TYPES[type].name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
     }

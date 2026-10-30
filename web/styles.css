@@ -1473,6 +1473,12 @@ body.fb-resizing, body.fb-resizing * { cursor: var(--fb-cur, nwse-resize) !impor
 .teach-ring { position: fixed; z-index: 1000; pointer-events: none; border: 2px solid #ffb020; border-radius: 8px;
   box-shadow: 0 0 0 9999px #00000059, 0 0 14px 3px #ffb020aa; animation: teach-pulse 1.3s ease-in-out infinite; }
 .teach-ring.spot { border-radius: 50%; }
+/* pointat.js: the control a message names — the same ring, no dimming, a few seconds, then it fades */
+.teach-ring.pt-ring { box-shadow: 0 0 14px 3px #ffb020aa; animation: pt-pulse 0.9s ease-in-out infinite; transition: opacity .25s; }
+.teach-ring.pt-ring.pt-out { opacity: 0; }
+@keyframes pt-pulse { 50% { box-shadow: 0 0 4px 7px #ffb02055; border-color: #ffd27a; } }
+.toast.pt-toast { cursor: help; }
+.toast .pt-act { margin-left: 6px; }
 @keyframes teach-pulse { 50% { box-shadow: 0 0 0 9999px #00000059, 0 0 4px 7px #ffb02055; border-color: #ffd27a; } }
 .teach-tip { position: fixed; z-index: 1001; max-width: 300px; padding: 8px 11px 10px; border-radius: 10px; background: #fff8e6; color: #241a05;
   border: 1px solid #ffb020; box-shadow: 0 8px 26px #000a; font-size: 13px; line-height: 1.4; animation: slide .2s ease-out; }
