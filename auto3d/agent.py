@@ -251,6 +251,7 @@ class ChatSession:
         self.project = {}                  # the project the page has open ({id, name}): a new conversation's
         self.resumed = None                # the session id the process was started to resume (not confirmed yet)
         self.pending: list | None = None   # the content of the last message sent (sent again when a resume fails)
+        self.reader: threading.Thread | None = None  # the process's output -> events (its end: the 'exit' event)
         self.proc: subprocess.Popen | None = None
         self.subscribers: list[queue.Queue] = []
         self.history: list[dict] = []      # events of this chat (replayed to a page that reconnects)
@@ -262,15 +263,16 @@ class ChatSession:
     # ---------------------------------------------------------------- events
     def emit(self, ev: dict):
         ev = {"seq": next(self._seq), **ev}
+        # kept first: whoever sees the event (a page, the list) finds the conversation saved with it
+        kept = self.conv is not None and not ev.get("old") and chat_history.add(self.conv, ev)
+        if kept and ev["type"] in ("user", "text", "note", "done") or ev["type"] == "exit":
+            self.keep()
         with self.lock:
             self.history.append(ev)
             del self.history[:-800]
             subs = list(self.subscribers)
         for q in subs:
             q.put(ev)
-        kept = self.conv is not None and not ev.get("old") and chat_history.add(self.conv, ev)
-        if kept and ev["type"] in ("user", "text", "note", "done") or ev["type"] == "exit":
-            self.keep()
 
     def keep(self):
         """Write the conversation to the store (when it has one and a message)."""
@@ -363,7 +365,8 @@ class ChatSession:
                                      stderr=subprocess.PIPE, creationflags=flags, bufsize=0,
                                      env=ai_access.chat_env(clean_env()))  # (the API key set up in the ✨ AI panel)
         self.emit({"type": "status", "text": "Starting Claude Code…", "exe": exe})
-        threading.Thread(target=self._read_out, args=(self.proc,), daemon=True).start()
+        self.reader = threading.Thread(target=self._read_out, args=(self.proc,), daemon=True)
+        self.reader.start()
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
         return prime
 
@@ -406,6 +409,10 @@ class ChatSession:
                 p.wait(5)
             except subprocess.TimeoutExpired:
                 p.kill()
+        # its 'exit' event (and the conversation's save) before this returns — not later, into the next turn
+        r = self.reader
+        if p and r and r is not threading.current_thread():
+            r.join(5)
         self.busy = False
 
     def reset(self):

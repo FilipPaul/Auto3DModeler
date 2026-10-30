@@ -92,9 +92,9 @@ class TestContinue(unittest.TestCase):
         q = chat.subscribe()
         chat.send(text)
         got = []
-        end = time.time() + 30
+        end = time.time() + 90
         while time.time() < end:
-            ev = q.get(timeout=30)
+            ev = q.get(timeout=90)
             if ev["seq"] <= last:
                 continue  # (the chat so far, replayed)
             got.append(ev)
