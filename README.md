@@ -1237,7 +1237,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   fixed), the others greyed with why (*Ø 3,2 max — malá*); point at a row to preview it, click to put it in; *☐ Pro
   všechny body na plochách* puts the same clip on every point on a face that has none yet (one Ctrl+Z). On a point
   that has a clip the same list (*📎 Vyměnit příchytku…*) swaps it for another, the point kept — one step. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
-  i ji* in the panel. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  i ji* in the panel. **🔌 Connection point** (*Připojovací bod*, 🔌 in the point's row or its suggestion): where the
+  cable plugs into a part — a connector, a probe's tail, a gland. The cable may enter that part near the point: no
+  collision note for it there and no lead-out note. The ends of a harness that sit on a part are connection points
+  unless you switch them off. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid

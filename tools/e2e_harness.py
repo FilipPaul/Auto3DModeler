@@ -827,16 +827,49 @@ try:
     call("edit_harness", id=hl, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [p0[0] + 8, p0[1], p0[2] + 6]}])
     js(f"{T}.sel = '{hl}'; {A}.render(); {A}.draw()")
     time.sleep(0.6)
-    notes = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note")]
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hl)
+    check("23. its end on the box's top is a 🔌 connection point by itself: no lead-out note", f["point_list"][0].get("connection") is True and "too_close" not in f
+          and not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note"), f["point_list"][0])
+    call("edit_harness", id=hl, disconnect_points=[1])
+    time.sleep(0.6)
+    notes = [e.text + " " + (e.get_attribute("title") or "") for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note")]
     f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hl)
     check("23. the next point 10 mm from a face end: a quiet note “příliš blízko — kabel potřebuje rovný výstup X mm”",
           any(f"příliš blízko — kabel potřebuje rovný výstup {round(need)} mm" in n for n in notes) and f.get("too_close", [{}])[0].get("lead_mm") == round(need, 1), [notes, f.get("too_close"), need])
     d.save_screenshot(f"{OUT}/harness_12_lead_note.png")
-    call("edit_harness", id=hl, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [p0[0] + 8, p0[1], p0[2] + need + 30]}])
+    call("edit_harness", id=hl, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [p0[0] + 8, p0[1], p0[2] + need + 30]}], disconnect_points=[1])
     time.sleep(0.6)
     f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hl)
     check("…far enough: no note", not [e for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-note") if "příliš blízko" in e.text] and "too_close" not in f, f.get("too_close"))
     call("edit_harness", id=hl, remove=True)
+
+    # 24. 🔌 a connection point into a part: the cable may enter that part there — no collision for it; an ordinary
+    # point there: the collision told; the toggle in the point's row (one undo step) and in its suggestions
+    hk = call("add_harness", type="cable", d=4, points=[{"xyz": [-30, 50, 5]}, {"part": "I1", "point": [8, 50, 5]}]).split(" ")[0]
+    js(f"{T}.checkThrough()")
+    time.sleep(0.6)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hk)
+    check("24. an end inside the box, on it: 🔌 a connection point — no collision with the box", f["point_list"][1].get("connection") is True and not f.get("through_parts") and not f.get("still_hits"),
+          {k: f.get(k) for k in ("through_parts", "still_hits", "point_list")})
+    call("edit_harness", id=hk, disconnect_points=[2])
+    js(f"{T}.checkThrough()")
+    time.sleep(0.6)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hk)
+    check("…not a connection point (edit_harness disconnect_points): it goes through the box", "connection" not in f["point_list"][1] and any("I1" in x for x in (f.get("through_parts") or []) + (f.get("still_hits") or [])),
+          {k: f.get(k) for k in ("through_parts", "still_hits")})
+    js(f"{T}.sel = '{hk}'; {T}.pt = 1; {T}.span = null; {A}.sel = null; {A}.render(); {A}.draw()")
+    time.sleep(0.5)
+    n_undo = js(f"return {A}.history.undo.length")
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pconn='1']").click()
+    time.sleep(0.6)
+    js(f"{T}.checkThrough()")
+    time.sleep(0.4)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hk)
+    check("…🔌 in the point's row: a connection point again (one undo step), no collision", f["point_list"][1].get("connection") is True and not f.get("through_parts") and not f.get("still_hits")
+          and js(f"return {A}.history.undo.length") == n_undo + 1 and "on" in d.find_element(By.CSS_SELECTOR, "#asmRight [data-pconn='1']").get_attribute("class"), f.get("through_parts"))
+    rows = table()
+    check("…its suggestions: 🔌 Připojovací bod ✓", any("Připojovací bod" in r and "✓" in r for r in rows), rows)
+    call("edit_harness", id=hk, remove=True)
 
     # 17. saved and reloaded: the locks kept
     keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")

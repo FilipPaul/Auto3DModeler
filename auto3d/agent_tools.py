@@ -636,7 +636,10 @@ TOOLS = [
                     "and the answer / get_assembly say `taut` {short_mm}. lock_points / unlock_points: point numbers (1 = the first, "
                     "as `point_list` numbers them) of points on a part — 🔒 locked it moves with its part (the default for a point "
                     "on a face), 🔓 unlocked it stays where it is in space. The answer's `point_list` gives each point's part, face, "
-                    "lock and xyz. ➰ spans: [{from: a point number, length: mm}] gives the cable between that point and the next its "
+                    "lock and xyz. 🔌 connect_points / disconnect_points: point numbers made connection points or not — where the cable "
+                    "plugs into its part (a connector, a probe's tail, a gland): it may enter that part near the point (no `through_at` "
+                    "/ `still_hits` for it there, no `too_close`); the ends on a part are connection points unless said (`point_list` "
+                    "`connection`). ➰ spans: [{from: a point number, length: mm}] gives the cable between that point and the next its "
                     "own length — longer than now: a loop of slack that keeps r_min and holds that length when the parts move "
                     "(no length: as it is now; null: none of its own); they win over length_locked; too far apart: `taut` with its "
                     "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz); it keeps clear of "
@@ -665,6 +668,8 @@ TOOLS = [
                           "chain": _obj({"span": {"type": "integer", "minimum": 1}, "id": {"type": ["string", "null"]}}, ["span"]),
                           "set_points": {"type": "array", "items": _obj({"n": {"type": "integer", "minimum": 1}, "part": STR, "face": STR, "point": POINT, "xyz": POINT}, ["n"])},
                           "remove_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "connect_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "disconnect_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
                           "insert_points": _obj({"after": {"type": "integer", "minimum": 0},
                                                  "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})}}, ["after", "points"]),
                           "order": {"type": "array", "items": {"type": "integer", "minimum": 1}}}, ["id"])},

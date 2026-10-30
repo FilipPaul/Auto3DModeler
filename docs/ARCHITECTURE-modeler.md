@@ -311,7 +311,10 @@ Date: 2026-10-25. Written by the architect agent.
   mount / tie size, the fitting ones first, the rest greyed with why (small / large / tie) — grouped by type, ↑ ↓
   through it; a click clipAt (a point with a clip: swapped — the new one put in, the point moved onto it, the old one
   removed, one undo step); ☐ for all points on faces: clipAll (one undo step). It closes when the chosen point
-  changes, on Esc, ✕ or a pick. auto3d/cableparts.py clip_choices (test_cableparts). A span {from, chain: C…} (spanSet
+  changes, on Esc, ✕ or a pick. auto3d/cableparts.py clip_choices (test_cableparts). 🔌 Connection points (2026-10-30): a point {conn: true | false}; connOf: said, else an end on a part (not a clip);
+  excuser(h, pts) excuses a connection point's part within max(lead, 5 Ø) + Ø of it — probe() skips it (no detour),
+  throughOf skips its samples, shortLeads leaves that end out. Row 🔌 / suggestion toggle (setConn, one undo step);
+  lockPoint keeps conn; AI edit_harness connect_points / disconnect_points, point_list `connection`. A span {from, chain: C…} (spanSet
   keeps length and chain on one entry): spanChains reads chainRoute now, from the end nearer the span's first point;
   expandE puts the path into the points before the span's last point (tag 'chain': no slack, no detours, its hits not
   told); the AVOID key holds the path's ends and the draw key the moving end, so a chain moved re-shapes the cable.
