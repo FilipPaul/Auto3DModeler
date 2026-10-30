@@ -9,6 +9,7 @@ from auto3d import demos, package
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMOS = ROOT / "demos"
+BIG = {"velka-sestava-150.a3d": (97, 5), "velka-sestava-500.a3d": (521, 0)}  # placed parts, sub-assemblies placed (no mechanism)
 
 
 class TestDemoFiles(unittest.TestCase):
@@ -24,6 +25,8 @@ class TestDemoFiles(unittest.TestCase):
 
     def test_each_loads_with_its_mechanism(self):
         for d in demos.listing(DEMOS):
+            if d["file"] in BIG:
+                continue
             with self.subTest(demo=d["file"]):
                 proj = demos.load(DEMOS, d["file"])
                 self.assertEqual(proj["version"], 3)
@@ -45,6 +48,22 @@ class TestDemoFiles(unittest.TestCase):
                 self.assertTrue(names and any(c in "".join(names) for c in "áčďéěíňóřšťúůýž"), names)  # (Czech)
                 self.assertTrue(asm.get("mechs") and all(r.get("name") for r in asm["mechs"]), asm.get("mechs"))
                 self.assertLess((DEMOS / d["file"]).stat().st_size, 50_000)
+
+    def test_big_assemblies(self):
+        """The big assemblies (tools/make_big_assembly.py): every placed part's part there (a sub-assembly's too), each
+        joint between placed parts, one part fixed; small files — the parts are steps, rebuilt when opened."""
+        for f, (placed, subs) in BIG.items():
+            with self.subTest(demo=f):
+                proj = demos.load(DEMOS, f)
+                parts = {p["id"]: p for p in proj["parts"]}
+                asm = parts[proj["active"]["part"]]["assembly"]
+                ids = {i["id"] for i in asm["instances"]}
+                self.assertEqual(len(asm["instances"]), placed)
+                self.assertEqual(sum(parts[i["part"]]["kind"] == "assembly" for i in asm["instances"]), subs)
+                self.assertTrue(all(parts[i["part"]]["kind"] in ("model", "assembly") for i in asm["instances"]))
+                self.assertTrue(any(i.get("fixed") for i in asm["instances"]))
+                self.assertTrue(asm["mates"] and all(m["move"] in ids and m["onto"] in ids for m in asm["mates"]))
+                self.assertLess((DEMOS / f).stat().st_size, 60_000)
 
     def test_crank_slider_closes_its_loop(self):
         asm = next(p for p in demos.load(DEMOS, "klikovy-mechanismus.a3d")["parts"] if p["kind"] == "assembly")["assembly"]

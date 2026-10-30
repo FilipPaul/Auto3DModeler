@@ -360,7 +360,9 @@ def mech30(b, out, n=30, file="mech-30.a3d", demo=None):
     print("  Gear train:", b.done())
     for a, c in zip(discs, discs[1:]):
         b.call("snap_faces", type="gear", move={"part": c, "face": rim}, onto={"part": a, "face": rim})
-    print(" ", b.call("drive_mechanism", driver={"part": discs[0], "motion": 0}, name="Gear train", to=30)[:160])
+    if demo:  # (a 🎬 demo: its motion and mechanism named in Czech)
+        b.call("name_motion", part=discs[0], motion=0, name="Otáčení prvního kola")
+    print(" ", b.call("drive_mechanism", driver={"part": discs[0], "motion": 0}, name=demo["name_cs"] if demo else "Gear train", to=30)[:160])
     b.save(out / file, "Gear train", "Mechanism 30", demo)
 
 
