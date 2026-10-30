@@ -850,7 +850,10 @@ const CS = {
   'These two faces are joined already by {id} ({type}), locked 🔒 — unlock it to change it.': 'Tyto dvě plochy už spojuje {id} ({type}), zamčená 🔒 — odemkněte ji, chcete-li ji změnit.',
   'These two faces were joined already ({id}, {was}) — that joint is now {type}, not a second one.': 'Tyto dvě plochy už byly spojené ({id}, {was}) — ta vazba je teď {type}, nevznikla druhá.',
   '{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.': '{type} přidána, ale bojuje s jinou vazbou: {ids} už nedrží — viz červené vazby v panelu.',
-  'Moving it by hand breaks its {n} joint(s). Break them and move it?': 'Posunutí rukou zruší jeho vazby ({n}). Zrušit je a posunout?',
+  'Moving it by hand breaks its {n} joint(s).': 'Posunutí rukou zruší jeho vazby ({n}).', 'Break them and move it': 'Zrušit vazby a posunout',
+  'Keep the joints': 'Zpět (vazby zůstanou)',
+  // yes / no in the page (choose.js confirmIn — no browser pop-ups): the yes buttons
+  'Restore them': 'Obnovit je', 'Forget it': 'Zapomenout', 'Start a new one': 'Začít nový',
   'Locked: moving the part by hand cannot break it — click to unlock': 'Zamčeno: posunutí dílu rukou ji nezruší — kliknutím odemknete',
   'Lock it: then it cannot be broken by moving the part': 'Zamknout: pak ji posunutí dílu nezruší', 'Turn the part about this joint (about the axis, or on the face)': 'Natočit díl kolem této vazby (kolem osy nebo na ploše)',
   '{v} is the most that works here (with what is around it).': '{v} je nejvíc, co tu jde (podle toho, co je kolem).',
@@ -2838,7 +2841,6 @@ function restore(root) {
 let observer = null;
 export function initI18n() {
   document.documentElement.lang = lang;
-  for (const f of ['confirm', 'alert']) { const orig = window[f].bind(window); window[f] = (msg) => orig(t(String(msg ?? ''))); }
   if (lang !== 'en') translateNode(document.body);
   observer = new MutationObserver((muts) => {
     if (lang === 'en') return;

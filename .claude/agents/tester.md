@@ -283,6 +283,10 @@ Never report "works" without having run it; report failures with their output.
    (Summary / Structured, a fold, Hinge chosen), ⬇ CSV of both views, ⬇ Excel; in Czech the headers, materials (hliník), the
    CSV, the toasts and every drawing page's texts (no English material names or headers); the Machine sheet's
    📋 Add BOM page in 📚 All pages and in the set's PDF with the balloons' positions; 45 rows flow onto 3 pages.
+   `tools/e2e_no_native_dialogs.py <url> <dir>` covers the no-pop-up rule in Czech (the page's confirm / alert / prompt
+   recorded and never called): moving a joined part by hand (the corner bar: Zpět, Esc, Zrušit vazby a posunout),
+   deleting a step others need, forgetting a project, a library part and a printer deleted (in-page yes / Zrušit).
+   Unit guard: tests/test_no_native_dialogs.py.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.

@@ -1,6 +1,7 @@
 // 📚 The parts library window: search and browse the real parts (by category), choose the size (and length), see it in
 // 3D with its maker, part number and shop links — then open it as a new 3D model or put it into the assembly on screen.
 import { t, getLang } from '../i18n.js';
+import { confirmIn } from '../choose.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf, modelKey } from './build.js';
@@ -222,7 +223,7 @@ export class LibraryBrowser {
       } catch (e) { this.hooks.toast(e.message, 'error', 7000); }
     });
     box.querySelector('[data-a=del]')?.addEventListener('click', async () => {
-      if (!confirm(tv('Delete “{name}” from your library?', { name: it.name }))) return;
+      if (!(await confirmIn(tv('Delete “{name}” from your library?', { name: it.name }), { ok: 'Delete', danger: true }))) return;
       await fetch(`/api/library/${encodeURIComponent(it.id)}`, { method: 'DELETE' });
       this.items = await libraryItems();
       this.state.item = null;

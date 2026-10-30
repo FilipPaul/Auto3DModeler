@@ -133,9 +133,10 @@ try:
     check("back along x and OK: 5 holes", abs(vol() - (6000 - 5 * math.pi * 4 * 5)) < 0.01 and js(f"return {M}.result.ok"))
 
     # delete the hole: the pattern needs it and goes too
-    js("window.confirm = () => true")
     hole = js(f"return {M}.part.features.find(f => f.type === 'hole').id")
     js(f"{M}.remove(arguments[0])", hole)
+    wait("return !!document.querySelector('.choose.confirm')")  # (asked in the page: Delete them)
+    btn(".choose.confirm .btn.primary")
     settled()
     left = [f["type"] for f in js(f"return {M}.part.features")]
     print("after deleting the hole:", left, round(vol(), 3))

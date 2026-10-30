@@ -1,4 +1,5 @@
 import { initI18n, t } from './i18n.js';
+import { confirmIn } from './choose.js';
 import { Viewer } from './viewer.js';
 import { DrawingView } from './drawing.js';
 import { LayersPanel, newLayer, maskRings, hitMask, nice } from './layers.js';
@@ -942,9 +943,9 @@ function resetParam(id) {
   }).then(() => { renderParams(); renderIssues(); });
 }
 
-$('resetAll').addEventListener('click', () => {
+$('resetAll').addEventListener('click', async () => {
   const n = changeCount();
-  if (!n || !confirm(`Restore all dimensions to the drawing? This undoes ${n} change(s), including dimensions you added.`)) return;
+  if (!n || !(await confirmIn(`Restore all dimensions to the drawing? This undoes ${n} change(s), including dimensions you added.`, { ok: 'Restore them', danger: true }))) return;
   structuralChange(() => {
     state.model.params = structuredClone(state.original.params);
     state.values = { ...state.original.values };

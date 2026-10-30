@@ -1,6 +1,7 @@
 // Autosave: the project on screen kept on the server (data/projects/) a few seconds after each change — a closed tab or
 // a browser crash loses nothing — and 🕘 Recent projects to open again (the last one offered when the app starts empty).
 import { t } from './i18n.js';
+import { confirmIn } from './choose.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -138,7 +139,7 @@ export class Autosave {
           try { await this.open(p.id); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
         });
         row.querySelector('[data-del]').addEventListener('click', async () => {
-          if (!confirm(tv('Forget “{name}”? Its file on the server is deleted.', { name: p.name }))) return;
+          if (!(await confirmIn(tv('Forget “{name}”? Its file on the server is deleted.', { name: p.name }), { ok: 'Forget it', danger: true }))) return;
           await fetch(`/api/projects/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
           render();
         });
@@ -150,7 +151,7 @@ export class Autosave {
       const found = await ask(true);
       if (!found.length) { this.hooks.toast(t('Nothing to clean up — every kept project has something in it or a name of yours.'), 'info', 5000); return; }
       const names = found.slice(0, 8).map((p) => `${p.name} (${when(p.time)})`).join('\n');
-      if (!confirm(`${tv('Delete {n} empty project(s) with default names?', { n: found.length })}\n\n${names}${found.length > 8 ? '\n…' : ''}`)) return;
+      if (!(await confirmIn(`${tv('Delete {n} empty project(s) with default names?', { n: found.length })}\n\n${names}${found.length > 8 ? '\n…' : ''}`, { ok: 'Delete', danger: true }))) return;
       const gone = await ask(false);
       this.hooks.toast(tv('{n} empty project(s) deleted.', { n: gone.length }), 'ok', 4000);
       render();

@@ -8,7 +8,7 @@ import { t } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
 import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
-import { choose } from '../choose.js';
+import { choose, confirmIn } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame, snapPoints } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, splinePts, RELATIONS, BIG_SKETCH } from './sketcher.js';
@@ -1415,11 +1415,11 @@ export class Modeler {
   }
 
   /** Delete several steps at once (and the steps that need them, after asking). */
-  removeSteps(ids) {
+  async removeSteps(ids) {
     if (this.mode !== 'part' || this.cmd) return;
     const gone = new Set(ids.flatMap((id) => [...this.dependents(id, false).gone]));
     const more = [...gone].filter((x) => !ids.includes(x)).map((x) => this.part.features.find((f) => f.id === x)?.name);
-    if (more.length && !confirm(`${t('These steps need them and are deleted too')}: ${more.join(', ')}.`)) return;
+    if (more.length && !(await confirmIn(`${t('These steps need them and are deleted too')}: ${more.join(', ')}.`, { ok: 'Delete them', danger: true }))) return;
     this.part.features = this.part.features.filter((f) => !gone.has(f.id));
     this.selected = null;
     this.picks = [];
@@ -1997,7 +1997,7 @@ export class Modeler {
         const owns = (n) => gone.has(this.faceOwner({ name: n }));
         this.part.features = this.part.features.map((f) => (kept.soft.has(f.id) ? this.detach(f, owns) : f));
       }
-    } else if (gone.size > 1 && !how && !confirm(`Delete “${name(id)}”? These steps need it and are deleted too: ${names.join(', ')}.`)) return;
+    } else if (gone.size > 1 && !how && !(await confirmIn(`Delete “${name(id)}”? These steps need it and are deleted too: ${names.join(', ')}.`, { ok: 'Delete them', danger: true }))) return;
     this.part.features = this.part.features.filter((f) => !gone.has(f.id));
     this.selected = null;
     this.commit();

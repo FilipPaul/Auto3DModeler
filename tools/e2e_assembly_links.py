@@ -80,7 +80,9 @@ try:
     print("plate moved to x 100 -> pin centre x:", round((b[0] + b[3]) / 2, 3), "(expected 130)")
 
     # the pin moved by hand: unlinked, with a notice; undo links it again
-    js(f"window.confirm = () => true; {A}.sel = 'I2'; {A}.setPos('y', 50)")  # yes, break its joints
+    js(f"{A}.sel = 'I2'; {A}.setPos('y', 50)")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport .view-actions .as-break [data-a=break]").click()  # yes, break its joints (the bar in the view's corner)
     time.sleep(0.4)
     toast = js("return [...document.querySelectorAll('.toast')].map(t => t.textContent).slice(-1)[0]")
     print("moved by hand:", toast, "| links", json.loads(call("get_assembly"))["joints"])

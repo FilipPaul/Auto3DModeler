@@ -1,5 +1,6 @@
 // Print panel: printer profiles (built-in + custom), build-volume fit check and split into pieces.
 import { newRid, trackProgress } from './progressbox.js';
+import { confirmIn } from './choose.js';
 const UNIT_IN_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 const LS_KEY = 'a3d.printer';
 const LS_JOINT = 'a3d.joint';
@@ -168,7 +169,7 @@ export class PrintPanel {
 
   async deletePrinter() {
     const p = this.printer();
-    if (!p || p.builtin || !confirm(`Delete printer “${p.name}”?`)) return;
+    if (!p || p.builtin || !(await confirmIn(`Delete printer “${p.name}”?`, { ok: 'Delete', danger: true }))) return;
     try {
       await this.api(`/api/printers/${encodeURIComponent(p.id)}`, null, 'DELETE');
       this.selected = null;

@@ -772,6 +772,14 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .choose-hint { font-size: 11px; opacity: .75; font-weight: 400; }
 .choose-x { position: absolute; top: 10px; right: 10px; }
 .choose.ask { width: 340px; }
+/* yes / no (choose.js confirmIn: never the browser's own dialog): the two buttons side by side, the text's lines kept */
+.choose.confirm p { white-space: pre-line; }
+.choose.confirm .choose-opts { flex-direction: row-reverse; justify-content: flex-start; }
+.choose.confirm .choose-opts .btn { align-items: center; }
+.choose .btn.primary.danger, .as-break .btn.primary.danger { background: #b62324; border-color: #b62324; } /* (yes = it deletes / breaks something) */
+/* moving a joined part by hand (assembly.js askBreak): the hint above its two buttons in the view's bottom-right corner */
+.view-actions .as-break { flex-wrap: wrap; max-width: 330px; }
+.as-break .as-break-hint { flex: 1 1 100%; font-size: 12px; color: #ffb020; }
 .ask-in { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
 .choose .ask-hint, .choose .ask-bad { margin: 0 0 8px; font-size: 12px; }
 .aih { width: min(640px, calc(100vw - 32px)); max-width: none; }
