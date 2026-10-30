@@ -9,7 +9,8 @@ through the app's MCP server.
 * `ChatSession` – one `claude -p` process per chat, kept open with stream-json input, restricted to the
   app's MCP tools (no built-in file / shell tools, no user hooks or settings). Its output is turned into
   chat events for the page (Server-Sent Events). Each app window has its own chat (and process, started with its
-  first message), whose tool calls act in that window.
+  first message), whose tool calls act in that window. Its conversation is kept (auto3d/chat_history.py) and can be
+  opened again and continued: Claude Code's own session resumed (`--resume`), or a new one told the conversation in short.
 
 The app never sees the user's Claude credentials: Claude Code signs in through Anthropic's own flow.
 """
@@ -30,6 +31,7 @@ import time
 import uuid
 from pathlib import Path
 
+from . import chat_history
 from .agent_tools import SYSTEM_PROMPT
 from .guides import PLUGIN_DIR
 
@@ -62,6 +64,12 @@ def find_claude() -> str | None:
     return max(hits, key=_version_key) if hits else None
 
 
+def run_claude(exe: str) -> list[str]:
+    """The command start for Claude Code at `exe` (a .py: a stand-in for it run with this Python — tools/fake_claude.py,
+    the browser tests' AI without a model)."""
+    return [sys.executable, exe] if exe.endswith(".py") else [exe]
+
+
 SESSION_VARS = {"CLAUDECODE", "CLAUDE_PID", "CLAUDE_EFFORT", "CLAUDE_AGENT_SDK_VERSION"}
 
 
@@ -70,6 +78,15 @@ def clean_env() -> dict:
     app itself may have been started from (a terminal inside Claude Code), so the chat is a fresh,
     independent session. The user's own settings (ANTHROPIC_*, proxies …) are kept."""
     return {k: v for k, v in os.environ.items() if k not in SESSION_VARS and not k.startswith("CLAUDE_CODE_")}
+
+
+def session_exists(sid: str | None) -> bool:
+    """Whether Claude Code still has the session `sid` (its transcript under ~/.claude/projects, or $CLAUDE_CONFIG_DIR):
+    then `--resume` gives the AI the whole conversation back."""
+    if not sid or not re.match(r"^[\w-]{8,80}$", sid):
+        return False
+    base = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "projects"
+    return any(base.glob(f"*/{sid}.jsonl"))
 
 
 # --------------------------------------------------------------------------- browser relay
@@ -226,9 +243,14 @@ class ChatSession:
     """One Claude Code process for the chat; events fan out to all subscribed pages. client: the app window it
     belongs to (its MCP server sends its tool calls there), None: any (the window in use)."""
 
-    def __init__(self, app_url: str, client: str | None = None):
+    def __init__(self, app_url: str, client: str | None = None, store: Path | None = None):
         self.app_url = app_url
         self.client = client
+        self.store = store                 # where its conversations are kept (None: not kept)
+        self.conv: dict | None = None      # the conversation (chat_history): made with the first message
+        self.project = {}                  # the project the page has open ({id, name}): a new conversation's
+        self.resumed = None                # the session id the process was started to resume (not confirmed yet)
+        self.pending: list | None = None   # the content of the last message sent (sent again when a resume fails)
         self.proc: subprocess.Popen | None = None
         self.subscribers: list[queue.Queue] = []
         self.history: list[dict] = []      # events of this chat (replayed to a page that reconnects)
@@ -246,6 +268,34 @@ class ChatSession:
             subs = list(self.subscribers)
         for q in subs:
             q.put(ev)
+        kept = self.conv is not None and not ev.get("old") and chat_history.add(self.conv, ev)
+        if kept and ev["type"] in ("user", "text", "note", "done") or ev["type"] == "exit":
+            self.keep()
+
+    def keep(self):
+        """Write the conversation to the store (when it has one and a message)."""
+        if self.store and self.conv:
+            try:
+                chat_history.save(self.store, self.conv)
+            except OSError:
+                pass  # (a full disk: the chat goes on)
+
+    def conv_meta(self) -> dict | None:
+        return {k: self.conv.get(k) for k in chat_history.META} if self.conv else None
+
+    def open(self, cid: str):
+        """The kept conversation `cid` on screen again (its events replayed, marked old) — the next message goes on with
+        it: its Claude Code session resumed, or a new session told it in short."""
+        conv = chat_history.load(self.store, cid)
+        self.stop()
+        self.proc = None
+        with self.lock:
+            self.history = []
+        self.conv = conv
+        self.emit({"type": "reset"})
+        for ev in conv["events"]:
+            self.emit({**ev, "old": True})
+        self.emit({"type": "conv", **self.conv_meta(), "opened": True})
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue()
@@ -264,13 +314,13 @@ class ChatSession:
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def command(self, exe: str) -> list[str]:
+    def command(self, exe: str, resume: str | None = None) -> list[str]:
         # (the built app has no Python: its own exe is the MCP server, auto3d/launcher.py)
         script = ["--mcp-server"] if getattr(sys, "frozen", False) else [str(MCP_SCRIPT)]
         mcp = {"mcpServers": {"auto3d": {"type": "stdio", "command": sys.executable,
                                          "args": [*script, "--url", self.app_url,
                                                   *(["--client", self.client] if self.client else [])]}}}
-        cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+        cmd = [*run_claude(exe), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                "--include-partial-messages",
                "--mcp-config", json.dumps(mcp), "--strict-mcp-config",
                "--tools", "Skill",                             # only the Skill tool (the app's guides): no files, no shell
@@ -278,14 +328,17 @@ class ChatSession:
                "--plugin-dir", str(PLUGIN_DIR),                # the app's skills (agent_plugin/skills), this session only
                "--permission-mode", "dontAsk",                 # anything else is refused, not asked
                "--setting-sources", "local",                   # not the user's global hooks / settings
-               "--no-session-persistence",
-               "--append-system-prompt", SYSTEM_PROMPT]
+               "--append-system-prompt", SYSTEM_PROMPT]          # (its session kept: a conversation goes on with --resume)
+        if resume:
+            cmd += ["--resume", resume]
         model = os.environ.get("AUTO3D_CLAUDE_MODEL")
         if model:
             cmd += ["--model", model]
         return cmd
 
-    def start(self):
+    def start(self, resume: bool = True) -> str:
+        """Start Claude Code -> what goes before the next message: "" — or the conversation in short, when it has one
+        but its session cannot be resumed (a note in the chat says so)."""
         exe = find_claude()
         if not exe:
             raise RuntimeError("Claude Code was not found. Install it (claude.com/claude-code) and sign in once, "
@@ -294,24 +347,47 @@ class ChatSession:
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         self.stderr_tail = []
         from . import ai_access
-        self.proc = subprocess.Popen(self.command(exe), cwd=WORKDIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        conv = self.conv
+        sid = conv.get("session") if conv else None
+        self.resumed = sid if resume and session_exists(sid) else None
+        prime = ""
+        if conv and conv["messages"] and not self.resumed:
+            told = conv["events"]
+            if not resume:  # (a resume that failed: the message being sent is not part of what came before)
+                told = told[:max((i for i, e in enumerate(told) if e["type"] == "user"), default=0)]
+            if told:
+                prime = ("[This continues an earlier conversation with the user; your session of it could not be resumed. "
+                         f"The conversation so far, in short:\n{chat_history.summary(told)}]\n\n")
+                self.emit({"type": "note", "key": "summary"})
+        self.proc = subprocess.Popen(self.command(exe, self.resumed), cwd=WORKDIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, creationflags=flags, bufsize=0,
                                      env=ai_access.chat_env(clean_env()))  # (the API key set up in the ✨ AI panel)
         self.emit({"type": "status", "text": "Starting Claude Code…", "exe": exe})
         threading.Thread(target=self._read_out, args=(self.proc,), daemon=True).start()
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
+        return prime
 
     def send(self, text: str, photos: list | None = None):
         """A user message, optionally with photos: [{"name", "media_type", "data" (base64), "path"}]. Claude
         sees each photo and is told where it was saved (so it can trace it with trace_picture)."""
         photos = photos or []
-        if not self.running():
-            self.start()
+        if self.conv is None:
+            self.conv = chat_history.new(self.project.get("id", ""), self.project.get("name", ""))
+            self.emit({"type": "conv", **self.conv_meta()})
+        self.pending = None
+        prime = "" if self.running() else self.start()
         self.busy = True
         self.emit({"type": "user", "text": text, "photos": [{"name": p["name"], "url": p["url"]} for p in photos]})
         content = [{"type": "image", "source": {"type": "base64", "media_type": p["media_type"], "data": p["data"]}} for p in photos]
         note = "\n".join(f"[Attached photo: {p['path']}]" for p in photos)
         content.append({"type": "text", "text": "\n\n".join(x for x in (expand_command(text), note) if x)})
+        self.pending = content
+        self._write(content, prime)
+
+    def _write(self, content: list, prime: str = ""):
+        """A user message to the running process (prime: the earlier conversation in short, before its text)."""
+        if prime:
+            content = [*content[:-1], {"type": "text", "text": prime + content[-1]["text"]}]
         line = json.dumps({"type": "user", "message": {"role": "user", "content": content}})
         try:
             self.proc.stdin.write((line + "\n").encode("utf-8"))
@@ -321,8 +397,9 @@ class ChatSession:
             raise RuntimeError(f"Claude Code stopped unexpectedly ({exc}).") from exc
 
     def stop(self):
-        """Stop the current answer (ends the process; the next message starts a fresh session)."""
+        """Stop the current answer (ends the process; the next message resumes its session)."""
         p = self.proc
+        self.pending = self.resumed = None  # (its end is not a resume that failed)
         if p and p.poll() is None:
             p.terminate()
             try:
@@ -332,10 +409,13 @@ class ChatSession:
         self.busy = False
 
     def reset(self):
+        """＋ New conversation: the process ends, the next message starts a new one (the old one stays kept)."""
+        self.conv = None  # (first: the process's end must not keep it again — it may have just been deleted)
         self.stop()
         with self.lock:
             self.history = []
         self.emit({"type": "reset"})
+        self.emit({"type": "conv", "id": None})
 
     # ---------------------------------------------------------------- output -> chat events
     def _read_err(self, proc):
@@ -353,6 +433,10 @@ class ChatSession:
                 msg = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if msg.get("type") == "system" and msg.get("subtype") == "init" and proc is self.proc:
+                self.resumed = None  # (started: a resume worked)
+                if self.conv is not None and msg.get("session_id"):
+                    self.conv["session"] = msg["session_id"]
             for ev in translate(msg):
                 if ev["type"] == "done":
                     self.busy = False
@@ -360,6 +444,15 @@ class ChatSession:
                         self._access_refused()
                 self.emit(ev)
         code = proc.wait()
+        if proc is self.proc and code and self.resumed and self.pending is not None:
+            # the session to resume was not there after all: a new one, told the conversation in short, gets the message
+            if self.conv is not None:
+                self.conv["session"] = None
+            try:
+                self._write(self.pending, self.start(resume=False))
+                return
+            except (RuntimeError, OSError):
+                pass
         self.busy = False
         if proc is self.proc:
             stderr = "\n".join(self.stderr_tail[-6:])

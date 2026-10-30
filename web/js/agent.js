@@ -1,7 +1,8 @@
 // The AI chat: Claude Code (the user's own installation and sign-in) works on the open part through the
 // app's MCP tools. The server relays each tool call to this page (long-poll), the page applies it like
 // the user would (visible at once, undoable) and posts the result back. The chat itself streams from
-// the server as Server-Sent Events.
+// the server as Server-Sent Events. Its conversations are kept on the server (auto3d/chat_history.py): 🕘 Previous
+// conversations lists them, one opened goes on (Claude's session resumed, or a new one told it in short).
 
 import { t } from './i18n.js';
 import { recorder } from './recorder.js';
@@ -35,7 +36,7 @@ const CALL_BUDGET_S = 140; // a tool call's most time here (the server waits 150
 // This window's id: its chat is its own (the server keeps one per window) and the chat's tool calls act here only.
 // A reload keeps it (sessionStorage: this window's), as does 📄 New project (keepChatClient); a new window — also one
 // opened from here, which gets a copy of the sessionStorage — has its own.
-const CLIENT_KEY = 'a3d.chatClient', KEEP_KEY = 'a3d.chatKeep';
+const CLIENT_KEY = 'a3d.chatClient', KEEP_KEY = 'a3d.chatKeep', CONV_KEY = 'a3d.chatConv'; // (+ this window's conversation: back after a restart)
 function windowClient() {
   const fresh = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
   try {
@@ -137,10 +138,19 @@ async function photoData(file) {
   return c.toDataURL('image/jpeg', 0.9);
 }
 
+const when = (s) => new Date(s * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const tn = (text, n) => t(text).replace('{n}', n);
+const session = { get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { if (v) sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch { /* private window */ } } };
+
 export class ChatPanel {
-  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory }) {
+  /** hooks: project() -> {id, name} (the project on screen: a new conversation is about it), onShow() (the chat in sight). */
+  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow }) {
     this.root = root;
     this.toast = toast;
+    this.project = project;
+    this.onShow = onShow;
+    this.conv = null; // the conversation on screen ({id, title, created …}; null: a new one, made with its first message)
     this.onTurnDone = onTurnDone; // ({prompt}) after each AI turn
     this.turnPrompt = '';
     this.onUndo = onUndo;
@@ -153,10 +163,15 @@ export class ChatPanel {
         <span class="ai-acts">
           <button class="mini ai-undo" title="Undo the last change (Ctrl+Z) — the AI's changes are steps in the app's undo history">↶ Undo</button>
           <button class="mini ai-hist" title="The project after each change Claude made — browse it and load one back">🕘 History</button>
-          <button class="mini ai-new" title="Start a new conversation">New chat</button>
           <button class="mini ai-key" title="Sign in, change the API key or sign out">🔑 Access</button>
         </span>
       </div>
+      <div class="ai-convbar">
+        <span class="ai-convtitle" data-no-i18n></span>
+        <button class="mini ai-convs-btn" title="The earlier chats — open one to read it and go on with it">🕘 Previous conversations</button>
+        <button class="mini ai-new" title="Start a new conversation">＋ New conversation</button>
+      </div>
+      <div class="ai-convs" hidden></div>
       <div class="ai-access" hidden></div>
       <div class="ai-log"><div class="ai-empty">
         <p><b>Describe what you want</b> — Claude works on the part in the app: opens drawings, traces pictures, sets
@@ -202,7 +217,9 @@ export class ChatPanel {
       if (files.length) { e.preventDefault(); e.stopPropagation(); this.addPhotos(files); }
     });
     this.$('.ai-stop').addEventListener('click', () => fetch(withClient('/api/chat/stop'), { method: 'POST' }));
-    this.$('.ai-new').addEventListener('click', () => fetch(withClient('/api/chat/reset'), { method: 'POST' }));
+    this.$('.ai-new').addEventListener('click', () => { this.showConvs(false); fetch(withClient('/api/chat/reset'), { method: 'POST' }); });
+    this.$('.ai-convs-btn').addEventListener('click', () => this.showConvs(this.$('.ai-convs').hidden));
+    document.addEventListener('pointerdown', (e) => { if (!this.$('.ai-convs').hidden && !e.target.closest('.ai-convs, .ai-convs-btn')) this.showConvs(false); });
     this.$('.ai-undo').addEventListener('click', () => this.onUndo());
     this.$('.ai-hist').addEventListener('click', () => onHistory?.());
     this.$('.ai-key').addEventListener('click', () => this.showAccess(true));
@@ -210,7 +227,7 @@ export class ChatPanel {
     this.checkStatus();
     this.connect();
     recorder.listen(() => this.renderRec()); // (⏺ a stopped recording: 📎 attached to the next message with one click)
-    window.addEventListener('a3d:lang', () => this.renderRec());
+    window.addEventListener('a3d:lang', () => { this.renderRec(); this.renderConv(); });
     this.renderRec();
   }
 
@@ -228,12 +245,69 @@ export class ChatPanel {
     box.querySelector('button')?.addEventListener('click', () => { this.recOn = !this.recOn; this.renderRec(); this.$('textarea').focus(); });
   }
 
+  // ------------------------------------------------------------------ 🕘 previous conversations (kept on the server)
+  /** The conversation on screen: its title above the log. */
+  renderConv() {
+    const el = this.$('.ai-convtitle');
+    el.textContent = this.conv?.title || '';
+    el.title = this.conv?.created ? `${this.conv.title} · ${when(this.conv.created)}` : '';
+  }
+
+  /** The list of the kept conversations (this project's first): open one, ✕ delete one. */
+  async showConvs(open = true) {
+    const box = this.$('.ai-convs');
+    box.hidden = !open;
+    this.$('.ai-convs-btn').classList.toggle('on', open);
+    if (!open) return;
+    let list = [], current = null;
+    try { ({ conversations: list, current } = await (await fetch(withClient('/api/chat/conversations'))).json()); } catch { /* the list stays empty */ }
+    if (box.hidden) return;
+    const pid = this.project?.()?.id;
+    const mine = list.filter((c) => c.project && c.project === pid), other = list.filter((c) => !mine.includes(c));
+    const row = (c) => `<div class="ai-conv ${c.id === current ? 'on' : ''}" data-id="${escapeHtml(c.id)}">
+        <div class="ai-conv-text"><b data-no-i18n>${escapeHtml(c.title || '…')}</b>
+        <span class="ai-conv-when">${escapeHtml(when(c.updated || c.created))} · ${escapeHtml(tn('{n} messages', c.messages))}${c.project !== pid && c.project_name ? ` · <span data-no-i18n>${escapeHtml(c.project_name)}</span>` : ''}</span></div>
+        <button type="button" class="mini ai-conv-x" title="${escapeHtml(t('Delete this conversation'))}">✕</button></div>`;
+    box.innerHTML = !list.length ? `<div class="ai-conv-none">${escapeHtml(t('No earlier conversations yet.'))}</div>`
+      : `${mine.length ? `<div class="ai-conv-h">${escapeHtml(t('This project'))}</div>${mine.map(row).join('')}` : ''}
+         ${other.length ? `<div class="ai-conv-h">${escapeHtml(t(mine.length ? 'Other projects' : 'Earlier conversations'))}</div>${other.map(row).join('')}` : ''}`;
+    for (const r of box.querySelectorAll('.ai-conv')) {
+      r.addEventListener('click', async (e) => {
+        if (e.target.closest('.ai-conv-x')) {
+          if (!confirm(t('Delete this conversation? It cannot be brought back.'))) return;
+          await fetch(`/api/chat/conversations/${encodeURIComponent(r.dataset.id)}`, { method: 'DELETE' });
+          this.showConvs(true);
+          return;
+        }
+        if (this.busy) { this.toast(t('Wait until Claude has answered (or Stop it) first.'), 'warning'); return; }
+        this.showConvs(false);
+        await this.openConv(r.dataset.id);
+      });
+    }
+  }
+
+  /** A kept conversation back in this chat (its messages replayed by the server) — the next message goes on with it. */
+  async openConv(id) {
+    try {
+      const res = await fetch('/api/chat/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, client: CLIENT }) });
+      if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+      return true;
+    } catch (e) {
+      if (session.get(CONV_KEY) === `${CLIENT}|${id}`) session.set(CONV_KEY, null);
+      this.toast(e.message, 'error');
+      return false;
+    }
+  }
+
   async checkStatus() {
     try {
       const s = await (await fetch(withClient('/api/chat/status'))).json();
       this.setStatus(s.claude ? (s.running ? 'Claude Code connected' : 'Claude Code ready — send a message to start') : 'Claude Code not found',
         s.claude ? '' : 'err');
       this.setBusy(s.busy);
+      // a reload after the app restarted: this window's conversation back (the server no longer has it in memory)
+      const [kc, keep] = (session.get(CONV_KEY) || '').split('|'); // (this window's: a new window opened from here has its own chat)
+      if (s.conversation) { this.conv = s.conversation; this.renderConv(); } else if (keep && kc === CLIENT && !s.busy) this.openConv(keep);
       await this.showAccess(false);
     } catch { this.setStatus('The app server is not reachable', 'err'); }
   }
@@ -423,7 +497,7 @@ ${recorder.forChat()}`; this.recOn = false; } // (⏺ the recording with it)
     this.renderPhotos();
     this.setBusy(true);
     try {
-      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT }) });
+      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT, project: this.project?.() || null }) });
       if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     } catch (e) {
       this.setBusy(false);
@@ -483,11 +557,23 @@ ${recorder.forChat()}`; this.recOn = false; } // (⏺ the recording with it)
         this.setBusy(false);
         this.setStatus('New chat');
         break;
+      case 'conv': // the conversation on screen (id null: a new one) — kept for a reload after a restart
+        this.conv = ev.id ? ev : null;
+        session.set(CONV_KEY, ev.id && `${CLIENT}|${ev.id}`);
+        this.renderConv();
+        if (ev.opened) this.setStatus('Claude Code ready — send a message to start');
+        if (ev.opened) this.note(`${t('Earlier conversation from')} ${when(ev.created)} — ${t('write to go on with it.')}`);
+        break;
+      case 'note': // the server's: a new Claude session got the conversation in short
+        if (ev.key === 'summary') this.note(t('Claude\'s earlier session could not be resumed — a new one got a short summary of this conversation.'));
+        else if (ev.text) this.note(ev.text);
+        break;
       case 'user':
         this.current = null;
         this.turnPrompt = ev.text || '';
         this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${escapeHtml(ev.text).replace(/\n/g, '<br>')}`);
-        this.setBusy(true);
+        if (!ev.old) this.setBusy(true); // (a kept conversation's message, shown again: no turn runs)
+        if (this.conv && !this.conv.title) { this.conv.title = (ev.text || '').trim().split('\n')[0].slice(0, 80); this.renderConv(); }
         break;
       case 'status':
         this.setStatus(ev.text);
@@ -530,6 +616,7 @@ ${recorder.forChat()}`; this.recOn = false; } // (⏺ the recording with it)
         break;
       case 'done':
         this.current = null;
+        if (ev.old) { if (ev.error) this.note(ev.text || 'Claude stopped with an error.', 'err'); break; } // (a kept conversation's)
         this.setBusy(false);
         this.setStatus('Claude Code connected', 'ok');
         if (ev.error) this.note(ev.text || 'Claude stopped with an error.', 'err');

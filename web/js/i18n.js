@@ -2297,6 +2297,18 @@ const CS = {
   'Click: the recording does not go with the message': 'Kliknutím záznam ke zprávě nepřiložíte', 'The recording goes with the message': 'Záznam se pošle se zprávou',
   'Your recorded moves go with the next message — the AI reads what you did': 'Vaše nahrané pohyby se pošlou s další zprávou — AI si přečte, co jste dělali',
   'Attach the recording ({n} events)': 'Přiložit záznam ({n} událostí)', 'Look at what I did.': 'Podívej se, co jsem dělal(a).', Attach: 'Přiložit',
+  '{n} events': '{n} událostí', 'Choose one of the last recordings': 'Vybrat jeden z posledních záznamů',
+  'Stop the recording and send it to the AI chat now': 'Zastavit záznam a hned ho poslat do chatu s AI', 'Stop and send to the AI': 'Zastavit a poslat AI',
+  // 🕘 previous conversations of the AI chat (agent.js, auto3d/chat_history.py)
+  '🕘 Previous conversations': '🕘 Předchozí konverzace', '＋ New conversation': '＋ Nová konverzace',
+  'The earlier chats — open one to read it and go on with it': 'Dřívější chaty — otevřete jeden, přečtěte si ho a pokračujte v něm',
+  '{n} messages': 'zpráv: {n}', 'Delete this conversation': 'Smazat tuto konverzaci', 'No earlier conversations yet.': 'Zatím žádné dřívější konverzace.',
+  'This project': 'Tento projekt', 'Other projects': 'Jiné projekty', 'Earlier conversations': 'Dřívější konverzace',
+  'Delete this conversation? It cannot be brought back.': 'Smazat tuto konverzaci? Nepůjde vrátit.',
+  'Wait until Claude has answered (or Stop it) first.': 'Nejdřív počkejte, až Claude odpoví (nebo ho zastavte).',
+  'Earlier conversation from': 'Dřívější konverzace z', 'write to go on with it.': 'napište a pokračujte v ní.',
+  'Claude\'s earlier session could not be resumed — a new one got a short summary of this conversation.':
+    'Dřívější relaci Clauda nešlo obnovit — nová relace dostala krátké shrnutí této konverzace.',
   'starting to record your moves': 'spouští záznam vašich pohybů', 'stopping the recording': 'zastavuje záznam', 'reading your recorded moves': 'čte vaše nahrané pohyby',
   'looking at a recorded screenshot': 'prohlíží snímek ze záznamu',
 };

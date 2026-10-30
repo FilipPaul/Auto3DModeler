@@ -34,6 +34,12 @@ Never report "works" without having run it; report failures with their output.
    the 3D view follows, remembered after a reload, double-click = usual width, a smallest width).
    `tools/e2e_chat_scroll.py <url> <dir>` covers the AI chat while Claude works (the panel keeps its place and size,
    the wheel scrolls the log up, new text leaves it there; at the bottom it follows).
+   `tools/e2e_chat_history.py <url> <dir> <claude config dir>` covers 🕘 Previous conversations with the stand-in Claude
+   Code (tools/fake_claude.py; its own server: `AUTO3D_CLAUDE=tools/fake_claude.py CLAUDE_CONFIG_DIR=<scratch>/claude`):
+   two conversations (＋ Nová konverzace), a reload keeps the one on screen, a reload after the server lost it brings it
+   back, the list (date, title, zpráv: n, Czech), the first opened (messages, tool lines, the photo's thumbnail, a
+   note), a message resumes its Claude session (--resume), a gone session -> a new one with the summary and a note, ✕
+   with a confirm; no console errors.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).

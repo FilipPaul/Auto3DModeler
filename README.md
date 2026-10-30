@@ -1346,6 +1346,16 @@ the app: every change appears in the 3D view at once and **↶ Undo AI change** 
 On a quick part the chat is the **✨ AI** tab of the left panel; in a 3D model or an assembly the **✨ AI** button in
 the top bar opens the same chat (the same conversation) at the right side — ✕ closes it.
 
+**🕘 Previous conversations** (the bar under the chat's head): every conversation is kept on the server
+(`data/chats/`, the last 200) with the project it was about. The list shows this project's conversations first (the
+others under "Other projects"), each with its date, its first message as the title and the number of messages;
+click one to see it again — your messages with their photos as thumbnails, Claude's answers, its tool lines — and
+write to **go on with it**: Claude Code's own session is resumed (`--resume`), so the AI has the whole conversation
+back. When that session is gone (e.g. cleaned up by Claude Code), a new session gets a short summary of the
+conversation and a note in the chat says so. **＋ New conversation** starts afresh (the old one stays in the list);
+✕ deletes one (after a confirm). A reload of the page keeps the conversation on screen — also after the app was
+restarted.
+
 **🕘 History** (in the chat's top bar): after each AI turn that changed something, the server keeps the whole project
 (every part — 3D models, assemblies, drawings) in `data/history/` next to `server.py`, with the message that made
 it. The list shows them newest first; **Load** opens the project as it was then — the project on screen is kept in

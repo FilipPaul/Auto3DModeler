@@ -25,6 +25,7 @@ from flask import Flask, Response, jsonify, request, send_file, send_from_direct
 from auto3d import progress
 from auto3d.agent import ROUTE, ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
+from auto3d import chat_history
 from auto3d import library as parts_library
 from auto3d import title_templates
 from auto3d import autosave
@@ -1300,6 +1301,7 @@ def _export_bytes(body: dict, fmt: str):
 RELAY = Relay()
 CHATS: dict[str, ChatSession] = {}  # the app window's client id ("": none given) -> its chat
 CHAT_IDLE_GONE = 600  # s: the chat of a window closed this long ago ends (its Claude Code process)
+CHAT_STORE = DATA / "chats"  # the chat's conversations (auto3d/chat_history.py): 🕘 Previous conversations
 APP_URL = "http://127.0.0.1:5173"
 LAST_TRACE: dict = {}
 PICTURE_FORMATS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
@@ -1320,7 +1322,7 @@ def _chat(client: str = "") -> ChatSession:
             chat.stop()
             del CHATS[cid]
     if client not in CHATS:
-        CHATS[client] = ChatSession(APP_URL, client or None)
+        CHATS[client] = ChatSession(APP_URL, client or None, CHAT_STORE)
     return CHATS[client]
 
 
@@ -1761,7 +1763,8 @@ def api_agent_result():
 @app.get("/api/chat/status")
 def api_chat_status():
     chat = _chat(_client())
-    return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy})
+    return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy,
+                    "conversation": getattr(chat, "conv_meta", lambda: None)()})
 
 
 @app.get("/api/ai/access")
@@ -1853,7 +1856,10 @@ def api_chat_send():
     if not text and not photos:
         return jsonify({"error": "Empty message."}), 400
     try:
-        _chat(_client()).send(text, photos)
+        chat = _chat(_client())
+        if isinstance(body.get("project"), dict):  # (the project on the page: a new conversation is about it)
+            chat.project = {"id": str(body["project"].get("id") or ""), "name": str(body["project"].get("name") or "")}
+        chat.send(text, photos)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})
@@ -1868,6 +1874,37 @@ def api_chat_stop():
 @app.post("/api/chat/reset")
 def api_chat_reset():
     _chat(_client()).reset()
+    return jsonify({"ok": True})
+
+
+@app.get("/api/chat/conversations")
+def api_chat_conversations():
+    """🕘 Previous conversations: their meta, the last changed first ({conversations, current: this window's id})."""
+    chat = _chat(_client())
+    return jsonify({"conversations": chat_history.list_convs(CHAT_STORE), "current": (chat.conv or {}).get("id")})
+
+
+@app.post("/api/chat/open")
+def api_chat_open():
+    """{id, client}: the kept conversation in this window's chat again — the next message goes on with it."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        _chat(_client()).open(str(body.get("id") or ""))
+    except (chat_history.ChatHistoryError, ValueError) as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/chat/conversations/<cid>")
+def api_chat_delete(cid):
+    """A kept conversation deleted (a window that has it on screen starts a new one)."""
+    try:
+        chat_history.delete(CHAT_STORE, cid)
+    except chat_history.ChatHistoryError as e:
+        return jsonify({"error": str(e)}), 404
+    for chat in list(CHATS.values()):
+        if (chat.conv or {}).get("id") == cid:
+            chat.reset()
     return jsonify({"ok": True})
 
 
