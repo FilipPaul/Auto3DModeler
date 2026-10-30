@@ -56,7 +56,10 @@ Date: 2026-10-25. Written by the architect agent.
   back after (a drag that turned it: kept, its shape the view's). `pick` answers `at` in the picture's pixels;
   gui_highlight `at` follows the 3D point there. No picture of what is on screen: 0 … 1 of the view, as before.
   Test: e2e_ai_gui.py — a block's vertical edge projected with the picture's camera, clicked in ◜ Fillet at
-  1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another).
+  1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another). 2026-10-30 (an app
+  report from before this: ui pixels "off the screen", a drag by fractions turned the view): checked for
+  get_screenshot {ui: true} too — a harness point in ✎ Edit points dragged by ui pixels and by the fitted picture's
+  pixels lands where aimed, the view does not turn; pixels outside the last picture are refused with its size.
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

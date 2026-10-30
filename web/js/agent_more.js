@@ -298,6 +298,7 @@ export function shotSpace() {
     if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => Number.isFinite(+v))) throw new Error(`${what}: [x, y] — pixels of get_screenshot's picture, or 0 … 1 across and down it.`);
     if (!p.some((v) => Math.abs(+v) > 1)) return [+p[0], +p[1]];
     if (!kind) throw new Error(`${what}: pixels of get_screenshot's picture — take one of what is on screen first (or give 0 … 1 across and down the view).`);
+    if (p[0] < 0 || p[1] < 0 || p[0] > s.w || p[1] > s.h) throw new Error(`${what}: [${p.join(', ')}] is outside your last get_screenshot picture (${s.w} × ${s.h} px) — give pixels of that picture (the last one taken: a get_screenshot ${kind === 'ui' ? '{ui: true}' : kind === 'sheet' ? 'of the sheet' : 'of the view'}).`);
     return [+p[0] / s.w, +p[1] / s.h];
   };
   const box = () => (v3 ? v3.renderer.domElement : viewEl())?.getBoundingClientRect();

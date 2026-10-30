@@ -7,7 +7,10 @@ selected -> Delete: gone -> ctrl+z: back -> at_mm on the view, drag_to 20 mm rig
 the title's cell: its field has the focus -> no control / point / key: refused -> a block in ◜ Fillet at 1600 × 800
 and in a narrow view: get_screenshot, an edge's pixel in it (projected with the picture's camera), gui_action at it:
 that edge picked -> pick answers `at` in the picture's pixels; gui_highlight at them rings the same face -> mods:
-the top face, then the front face with ctrl: both selected (a plain click: the front only); a wrong key refused.
+the top face, then the front face with ctrl: both selected (a plain click: the front only); a wrong key refused ->
+an assembly at 1920 × 1080 with a 🔌 harness in ✎ Edit points: a point dragged by pixels of get_screenshot {ui: true}
+and another by pixels of the fitted 1200 × 900 one: each lands on the tray's top where aimed, the view does not turn;
+a click at the ui pixels of the tray picks it; pixels outside the picture refused.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_gui.py http://127.0.0.1:5199 <out dir>
 """
@@ -218,6 +221,61 @@ try:
     assert picks() == [front]
     print("bad mods:", act(pick=front, mods=["hyper"])[:60])
     act(key="Escape")
+
+    # pixels of a get_screenshot {ui: true} picture (the whole window, scaled to 1400 wide) and of the fitted 1200 × 900
+    # one: a harness point in ✎ Edit points dragged by them lands on the box's top where aimed — the point moves, the
+    # view does not turn; a click at the ui pixels of a part picks it; pixels outside the picture are refused
+    d.set_window_size(1920, 1080)
+    call("new_model", name="Tray")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 160, "h": 100}}])
+    call("add_feature", type="extrude", sketch="F1", d=10)
+    call("new_assembly", name="Wired")
+    call("insert_part", part="Tray")
+    wait(f"return Object.values({A}.bodies).every(b => b.body)")
+    call("add_harness", type="cable", d=6, points=[{"part": "I1", "face": "F2:end"}, {"xyz": [80, 50, 40]}, {"xyz": [140, 80, 30]}])
+    js(f"{A}.choose(null); {A}.view.setView('iso')")
+    time.sleep(1)
+    js("import('/js/assembly/harness.js').then((m) => { window.__hn = m; })")
+    wait("return !!window.__hn")
+    T = f"{A}.harnessTool"
+    js(f"{T}.editPoints('H1')")
+    time.sleep(0.5)
+    point = lambda k: js(f"const h = {T}.get('H1'); return [h.points[{k}].inst || null, window.__hn.pointAt({A}, h, h.points[{k}]).toArray()]")  # noqa: E731
+    cam = lambda: js(f"return {A}.view.camera.position.toArray().concat({A}.view.camera.quaternion.toArray())")  # noqa: E731
+    page = lambda p: js(f"const v = {A}.view; return v.toScreen(new (v.camera.position.constructor)(...arguments[0]))", p)  # noqa: E731
+
+    def shot_px(p):
+        """A 3D point -> its pixel in the last fitted picture, through the camera that drew it (view.shot)."""
+        return js(f"""const v = {A}.view, s = v.shot, c = new v.camera.constructor(s.fov, s.aspect, s.near, s.far);
+          c.position.copy(s.position); c.quaternion.copy(s.quaternion); c.zoom = s.zoom; c.updateProjectionMatrix(); c.updateMatrixWorld();
+          const q = new (v.camera.position.constructor)(...arguments[0]).project(c); return [(q.x + 1) / 2 * s.w, (1 - q.y) / 2 * s.h]""", p)
+
+    def dragged(k, at, to, target, how):
+        c0 = cam()
+        r = act(at=[round(v) for v in at], drag_to=[round(v) for v in to])
+        assert not isinstance(r, str), r
+        inst, got = point(k)
+        print(f"{how}: point {k} dragged {[round(v) for v in at]} -> {[round(v) for v in to]}: on {inst} at {[round(v, 1) for v in got]} "
+              f"(aimed {target}) | the view turned: {cam() != c0}")
+        assert inst == "I1" and math.dist(got[:2], target[:2]) < 1.5 and cam() == c0, (inst, got, target)
+
+    text = call("get_screenshot", ui=True)
+    w = int(text.split(" × ")[0].split()[-1])
+    k = w / js("return innerWidth")
+    print("get_screenshot {ui: true}:", text[:90])
+    ui = lambda p: [v * k for v in page(p)]  # noqa: E731
+    dragged(1, ui(point(1)[1]), ui([100, 30, 10]), [100, 30], "ui pixels")
+    call("get_screenshot")
+    dragged(2, shot_px(point(2)[1]), shot_px([40, 70, 10]), [40, 70], "fitted 1200 × 900 pixels")
+    act(key="Escape")
+    time.sleep(0.4)
+    call("get_screenshot", ui=True)
+    r = act(at=[round(v) for v in ui([20, 20, 10])])
+    print("a click at the ui pixels of the tray:", r["done"], "| selected", r["selected"])
+    assert r["selected"] == "I1"
+    r = act(at=[w + 50, 300])
+    print("pixels outside the picture:", r[:110])
+    assert r.startswith("ERROR") and "outside" in r
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
