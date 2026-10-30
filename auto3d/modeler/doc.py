@@ -1752,14 +1752,28 @@ def assembly_sheet(instances, paper=None, explode=0, simple=False, base=None):
 def assembly_clashes(instances, quick=False):
     """Where the placed parts of an assembly overlap: instances [{id, part: {features}, matrix: [16]}] ->
     [{a, b (their ids), volume, bbox}]. A part without a solid is left out."""
-    shapes = []
+    shapes, frames, keys = [], {}, {}
     for inst in instances or []:
         try:
             st = body_of(inst.get("part"))
         except K.KernelError:
             continue
-        shapes.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
-    return K.interference(shapes, quick=quick)
+        m = inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+        shapes.append((inst.get("id"), K.placed(st.body.shape, m)))
+        frames[inst.get("id")] = (_built_key(inst.get("part"), keys), m)
+    return K.interference(shapes, quick=quick, frames=frames)
+
+
+def _built_key(part, keys=None):
+    """A part as body_of builds it (its steps at the bar, its threads), as a short key — a pair of the same two parts
+    standing alike again is not computed again (kernel.interference's frames). keys: the ones made already."""
+    part = at_bar(part)
+    pk = json.dumps([part.get("features") or [], thread_mode(part)], sort_keys=True)
+    if keys is None:
+        return hashlib.sha1(pk.encode()).hexdigest()
+    if pk not in keys:
+        keys[pk] = hashlib.sha1(pk.encode()).hexdigest()
+    return keys[pk]
 
 
 def assembly_clearance(instances, a=None):
@@ -1783,19 +1797,21 @@ def assembly_sweep(instances, steps, quick=False):
     """Collisions along a motion: instances as for assembly_clashes (where they are at the start), steps [{at,
     matrices: {id: [16]}}] (the parts that moved, where they are at that step) -> [{at, clashes}] — only the
     clashes of a part that moved. Each solid is built once; quick: as for assembly_clashes (a scan while it moves)."""
-    base = {}
+    base, built, keys = {}, {}, {}
     for inst in instances or []:
         try:
             base[inst.get("id")] = body_of(inst.get("part")).body.shape
         except K.KernelError:
             continue
+        built[inst.get("id")] = _built_key(inst.get("part"), keys)
     start = {inst.get("id"): inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] for inst in instances or []}
     still = {k: K.placed(s, start[k]) for k, s in base.items()}
     out = []
     for step in steps or []:
         moved = {k: m for k, m in (step.get("matrices") or {}).items() if k in base}
         shapes = [(k, K.placed(base[k], moved[k]) if k in moved else s) for k, s in still.items()]
-        out.append({"at": step.get("at"), "clashes": K.interference(shapes, only=set(moved), quick=quick)})
+        frames = {k: (built[k], moved.get(k) or start[k]) for k in base}  # (parts moving together: their pairs alike at every step)
+        out.append({"at": step.get("at"), "clashes": K.interference(shapes, only=set(moved), quick=quick, frames=frames)})
     return out
 
 

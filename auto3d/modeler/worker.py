@@ -318,7 +318,9 @@ def part_key(op, arg):
     if op == "limits":
         return _of_part({"features": arg.get("features")})
     if op in ("assembly_clashes", "assembly_sweep", "assembly_sheet", "assembly_clearance"):
-        return "asm:" + _digest(sorted(str(i.get("id")) for i in arg.get("instances") or []))
+        # (by the parts it is made of, not its placed ids: one more screw of a part already in keeps its process — its
+        # parts built there and the pairs of parts checked before)
+        return "asm:" + _digest(sorted({_of_part(i.get("part")) for i in arg.get("instances") or []}))
     if op == "import_solid":
         return f"blob:{arg.get('blob')}"  # (its part's steps read the file this one keeps)
     if op == "print_pieces":

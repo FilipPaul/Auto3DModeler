@@ -2420,57 +2420,99 @@ def _apart(a, b):
 
 
 QUICK_PAIRS = 40  # a quick check: more solids than this meeting in one pair of parts -> an estimate (big boards)
+PAIRS = 20000  # pairs of parts kept with their overlap (_PAIRS)
+_PAIRS: "OrderedDict" = None  # (part a, part b, b's placement in a's frame) -> (volume, the overlaps as shapes in a's frame)
 
 
-def interference(shapes, min_volume=1e-3, only=None, quick=False):
+def _pair_key(fa, fb):
+    """A pair of placed parts as a cache key: their own keys and b's placement seen from a (to 1e-6) — the same two
+    parts standing alike again (a check after a change elsewhere, a screw in each of 40 alike plates) are alike."""
+    ma, mb = (np.array(list(map(float, f[1])), float).reshape(4, 4).T for f in (fa, fb))
+    rel = np.linalg.solve(ma, mb)[:3]
+    return (fa[0], fb[0], tuple(np.round(rel, 6).ravel().tolist()))
+
+
+def interference(shapes, min_volume=1e-3, only=None, quick=False, frames=None):
     """Where placed solids overlap: shapes [(key, shape)] -> [{a, b, volume (mm³), bbox (of the overlap), approx?}], the
-    biggest first. Parts whose boxes do not meet are not computed; touching faces (no volume) are not a clash.
-    only: a set of keys — just the pairs with one of them. quick: a pair whose solids meet in more than QUICK_PAIRS
-    places (two big imported boards) is told by their boxes (`approx`), not computed (that takes half a minute)."""
+    biggest first. Parts whose boxes do not meet are not computed (the boxes sorted along x: only the ones that reach
+    into each other along it are compared — 500 parts are not 125 000 pairs); touching faces (no volume) are not a
+    clash. only: a set of keys — just the pairs with one of them. quick: a pair whose solids meet in more than
+    QUICK_PAIRS places (two big imported boards) is told by their boxes (`approx`), not computed (that takes half a
+    minute). frames: {key: (its part's own key, its placement m16)} — a pair computed before standing alike is taken
+    from _PAIRS (the check after each change computes only the pairs that moved)."""
+    global _PAIRS
+    if _PAIRS is None:
+        from collections import OrderedDict
+        _PAIRS = OrderedDict()
     boxes = [(k, s, bbox(s)) for k, s in shapes]
+    order = sorted((i for i, b in enumerate(boxes) if b[2]), key=lambda i: boxes[i][2][0])
+    pairs = []
+    for x, i in enumerate(order):
+        bi = boxes[i][2]
+        for j in order[x + 1:]:
+            bj = boxes[j][2]
+            if bj[0] >= bi[3] - 1e-6:  # (sorted by where they start along x: none after this one reaches into it)
+                break
+            if not _apart(bi, bj):
+                pairs.append((min(i, j), max(i, j)))
     parts = {}  # key -> its solids with their boxes (made when a pair needs them)
     out = []
-    for i in range(len(boxes)):
-        for j in range(i + 1, len(boxes)):
-            (ka, sa, ba), (kb, sb, bb) = boxes[i], boxes[j]
-            if only is not None and ka not in only and kb not in only:
-                continue
-            if not ba or not bb or _apart(ba, bb):
-                continue
-            # solid by solid, only those whose boxes meet (a part of many solids: a board with its components)
-            for k, s in ((ka, sa), (kb, sb)):
-                if k not in parts:
-                    parts[k] = _solid_boxes(s) or [(s, bbox(s) or [0] * 6)]
-            v, lo, hi = 0.0, [float("inf")] * 3, [float("-inf")] * 3
-            if quick:
-                meet = [(bx, by) for _, bx in parts[ka] if not _apart(bx, bb) for _, by in parts[kb] if not _apart(bx, by)]
-                if len(meet) > QUICK_PAIRS:
-                    for bx, by in meet:  # the boxes' overlaps: an upper bound
-                        o = [max(bx[q], by[q]) for q in range(3)] + [min(bx[q + 3], by[q + 3]) for q in range(3)]
-                        v += max(0.0, o[3] - o[0]) * max(0.0, o[4] - o[1]) * max(0.0, o[5] - o[2])
-                        lo, hi = [min(lo[q], o[q]) for q in range(3)], [max(hi[q], o[q + 3]) for q in range(3)]
-                    if v > min_volume:
-                        out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3), "approx": True})
-                    continue
-            for x, bx in parts[ka]:
-                if _apart(bx, bb):
-                    continue
-                for y, by in parts[kb]:
-                    if _apart(bx, by):
-                        continue
-                    mk = bop("common", x, y)
-                    if not mk.IsDone():
-                        continue
-                    common = mk.Shape()
-                    cv = volume(common)
-                    if cv <= min_volume / 100:
-                        continue
-                    v += cv
-                    cb = bbox(common)
+    for i, j in sorted(pairs):
+        (ka, sa, ba), (kb, sb, bb) = boxes[i], boxes[j]
+        if only is not None and ka not in only and kb not in only:
+            continue
+        ck = _pair_key(frames[ka], frames[kb]) if frames and ka in frames and kb in frames else None
+        if ck is not None and ck in _PAIRS:  # (computed before, standing alike: its overlaps moved to where a is now)
+            _PAIRS.move_to_end(ck)
+            v, local = _PAIRS[ck]
+            if v > min_volume:
+                lo, hi = [float("inf")] * 3, [float("-inf")] * 3
+                for c in local:
+                    cb = bbox(placed(c, frames[ka][1]))
                     if cb:
                         lo, hi = [min(lo[q], cb[q]) for q in range(3)], [max(hi[q], cb[q + 3]) for q in range(3)]
-            if v > min_volume:
                 out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3)})
+            continue
+        # solid by solid, only those whose boxes meet (a part of many solids: a board with its components)
+        for k, sh in ((ka, sa), (kb, sb)):
+            if k not in parts:
+                parts[k] = _solid_boxes(sh) or [(sh, bbox(sh) or [0] * 6)]
+        v, lo, hi, commons = 0.0, [float("inf")] * 3, [float("-inf")] * 3, []
+        if quick:
+            meet = [(bx, by) for _, bx in parts[ka] if not _apart(bx, bb) for _, by in parts[kb] if not _apart(bx, by)]
+            if len(meet) > QUICK_PAIRS:
+                for bx, by in meet:  # the boxes' overlaps: an upper bound
+                    o = [max(bx[q], by[q]) for q in range(3)] + [min(bx[q + 3], by[q + 3]) for q in range(3)]
+                    v += max(0.0, o[3] - o[0]) * max(0.0, o[4] - o[1]) * max(0.0, o[5] - o[2])
+                    lo, hi = [min(lo[q], o[q]) for q in range(3)], [max(hi[q], o[q + 3]) for q in range(3)]
+                if v > min_volume:
+                    out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3), "approx": True})
+                continue
+        for x, bx in parts[ka]:
+            if _apart(bx, bb):
+                continue
+            for y, by in parts[kb]:
+                if _apart(bx, by):
+                    continue
+                mk = bop("common", x, y)
+                if not mk.IsDone():
+                    continue
+                common = mk.Shape()
+                cv = volume(common)
+                if cv <= min_volume / 100:
+                    continue
+                v += cv
+                commons.append(common)
+                cb = bbox(common)
+                if cb:
+                    lo, hi = [min(lo[q], cb[q]) for q in range(3)], [max(hi[q], cb[q + 3]) for q in range(3)]
+        if ck is not None:  # (kept in a's own frame: found again wherever the two stand alike)
+            back = np.linalg.inv(np.array(list(map(float, frames[ka][1])), float).reshape(4, 4).T)
+            _PAIRS[ck] = (v, [placed(c, back.T.ravel().tolist()) for c in commons] if v > min_volume else [])
+            while len(_PAIRS) > PAIRS:
+                _PAIRS.popitem(last=False)
+        if v > min_volume:
+            out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3)})
     return sorted(out, key=lambda c: -c["volume"])
 
 

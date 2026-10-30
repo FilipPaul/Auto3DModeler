@@ -1847,6 +1847,38 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertAlmostEqual(cs[0]["volume"], 5 * 15 * 10, places=3)
         self.assertEqual(cs[0]["bbox"], [15, 5, 0, 20, 20, 10])
 
+    def test_pairs_kept_and_found_alike(self):
+        """A check again computes nothing new (each pair kept with its overlap in its first part's frame); the same two
+        parts standing alike elsewhere (turned, moved) are found too — the same volume, the box where they are now; a
+        part moved computes only its own pairs. Many parts in a row: only neighbours are compared (sorted along x)."""
+        from auto3d.modeler import kernel as K
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        turned = lambda x, y: [0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, x, y, 0, 1]  # noqa: E731  (90° about z, then moved)
+        calls = []
+        real = K.bop
+        K.bop = lambda *a, **k: (calls.append(a[0]), real(*a, **k))[1]
+        try:
+            K._PAIRS = None
+            first = doc.assembly_clashes([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(15, 5)}])
+            n = len(calls)
+            again = doc.assembly_clashes([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(15, 5)}])
+            self.assertEqual(n, 1)
+            self.assertEqual(len(calls), n)  # (kept)
+            self.assertEqual(again, first)
+            # the same pair turned 90° and moved: found, its box where they stand now (I1 covers x -20 … 0, y 100 … 120)
+            moved = doc.assembly_clashes([{"id": "I1", "part": part, "matrix": turned(0, 100)}, {"id": "I2", "part": part, "matrix": turned(-5, 115)}])
+            self.assertEqual(len(calls), n)
+            self.assertAlmostEqual(moved[0]["volume"], 5 * 15 * 10, places=3)
+            self.assertEqual(moved[0]["bbox"], [-20, 115, 0, -5, 120, 10])
+            row = [{"id": f"R{i}", "part": part, "matrix": at(i * 15, 300)} for i in range(30)]  # each into the next by 5 mm
+            cs = doc.assembly_clashes(row)
+            self.assertEqual(len(cs), 29)
+            self.assertTrue(all(c["volume"] == 5 * 20 * 10 for c in cs))
+            self.assertEqual(len(calls), n + 1)  # (29 pairs alike: computed once)
+        finally:
+            K.bop = real
+
     def test_quick_check_estimates_big_overlaps(self):
         """A part of many solids (a board with its components) over another one: quick: estimated from the boxes, at once;
         else computed (solid by solid)."""
