@@ -1279,11 +1279,16 @@ export class Assembly {
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
       const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
-      const row = (k, v) => `<div class="field"><label>${k.toUpperCase()}</label><input type="number" step="any" data-k="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
+      const row = (k, v) => { // (its origin in the assembly's X / Y / Z: the turns' axes too)
+        const [lo, hi] = this.posRange(it, k, v), tip = esc(t2('Its origin along the assembly’s {axis} axis, in mm (the turns below use the same axes). Slide: whole mm — hold Shift for 0.1 mm; type an exact number in the box.', { axis: k.toUpperCase() }));
+        return `<div class="as-rot as-pos" title="${tip}"><label>⇄ ${k.toUpperCase()}</label>
+        <input type="range" min="${lo}" max="${hi}" step="1" data-pos="${k}" value="${v}">
+        <input type="number" step="any" data-k="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
+      };
       const rot = (k) => `<div class="as-rot"><label>↻ ${k.toUpperCase()}</label>
         <input type="range" min="-180" max="180" step="1" list="as-ticks" data-rot="${k}" value="${deg(e[k])}">
         <input type="number" step="any" data-rotn="${k}" value="${fmt(deg(e[k]))}"><span class="unit">°</span></div>`;
-      const freePlace = `${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
+      const freePlace = `<h3>Position</h3>${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
         <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
@@ -1317,6 +1322,13 @@ export class Assembly {
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
+      }
+      for (const sl of box.querySelectorAll('input[data-pos]')) { // live while sliding, one undo step on letting go
+        const k = sl.dataset.pos, num = box.querySelector(`input[data-k=${k}]`);
+        const fine = (ev) => { sl.step = ev.shiftKey ? '0.1' : '1'; }; // (Shift: 0.1 mm steps)
+        for (const ty of ['pointerdown', 'pointermove', 'keydown', 'keyup']) sl.addEventListener(ty, fine);
+        sl.addEventListener('input', () => { num.value = fmt(+sl.value); this.setPos(k, +sl.value, false); });
+        sl.addEventListener('change', () => this.setPos(k, +sl.value, true));
       }
       for (const sl of box.querySelectorAll('input[data-rot]')) {
         const k = sl.dataset.rot, num = box.querySelector(`[data-rotn=${k}]`);
@@ -2500,6 +2512,7 @@ export class Assembly {
     }));
     this.drawMarks();
     this.drawJointTags();
+    this.syncPos(); // (⇄ the position sliders, while the part is dragged)
     this.showCog();
     if (this.doc.springs) updateSpringRows(this, this.$('.mp-body')); // (〰 its length now, while the parts move)
     this.harnessTool.draw(); // (🔌 the harnesses: their points on the parts as drawn now)
@@ -2661,16 +2674,50 @@ export class Assembly {
     this.commit();
   }
 
-  setPos(k, value) {
+  /** The selected part's origin set along the assembly's X / Y / Z (mm). final: an undo step (else a live preview
+   *  while sliding, asked once per slide whether it may move). */
+  setPos(k, value, final = true) {
     const it = this.inst(this.sel), v = parseFloat(String(value).replace(',', '.'));
-    if (!it || !Number.isFinite(v)) return;
-    if (!this.mayMove(it.id, true, () => this.setPos(k, value))) { this.renderProps(); return; }
+    if (!it || !Number.isFinite(v) || !(k in { x: 1, y: 1, z: 1 })) return;
+    if (!this.posAllowed) { // (asked once per slide; its joints broken: the slide goes on)
+      if (!this.mayMove(it.id, true, () => { this.posAllowed = !final; this.setPos(k, value, final); })) { this.renderProps(); return; }
+      this.posAllowed = true;
+    }
+    if (final) this.posAllowed = false;
     const m = new THREE.Matrix4().fromArray(it.matrix);
     const e = m.elements;
     e[{ x: 12, y: 13, z: 14 }[k]] = v;
     it.matrix = m.toArray();
+    if (!final) { this.draw(); return; }
     this.applyMates(); // the parts joined onto it follow
     this.commit();
+  }
+
+  /** The position slider's range along k (Place it by hand) for a part at v: ± the assembly's size or ± twice the
+   *  part's, whichever is larger, on whole mm, centred on where it is — kept while it stays inside, centred again once
+   *  it reaches an end (let go there, or a number typed past it). -> [min, max] */
+  posRange(it, k, v) {
+    const kept = this.posRanges?.id === it.id ? this.posRanges[k] : null;
+    if (kept && v > kept[0] && v < kept[1]) return kept;
+    const all = new THREE.Box3(), boxOf = (o) => { const b = this.bodyOf(o)?.body; return b && new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3, 6))); };
+    for (const o of this.doc.instances) { const b = boxOf(o); if (b) all.union(b.applyMatrix4(new THREE.Matrix4().fromArray(o.matrix))); }
+    const own = boxOf(it), big = (b) => (b && !b.isEmpty() ? Math.max(...b.getSize(new THREE.Vector3()).toArray()) : 0);
+    const half = Math.max(big(all), 2 * big(own), 10), r = [Math.floor(v - half), Math.ceil(v + half)];
+    if (this.posRanges?.id !== it.id) this.posRanges = { id: it.id };
+    this.posRanges[k] = r;
+    return r;
+  }
+
+  /** The position sliders follow the part when it moves some other way (a drag in the view, a joint) — not the
+   *  field being used. */
+  syncPos() {
+    const box = this.$('.mp-body'), it = this.inst(this.sel);
+    if (!it || !box?.querySelector('input[data-pos]')) return;
+    ['x', 'y', 'z'].forEach((k, i) => {
+      const v = it.matrix[12 + i], sl = box.querySelector(`input[data-pos=${k}]`), num = box.querySelector(`input[data-k=${k}]`);
+      if (sl && document.activeElement !== sl) sl.value = v;
+      if (num && document.activeElement !== num) num.value = fmt(v);
+    });
   }
 
   /** May this part be moved by hand? Not when a locked joint holds it; when unlocked joints hold it, only if the

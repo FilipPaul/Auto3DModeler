@@ -129,6 +129,9 @@ Never report "works" without having run it; report failures with their output.
    finished part).
    `tools/e2e_assembly_lock.py <url> <dir>` covers 🔒 locked joints (moving refused), asking before breaking (no / yes,
    undo) and ↻ turning about a joint (caught at 90°, 30° typed).
+   `tools/e2e_manual_position.py <url> <dir>` covers the ⇄ position sliders of a part placed by hand, in Czech (Poloha
+   X / Y / Z above Natočení, X slid +20: live, the matrix 20 mm on; Shift + → 0.1 mm, → 1 mm; Y = 15.5 typed exact;
+   one undo each; at the slider's end it centres again; the sliders follow a move made elsewhere; no console errors).
    `tools/e2e_model_limits.py <url> <dir>` covers the value ranges (fillet R 0.01–9.99, 15 held at 9.99 and building;
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
    `tools/e2e_slider_grow.py <url> <dir>` covers soft vs hard ranges (pattern count 10 typed past its "2 – 4+": kept,

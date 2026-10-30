@@ -797,6 +797,7 @@ const CS = {
   'Flush: two flat faces in one plane, facing the same way': 'Zarovnat: dvě rovné plochy v jedné rovině, stejným směrem', // (the bar's tooltip, translated whole)
   'two round faces on one axis (a pin in a hole, a shaft in a bearing)': 'dvě válcové plochy na jedné ose (čep v díře, hřídel v ložisku)',
   'two flat faces parallel (it only turns)': 'dvě rovné plochy rovnoběžně (jen natočí)', Turn: 'Natočení', Joints: 'Vazby',
+  Position: 'Poloha', 'Its origin along the assembly’s {axis} axis, in mm (the turns below use the same axes). Slide: whole mm — hold Shift for 0.1 mm; type an exact number in the box.': 'Počátek dílu v ose {axis} sestavy, v mm (natočení níže používá tytéž osy). Posuvník: po celých mm — se Shiftem po 0,1 mm; přesné číslo napište do políčka.',
   'Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.': 'Posuňte na libovolný úhel — chytá se na 0, ±90 a ±180°. Přesný úhel napište do políčka.',
   '🔗 Join it to another part': '🔗 Spojit s jiným dílem', 'Not joined to anything — it stays where you put it.': 'Není s ničím spojený — zůstává, kam jste ho dali.',
   'Turn it the other way round': 'Otočit opačně', 'Remove this joint (the part stays where it is)': 'Odebrat vazbu (díl zůstane, kde je)',
