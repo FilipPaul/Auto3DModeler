@@ -66,6 +66,11 @@ def row(text, depth=None):
     return el
 
 
+def pick(el):
+    """A row clicked on its name: its middle holds the hover's buttons (⋯ 🔒 for the AI, 🏷 ⧉ ✕) on a narrow list."""
+    el.find_element(By.CSS_SELECTOR, ".mt-name").click()
+
+
 try:
     d.get(URL)
     wait("return !!window.__app")
@@ -115,7 +120,7 @@ try:
     r1 = rows()
     print("Lever open:", [(x[0], x[1]) for x in r1])
     check([(x[0], x[1]) for x in r1[4:]] == [(1, "Base I1"), (1, "Arm I2")], "its parts under it, indented, with their ids")
-    row("Arm", 1).click()
+    pick(row("Arm", 1))
     time.sleep(0.5)
     sel = js(f"return [{A}.sel, {A}.selInner]")
     print("chosen:", sel)
@@ -145,7 +150,7 @@ try:
     row("Lid unit I2").find_element(By.CSS_SELECTOR, ".as-twist").click()
     time.sleep(0.3)
     print("Lid unit open:", [(x[0], x[1]) for x in rows()])
-    row("Pin I3", 1).click()
+    pick(row("Pin I3", 1))
     time.sleep(0.4)
     panel = d.find_element(By.CSS_SELECTOR, "#asmRight .mp-body").text
     check(js(f"return {A}.selInner") == {"top": "I2", "path": "I3"} and "holds it in place" in panel, "a pin in Lid unit: chosen, 'Lid unit holds it in place'")
@@ -155,13 +160,15 @@ try:
     ActionChains(d).key_down(Keys.CONTROL).click(row("Lid I1", 1)).key_up(Keys.CONTROL).perform()
     time.sleep(0.3)
     check(js(f"return [{A}.selKeys(), {A}.selIds()]") == [["I1", "I2/I1"], ["I1", "I2"]], "Ctrl+click on an inner row: that row added, its placement among the chosen parts")
+    # the chosen rows' lines all blue (seen through): a part inside Lid unit chosen -> Lid unit's (its placement's)
+    looks = f"""return Object.fromEntries([...{A}.view.placed].map(([id, p]) => [id, p.lines.material === {A}.view.edgeMaterial ? 'edge'
+        : p.lines.material === {A}.view.litEdge ? 'lit' : p.lines.material === {A}.view.chosenEdge ? 'chosen' : '?']))"""
+    check(js(looks) == {"I1": "chosen", "I2": "chosen", "I3": "edge", "I4": "edge"}, "several rows chosen: all their parts' lines blue")
     # the top rows as before
-    row("Frame").click()
+    pick(row("Frame"))
     time.sleep(0.2)
     check(js(f"return [{A}.sel, {A}.sel2, {A}.selInner]") == ["I1", None, None], "a top row still chooses its part")
     # the mouse over a row: its part's lines lit in the view (seen through), nothing drawn anew; off the list: as before
-    looks = f"""return Object.fromEntries([...{A}.view.placed].map(([id, p]) => [id, p.lines.material === {A}.view.edgeMaterial ? 'edge'
-        : p.lines.material === {A}.view.litEdge ? 'lit' : p.lines.material === {A}.view.chosenEdge ? 'chosen' : '?']))"""
     check(js(looks) == {"I1": "chosen", "I2": "edge", "I3": "edge", "I4": "edge"}, "the chosen part's lines blue (seen through), the others as they were")
     js(f"{A}.__drawn = 0; const dr = {A}.draw.bind({A}); {A}.draw = () => {{ {A}.__drawn++; dr(); }}")
     ActionChains(d).move_to_element(row("Lever I4")).perform()
@@ -179,7 +186,7 @@ try:
     check(js(looks) == {"I1": "chosen", "I2": "edge", "I3": "edge", "I4": "edge"}, "the mouse off the list: no lines lit")
     js(f"{A}.view.lightLines(null)")
     # a click on a row: the same highlight as a click on the part in the view
-    row("Lid unit I3").click()
+    pick(row("Lid unit I3"))
     time.sleep(0.3)
     from_tree = js(f"""const p = {A}.view.placed.get('I3'); return [p.mesh.material.emissive.getHex(), p.lines.material === {A}.view.chosenEdge]""")
     js(f"{A}.choose(null)")
