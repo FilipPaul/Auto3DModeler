@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✎ Edit a part in place at any depth (2026-10-31)** (the owner: a part nested in several levels of assemblies
+  could not be edited in place from the top one). editInPlace took a top-level instance only; it now takes a key
+  "I3/I1/I2": `placedAt(key, true)` walks the path through innerList (each placement's `inner`), composing the
+  matrix, and gathers the context level by level — the other top parts and, at each level down, the other parts of
+  that sub-assembly (a merged body each for a sub-assembly beside it: a few bodies, never every part of a big one) —
+  all in the edited part's frame. `innerFace(a, "I2/I1/F2:end")` maps a merged body's face to the part however deep:
+  a double-click edits the deepest model part under the mouse (locked: its row chosen, its 🔒 in sight, the toast);
+  ✏ Sketch on this face works on it; renderInner shows ✎ Edit it here / 🔓 (editHtml, the same `editable(part)`
+  rules) and the AI lock row; the Suggested table of a chosen inner row leads with ✎ Edit the part here. No new kernel
+  work: back in the assembly, refresh rebuilds the changed part and mergeAssembly's keys (made of the parts' keys)
+  merge each sub-assembly holding it again — a sub-assembly kept warm included. tools/e2e_nested_edit.py.
 - **⇆ A big imported STEP assembly switched top ⇄ sub-assembly at once (2026-10-31)** (the owner: "Sestava ICT
   M1556.stp", 25 MB, opened as an assembly — 254 parts, 44 sub-assemblies —; the top assembly, "Sestava základní
   desky", the top again: an enormous wait, the window frozen with no sign of work). Measured in a real Edge window (GPU,

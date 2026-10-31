@@ -1257,7 +1257,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   until you unlock it (🔓 Editable from here), so nothing is changed by accident. The Suggested table always shows
   **✎ Edit the part here** for a chosen part — or a face, edge or point picked on it — however few rows it shows; a
   locked part is unlocked by that click. From a picked face, that face is chosen in the part too: ✏ Sketch on this
-  face, ◎ Hole here are one click away.
+  face, ◎ Hole here are one click away. **A part inside sub-assemblies** — at any depth — is edited from the top
+  assembly the same way: its row in the parts list (▸ the sub-assembly) has ✎ Edit it here and 🔓 / 🔒, a
+  double-click on it in the view opens that part (the deepest one under the mouse, not the whole sub-assembly), and
+  ✏ Sketch on this face works on its faces too. The rest of the top assembly — the other parts of its own
+  sub-assemblies too — stands see-through around it where it is; back in the assembly, it and every sub-assembly
+  that holds the part show the change.
 - **👁 Hide parts** (display only): the Suggested table always shows **👁 Hide / show…** for a chosen part (or a face
   of it, or two parts with Ctrl+click); a click opens its choices in a small list right next to that row (to the
   table's right, or left where there is no room) — **Hide**, **Make see-through** (25 %), **Hide the others

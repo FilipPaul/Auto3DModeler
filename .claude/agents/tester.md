@@ -211,6 +211,9 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_nested_edit.py <url> <dir>` covers ✎ Edit it here for a part two sub-assemblies deep, from the top (its
+   row's ✎ / 🔓, a double-click refused while locked and its panel shown, the context in the part's frame — rotated
+   and moved levels —, a hole added, back: top, sub-assembly (kept warm) and inner one show it, ✏ Sketch on its face).
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
