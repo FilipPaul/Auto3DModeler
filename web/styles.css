@@ -128,7 +128,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .menu-list button:hover { background: #2b3340; }
 /* ⏮ a 3D model rolled back: its files are the part as the bar stands — a mark on each item, the note on top */
 .menu-list .menu-note { max-width: 300px; padding: 6px 10px 8px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
-#exportMenu.rolled button::after { content: ' ⏮'; color: var(--warn); }
+#exportMenu.rolled [data-fmt]:not(.off)::after { content: ' ⏮'; color: var(--warn); }
 
 .layout { display: grid; grid-template-columns: var(--lcol) minmax(0, 1fr) var(--rcol); grid-template-rows: minmax(0, 1fr); flex: 1; min-height: 0; position: relative; }
 /* the two side columns (leftdock.js): as wide as their splitters say; one with nothing docked: a thin strip to drop on */
@@ -555,10 +555,6 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 /* ------------------------------------------------------------------ workspaces: Quick part | 3D model */
 body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only,
 body.ws-drawing .quick-only, body:not(.ws-drawing) .dwg-only, body.ws-sheet .quick-only, body:not(.ws-sheet) .sheet-only { display: none !important; }
-/* Export ▾ on a drawing sheet / a 2D drawing: only its own formats (not the 3D ones) */
-body.ws-sheet #exportMenu > button:not(.sheet-only), body.ws-drawing #exportMenu > button:not(.dwg-only) { display: none !important; }
-body:not(.ws-model):not(.ws-assembly) #exportMenu [data-fmt=iges] { display: none; }
-body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick { display: none !important; }
 /* the drawing sheet (📄) */
 #shLeft { padding: 10px 10px 14px; overflow-y: auto; }
 #shRight { padding: 12px 14px; }
@@ -1472,7 +1468,6 @@ body.view-acts .toast-stack { bottom: 84px; }
 .menu-list .menu-item { display: block; padding: 8px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
 .menu-list .menu-item:hover { background: #2b3340; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
-#openMenu { left: 0; right: auto; }
 
 /* sketch sizes: value + lock */
 .sk-label.edit { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 5px; }
@@ -1852,3 +1847,45 @@ details.pr-more[open] summary { margin-bottom: 8px; color: var(--text); }
 .ai-reasons { display: inline-flex; gap: 4px; }
 .ai-reasons .chip { padding: 2px 9px; font-size: 11px; }
 .ai-reasons .chip.on { border-color: #f2cc60; color: #f2cc60; }
+/* 📂 Open ▾ / Export ▾ (filemenus.js): two columns of sections, an icon tile, the name and a muted hint per item;
+   an item that does not fit the tab: greyed, its reason in place of the hint. A narrow window: one column. */
+.menu-list.fm { padding: 6px; max-width: calc(100vw - 16px); max-height: calc(100vh - 64px); overflow-y: auto; overscroll-behavior: contain; }
+#openMenu.fm { width: 740px; }
+#exportMenu.fm { width: 600px; }
+.fm-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 6px; }
+.fm-col + .fm-col { border-left: 1px solid var(--line); padding-left: 6px; }
+.fm-sec + .fm-sec { margin-top: 4px; }
+.fm-sec h4 { margin: 6px 8px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.menu-list .fm-item { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; min-height: 40px; }
+.menu-list .fm-item:hover, .menu-list .fm-item:focus-visible { background: #2b3340; outline: none; }
+.menu-list .fm-item:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.fm-i { flex: none; width: 28px; height: 28px; display: grid; place-items: center; font-style: normal; font-size: 15px; line-height: 1;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.fm-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fm-t b { font-weight: 500; font-size: 13px; }
+.fm-t small { font-size: 11.5px; line-height: 1.3; color: var(--muted); }
+.fm-why { display: none; font-style: italic; }
+.menu-list .fm-item.off { cursor: default; }
+.menu-list .fm-item.off:hover { background: none; }
+.fm-item.off .fm-i, .fm-item.off b { opacity: .4; }
+.fm-item.off .fm-hint { display: none; }
+.fm-item.off .fm-why { display: block; }
+.fm-item kbd.menu-key { font-family: inherit; align-self: center; }
+.menu-list .fm-item#openAnyBtn { min-height: 46px; margin-bottom: 4px; }
+#openAnyBtn .fm-i { background: #1e3a5f; border-color: #2f5a8f; }
+#openAnyBtn b { font-weight: 600; }
+.fm-cols { border-top: 1px solid var(--line); padding-top: 2px; }
+#exportMenu .fm-cols { border-top: 0; padding-top: 0; }
+.fm-recent { display: flex; flex-direction: column; gap: 1px; margin: 0 0 2px 38px; }
+.menu-list .fm-proj { display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 6px; border-radius: 5px; min-width: 0; }
+.menu-list .fm-proj:hover, .menu-list .fm-proj:focus-visible { background: #2b3340; outline: none; }
+.menu-list .fm-proj:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.fm-thumb { flex: none; width: 36px; height: 27px; object-fit: contain; border-radius: 4px; background: var(--bg); }
+span.fm-thumb { display: grid; place-items: center; font-size: 13px; }
+.fm-proj b { flex: 1; min-width: 0; font-weight: 400; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fm-proj i { flex: none; font-style: normal; font-size: 11px; color: var(--muted); }
+@media (max-width: 760px) {
+  #openMenu.fm, #exportMenu.fm { position: fixed; top: 50px; right: 8px; left: auto; width: min(400px, calc(100vw - 16px)); max-height: calc(100vh - 60px); }
+  .fm-cols { grid-template-columns: minmax(0, 1fr); }
+  .fm-col + .fm-col { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); margin-top: 4px; }
+}

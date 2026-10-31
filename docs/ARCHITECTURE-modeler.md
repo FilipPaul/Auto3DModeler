@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
+  both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a
+  muted hint per item; Open: 📁 any file on top, Projekt (🕘 the last three inline with pictures), Ukázky, Import · CAD a
+  3D / · 2D výkresy / · DPS — an item per kind with its own filtered file input (stepInput, meshInput, dxfInput,
+  gerberInput, gerberDirInput: a folder of loose Gerber files, odbInput), all into app.js openCad (the type decides, as
+  before). Export: 3D / 2D / Data / Projekt, every format listed, markExport greys what does not fit the workspace with
+  its reason (new: the drawing set PDF, BOM CSV / Excel — Assembly.exportBomXlsx —, the project .a3d). Keys ↑↓ ←→ Home
+  End Enter Esc. Fix: an assembly's Export ▾ stayed greyed after a demo opened (Assembly.buildBodies now calls
+  onChange). Tests: tools/e2e_open_menu.py; e2e_ux_shell / ux_sheet / demos follow the new items.
 - **✨ AI settings: profile, manufacturing, asking, answers, rules and modes per project (2026-10-31)** (the owner's
   approved design). web/js/aisettings.js: the panel (✨ Settings in the chat's head, in place of the log; profiles set
   make / standard / dfm / dfa / review, a change → ✎ Custom; a tokens-per-task meter), kept in the project file

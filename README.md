@@ -11,7 +11,14 @@ pip install -r requirements.txt
 python server.py            # opens http://127.0.0.1:5173
 ```
 
-Use **📂 Open ▾** to open a file. It offers:
+Use **📂 Open ▾** to open a file. It is a panel in sections, an icon and a short hint per item: **📁 Open any file…**
+(Ctrl+O: any type, recognised by itself) on top; **Project** (📄 New project, ⧉ in a new window, 📂 Open project
+(.a3d)…, 🕘 Recent projects… with the last three inline, with their pictures, ✕ Close project); **Demos** (🎬 Demo
+projects…, the sample drawing); **Import · CAD and 3D** (🧊 STEP / IGES, 🔺 STL / OBJ / 3MF), **Import · 2D drawings**
+(📐 DXF / DWG, 📄 PDF drawing, 🖼 Picture → outline) and **Import · PCB** (🟩 Gerber: a .zip or the files picked
+together, 🗀 a Gerber folder, 🟦 ODB++) — each import item opens the file dialog filtered to its types; the file then
+opens the same way as any other. ↑ ↓ ← → Home End move, Enter opens, Esc closes; a narrow window shows one column.
+What it opens:
 - a PDF drawing (try **Sample drawing**, which loads `initial draft.pdf`);
 - a **picture**, to trace the outline of an object in a photo (e.g. `pernicek.png`) and make a cookie cutter
   or a solid shape from it — see [Outline from a picture](#outline-from-a-picture);
@@ -752,7 +759,10 @@ steps that need it. A step that cannot be built shows ⚠ with the reason, and t
 Ctrl+Y undo and redo whole steps, and each model tab keeps its own history.
 
 **Export ▾** (or the buttons in the panel) gives STL for printing and STEP with exact circles and faces for
-other CAD programs.
+other CAD programs. It is in sections like 📂 Open ▾: **3D** (STEP, IGES, STL, 3MF in colours, GLB, OBJ), **2D /
+drawings** (PDF drawing, an assembly's drawing set as one PDF, DXF, 🖨 Print), **Data** (the BOM as CSV / Excel) and
+**Project** (.a3d). Every format is listed; what does not fit the tab on screen is greyed, its reason in place of
+the hint ("For an assembly").
 
 The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process, so a failure cannot stop the
 app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
@@ -1455,7 +1465,7 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 | **OBJ** (.obj) | a mesh made a solid (up to 60 000 triangles), or a sliced quick part | a 3D model part as a mesh (mm, shared corners, normals) | For renderers and 3D programs that take OBJ. |
 | **Parasolid** (.x_t / .x_b), **JT**, native SLDPRT / CATPart / PAR | not read | not written | Closed or licensed formats with no free reader that gives an exact solid — save as **STEP** in the program that made them (see *Parasolid and JT* in docs/ARCHITECTURE-modeler.md Progress). |
 
-- **In**: *📂 Open ▾ → CAD / PCB / 3D file*, a file dropped on the view, *▣ Solid from a file* in a 3D model, or
+- **In**: *📂 Open ▾ → Import · CAD and 3D* (or *📁 Open any file…*), a file dropped on the view, *▣ Solid from a file* in a 3D model, or
   *＋ Insert part ▾ → From a file* in an assembly. The AI's `open_file` opens them too.
 - **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel; on a drawing sheet it offers
   PDF, DXF and 🖨 Print, in a 📐 2D drawing the DXF of the shown layers); the AI's `export

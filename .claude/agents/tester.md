@@ -367,6 +367,16 @@ Never report "works" without having run it; report failures with their output.
    first in the start screen's 🕘 row (though another was saved later) with its picture, first in the 🕘 dialog; one
    click opens it again (name, id, steps); a failed save asks „Zavřít i tak" / „Zpět" (Zpět: it stays); the AI's
    close_project; an empty project closes too; no console errors, no native dialogs.
+   `tools/e2e_open_menu.py <url> <dir>` covers 📂 Otevřít ▾ and Export ▾ in sections (Czech, 1600×1000 and 700 px wide):
+   the Open sections (Projekt, Ukázky, Import · CAD a 3D, · 2D výkresy, · DPS) with an icon, a name and a hint per item,
+   every name / hint / header translated; each import item opens its own file input with the right `accept` (STEP /
+   IGES, STL / OBJ / 3MF, DXF / DWG, PDF, picture, Gerber, a Gerber folder, ODB++, project); a STEP through 🧊 opens a 3D
+   model, a DXF through 📐 and a Gerber .zip through 🟩 open 2D drawings; 🕘 the last projects inline with pictures;
+   Export ▾: 3D, 2D / výkresy, Data, Projekt — in a 3D model the drawing set / DXF / print / BOM greyed with „Pro …“,
+   a click on one does nothing, in a 2D drawing only DXF and the project lit; the keys (↓ on the button, ↑↓ ←→ Home
+   End, greyed skipped, Enter, Esc back to the button), an outside click closes; narrow: one column inside the window;
+   a demo assembly: Export ▾ enabled once built, BOM CSV / Excel and the drawing set PDF saved; no console errors, no
+   native dialogs. Screenshots open_menu_*.png. Ends ALL OK / FAILED.
    `tools/e2e_loading_indicator.py <url> <dir> [<a big .step>]` covers the loading card: the biggest STEP in samples/
    (7.8 MB) dropped on the start screen -> "Loading ‹name› (7.8 MB)…" in the page < 100 ms after the drop, a frame
    painted with it before any long task (PerformanceObserver longtask vs the card's insertion), its steps (Uploading…,

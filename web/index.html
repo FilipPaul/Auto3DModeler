@@ -30,22 +30,51 @@
       </div>
       <button class="btn accent2" id="newModelBtn" title="Add a new 3D model (a part) to this project: sketch a rectangle or a circle, then extrude it">＋ New 3D model</button>
       <div class="menu" id="openMenuWrap">
-        <button class="btn primary" id="openBtn" title="Open a drawing, a picture, a CAD / 3D file or a saved project — each file becomes its own part tab">📂 Open ▾</button>
-        <div class="menu-list" id="openMenu">
-          <button id="newProjectBtn" class="menu-keyed" title="Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)">📄 New project <span class="menu-key">Ctrl+Alt+N</span></button>
-          <button id="newProjectWinBtn" title="A new, empty project in a window of its own — this one stays as it is, side by side">⧉ New project in a new window</button>
-          <button id="closeProjectBtn" title="Save the project and close it — back to the start screen; 🕘 Recent projects opens it again">✕ Close project</button>
-          <div class="menu-sep"></div>
-          <button id="openAnyBtn" class="menu-strong" title="Any file the app reads: STEP, IGES, STL, OBJ, 3MF, DXF / DWG, PCB data, a PDF drawing, a picture or a saved project (Ctrl+O)">📂 File… <span class="menu-key">Ctrl+O</span></button>
-          <div class="menu-sep"></div>
-          <label class="menu-item" title="A dimensioned PDF drawing: its dimensions drive the part">PDF drawing…<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
-          <label class="menu-item" title="Trace the outline of an object in a picture (cookie cutters, shapes…)">Picture — trace an outline…<input type="file" id="imgInput" accept="image/*" hidden></label>
-          <label class="menu-item" title="DXF / DWG drawings, PCB data (a Gerber set or an ODB++ job: a .zip / .tgz, or several Gerber / drill files) and STL / OBJ / 3MF / STEP / IGES 3D files">CAD / PCB / 3D file (DXF, DWG, Gerber, ODB++, STL, OBJ, 3MF, STEP, IGES)…<input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden></label>
-          <button id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
-          <div class="menu-sep"></div>
-          <label class="menu-item" title="A project saved with Save project (.a3d) — all its parts">Project…<input type="file" id="projectInput" accept=".a3d" hidden></label>
-          <button id="recentBtn" title="The projects kept on the server (autosaved a few seconds after each change)">🕘 Recent projects…</button>
-          <button id="demoBtn" title="Ready-made projects to try — mechanisms that move as a whole; each opens as a new copy">🎬 Demo projects…</button>
+        <button class="btn primary" id="openBtn" aria-haspopup="menu" title="Open a drawing, a picture, a CAD / 3D file or a saved project — each file becomes its own part tab">📂 Open ▾</button>
+        <div class="menu-list fm" id="openMenu" role="menu">
+          <button class="fm-item" role="menuitem" id="openAnyBtn" title="Any file the app reads: STEP, IGES, STL, OBJ, 3MF, DXF / DWG, PCB data, a PDF drawing, a picture or a saved project (Ctrl+O)"><i class="fm-i">📁</i><span class="fm-t"><b>Open any file…</b><small class="fm-hint">STEP, STL, DXF, PDF, a picture, PCB data or a project — its type is recognised</small></span><kbd class="menu-key">Ctrl+O</kbd></button>
+          <div class="fm-cols">
+            <div class="fm-col">
+              <section class="fm-sec"><h4>Project</h4>
+              <button class="fm-item" role="menuitem" id="newProjectBtn" title="Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)"><i class="fm-i">📄</i><span class="fm-t"><b>New project</b><small class="fm-hint">Empty, in this window — the one on screen is kept</small></span><kbd class="menu-key">Ctrl+Alt+N</kbd></button>
+              <button class="fm-item" role="menuitem" id="newProjectWinBtn"><i class="fm-i">⧉</i><span class="fm-t"><b>New project in a new window</b><small class="fm-hint">Side by side with this one</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="projectInput"><i class="fm-i">📂</i><span class="fm-t"><b>Open project (.a3d)…</b><small class="fm-hint">A project saved with Save project — all its parts</small></span></button>
+              <button class="fm-item" role="menuitem" id="recentBtn" title="The projects kept on the server (autosaved a few seconds after each change)"><i class="fm-i">🕘</i><span class="fm-t"><b>Recent projects…</b><small class="fm-hint">Kept on the server — every change autosaved</small></span></button>
+              <div class="fm-recent" id="openRecent" hidden></div>
+              <button class="fm-item" role="menuitem" id="closeProjectBtn" title="Save the project and close it — back to the start screen; 🕘 Recent projects opens it again"><i class="fm-i">✕</i><span class="fm-t"><b>Close project</b><small class="fm-hint">Saved, back to the start screen</small></span></button>
+              </section>
+              <section class="fm-sec"><h4>Demos</h4>
+              <button class="fm-item" role="menuitem" id="demoBtn"><i class="fm-i">🎬</i><span class="fm-t"><b>Demo projects…</b><small class="fm-hint">Ready-made mechanisms to try — each opens as a copy</small></span></button>
+              <button class="fm-item" role="menuitem" id="sampleBtn" title="Load initial draft.pdf"><i class="fm-i">📄</i><span class="fm-t"><b>Sample drawing (PDF)</b><small class="fm-hint">A dimensioned drawing that drives a part</small></span></button>
+              </section>
+            </div>
+            <div class="fm-col">
+              <section class="fm-sec"><h4>Import · CAD and 3D</h4>
+              <button class="fm-item" role="menuitem" data-pick="stepInput"><i class="fm-i">🧊</i><span class="fm-t"><b>STEP / IGES</b><small class="fm-hint">Exact solids and assemblies (SolidWorks, CATIA, Solid Edge …)</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="meshInput"><i class="fm-i">🔺</i><span class="fm-t"><b>STL / OBJ / 3MF</b><small class="fm-hint">Meshes — 3D printing, scans, viewers</small></span></button>
+              </section>
+              <section class="fm-sec"><h4>Import · 2D drawings</h4>
+              <button class="fm-item" role="menuitem" data-pick="dxfInput"><i class="fm-i">📐</i><span class="fm-t"><b>DXF / DWG</b><small class="fm-hint">Layers, lines and circles in mm — then a sketch or a part</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="pdfInput"><i class="fm-i">📄</i><span class="fm-t"><b>PDF drawing (parametric)</b><small class="fm-hint">A dimensioned drawing — its dimensions drive the part</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="imgInput"><i class="fm-i">🖼</i><span class="fm-t"><b>Picture → outline</b><small class="fm-hint">Trace the outline of an object in a photo</small></span></button>
+              </section>
+              <section class="fm-sec"><h4>Import · PCB</h4>
+              <button class="fm-item" role="menuitem" data-pick="gerberInput"><i class="fm-i">🟩</i><span class="fm-t"><b>Gerber</b><small class="fm-hint">A .zip, or the Gerber and drill files picked together</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="gerberDirInput"><i class="fm-i">🗀</i><span class="fm-t"><b>Gerber folder…</b><small class="fm-hint">A folder of loose Gerber and drill files</small></span></button>
+              <button class="fm-item" role="menuitem" data-pick="odbInput"><i class="fm-i">🟦</i><span class="fm-t"><b>ODB++</b><small class="fm-hint">A job as a .tgz or a .zip</small></span></button>
+              </section>
+            </div>
+          </div>
+          <input type="file" id="projectInput" accept=".a3d" hidden>
+          <input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden>
+          <input type="file" id="imgInput" accept="image/*" hidden>
+          <input type="file" id="stepInput" multiple accept=".step,.stp,.igs,.iges" hidden>
+          <input type="file" id="meshInput" accept=".stl,.obj,.3mf" hidden>
+          <input type="file" id="dxfInput" accept=".dxf,.dwg" hidden>
+          <input type="file" id="gerberInput" multiple accept=".zip,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden>
+          <input type="file" id="gerberDirInput" webkitdirectory multiple hidden>
+          <input type="file" id="odbInput" accept=".tgz,.zip,.tar,.gz" hidden>
+          <input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden>
         </div>
       </div>
       <button class="btn" id="libBtn" title="Parts library: real parts to use — screws, nuts, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors (with their part numbers)">📚 Library</button>
@@ -54,20 +83,36 @@
       <div class="menu save-menu" id="saveMenuWrap"><button class="btn caret" id="saveMenuBtn" title="Options of Save project">▾</button>
         <div class="menu-list"><label class="menu-item" title="The file also holds the project's 🕘 versions and variants — opening it brings them back (a bigger file)"><input type="checkbox" id="saveWithVersions"> with version history</label></div></div>
       <span class="sep"></span>
-      <div class="menu">
-        <button class="btn accent" id="exportBtn" disabled>Export ▾</button>
-        <div class="menu-list" id="exportMenu">
-          <button data-fmt="stl">STL — 3D printing, whole part (mm)</button>
-          <button data-fmt="step">STEP — CAD solid (mm)</button>
-          <button data-fmt="iges" title="For CAD programs that ask for IGES (STEP is better where it is read): exact solids in mm; an assembly as one file">IGES — older CAD exchange (mm)</button>
-          <button data-fmt="glb" title="glTF for viewers and rendering: the colours, metal / plastic materials; an assembly: a node per placed part with its name">GLB — 3D preview (colours)</button>
-          <button data-fmt="obj" class="model-only" title="A mesh for 3D programs and renderers that take OBJ (mm)">OBJ — mesh (mm)</button>
-          <button data-fmt="3mf" class="not-quick">3MF — in colours, for multi-material printing</button>
-          <button data-fmt="pdf" class="model-only">PDF — 2D drawing (views, sizes)</button>
-          <button data-fmt="pdf" class="sheet-only" title="The sheet as a PDF — as you see it">PDF — the drawing sheet</button>
-          <button data-fmt="dxf" class="sheet-only" title="The sheet as a DXF for AutoCAD, SolidWorks or Solid Edge drafting: the paper in true size (mm), real dimensions">DXF — the sheet for CAD drafting (mm)</button>
-          <button data-fmt="print" class="sheet-only" title="Print the sheet (its PDF, on the paper size it is drawn for)">🖨 Print…</button>
-          <button data-fmt="dxf" class="dwg-only" title="Save the shown layers as a DXF (in mm, its layers and colours; traces keep their width, pads and areas filled)">DXF — the shown layers (mm)</button>
+      <div class="menu" id="exportMenuWrap">
+        <button class="btn accent" id="exportBtn" aria-haspopup="menu" disabled>Export ▾</button>
+        <div class="menu-list fm" id="exportMenu" role="menu">
+          <div class="fm-cols">
+            <div class="fm-col">
+              <section class="fm-sec"><h4>3D</h4>
+              <button class="fm-item" role="menuitem" data-fmt="step" data-ws="quick model assembly"><i class="fm-i">🧊</i><span class="fm-t"><b>STEP</b><small class="fm-hint">CAD solid, an assembly with its parts (mm)</small><small class="fm-why">For a 3D model, an assembly or a quick part</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="iges" data-ws="model assembly" title="For CAD programs that ask for IGES (STEP is better where it is read): exact solids in mm; an assembly as one file"><i class="fm-i">📦</i><span class="fm-t"><b>IGES</b><small class="fm-hint">Older CAD exchange — exact solids (mm)</small><small class="fm-why">For a 3D model or an assembly</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="stl" data-ws="quick model assembly"><i class="fm-i">🔺</i><span class="fm-t"><b>STL</b><small class="fm-hint">3D printing — the whole part as a mesh (mm)</small><small class="fm-why">For a 3D model, an assembly or a quick part</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="3mf" data-ws="model assembly"><i class="fm-i">🎨</i><span class="fm-t"><b>3MF in colours</b><small class="fm-hint">Multi-material printing — an object per colour</small><small class="fm-why">For a 3D model or an assembly</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="glb" data-ws="quick model assembly" title="glTF for viewers and rendering: the colours, metal / plastic materials; an assembly: a node per placed part with its name"><i class="fm-i">🌐</i><span class="fm-t"><b>GLB</b><small class="fm-hint">3D preview and rendering — colours, materials</small><small class="fm-why">For a 3D model, an assembly or a quick part</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="obj" data-ws="model"><i class="fm-i">🔷</i><span class="fm-t"><b>OBJ</b><small class="fm-hint">A mesh for 3D programs and renderers (mm)</small><small class="fm-why">For a 3D model</small></span></button>
+              </section>
+            </div>
+            <div class="fm-col">
+              <section class="fm-sec"><h4>2D / drawings</h4>
+              <button class="fm-item" role="menuitem" data-fmt="pdf" data-ws="model sheet"><i class="fm-i">📄</i><span class="fm-t"><b>Drawing (PDF)</b><small class="fm-hint">Views and sizes — the sheet as you see it</small><small class="fm-why">For a 3D model or a drawing sheet</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="pdfset" data-ws="assembly"><i class="fm-i">🗂</i><span class="fm-t"><b>Drawing set (PDF)</b><small class="fm-hint">The assembly, its sub-assemblies and parts — one PDF</small><small class="fm-why">For an assembly</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="dxf" data-ws="sheet drawing" title="The sheet as a DXF for AutoCAD, SolidWorks or Solid Edge drafting: the paper in true size (mm), real dimensions — in a 2D drawing: the shown layers"><i class="fm-i">📐</i><span class="fm-t"><b>DXF</b><small class="fm-hint">For CAD drafting — true size (mm), its layers</small><small class="fm-why">For a drawing sheet or a 2D drawing</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="print" data-ws="sheet"><i class="fm-i">🖨</i><span class="fm-t"><b>Print…</b><small class="fm-hint">The sheet on the paper size it is drawn for</small><small class="fm-why">For a drawing sheet</small></span></button>
+              </section>
+              <section class="fm-sec"><h4>Data</h4>
+              <button class="fm-item" role="menuitem" data-fmt="bomcsv" data-ws="assembly"><i class="fm-i">📋</i><span class="fm-t"><b>BOM — CSV</b><small class="fm-hint">Every part with its quantity, for Excel (; separated)</small><small class="fm-why">For an assembly</small></span></button>
+              <button class="fm-item" role="menuitem" data-fmt="bomxlsx" data-ws="assembly"><i class="fm-i">📊</i><span class="fm-t"><b>BOM — Excel</b><small class="fm-hint">Summary and structured, a sheet each (.xlsx)</small><small class="fm-why">For an assembly</small></span></button>
+              </section>
+              <section class="fm-sec"><h4>Project</h4>
+              <button class="fm-item" role="menuitem" data-fmt="a3d" data-ws="quick model assembly sheet drawing"><i class="fm-i">💾</i><span class="fm-t"><b>Project (.a3d)</b><small class="fm-hint">All parts of the project in one file</small><small class="fm-why">Nothing to save yet</small></span></button>
+              </section>
+            </div>
+          </div>
         </div>
       </div>
       <span class="sep"></span>
