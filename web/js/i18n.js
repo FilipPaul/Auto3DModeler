@@ -2534,7 +2534,7 @@ const CS = {
     'Ctrl+klik přidá nebo odebere díl, Shift+klik v seznamu vybere řádky mezi — co jde se všemi udělat, je v návrzích.',
   'Parts inside a sub-assembly are changed in their own tab, or one at a time with ✎ Edit it here.':
     'Díly uvnitř podsestavy se mění v jejich vlastní záložce, nebo po jednom přes ✎ Upravit zde.',
-  'Choose {name}': 'Vybrat {name}',
+  'Choose part: {name}': 'Vybrat díl: {name}', 'Choose assembly: {name}': 'Vybrat sestavu: {name}',
   'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)': 'Jen tento díl, ne jeho podsestava (Ctrl+klik: přidá se k vybraným)',
   'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)': 'Podsestava, ve které je, jako celek (Ctrl+klik: přidá se k vybraným)',
   // 🔗 two parts inside one sub-assembly joined from the top assembly: the joint is the sub-assembly's

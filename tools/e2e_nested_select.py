@@ -7,7 +7,7 @@ levels deep, Shift+click a range -> a plain click on Mid in the view still choos
 the pin and the sub-assemblies it is in, "distancni" finds "Distanční sloupek", a found row chosen, Esc -> a part
 clicked in the view (the list short): its sub-assemblies folded open, its row marked and scrolled into sight; with a
 filter that hides it: the filter cleared; Ctrl+click: the row of the part added in sight -> a face of the pin
-clicked: ◆ Choose Pin / ◇ Choose Inner in the suggestions (not Mid: chosen), each chosen in turn, Ctrl: added; a placed
+clicked: ◆ Choose part: Pin / ◇ Choose assembly: Inner in the suggestions (not Mid: chosen), each chosen in turn, Ctrl: added; a placed
 part: none.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -253,13 +253,13 @@ try:
     js(f"{A}.facePicks = []; {A}.select([])")
     time.sleep(0.3)
     click(PIN)
-    check(f"a click on the pin (Mid chosen): {choose_rows()}", choose_rows() == ["◆ Choose Pin", "◇ Choose Inner"])
-    choose_row("◆ Choose Pin")
-    check(f"◆ Choose Pin: {keys()} — then {choose_rows()}", keys() == [PIN] and choose_rows() == ["◇ Choose Inner", "◇ Choose Mid"])
-    choose_row("◇ Choose Inner")
-    check(f"◇ Choose Inner: {keys()} — then {choose_rows()}", keys() == ["I2/I2"] and choose_rows() == ["◆ Choose Pin", "◇ Choose Mid"])
-    choose_row("◆ Choose Pin", ctrl=True)
-    check(f"Ctrl+click ◆ Choose Pin: added {keys()}", sorted(keys()) == sorted(["I2/I2", PIN]))
+    check(f"a click on the pin (Mid chosen): {choose_rows()}", choose_rows() == ["◆ Choose part: Pin", "◇ Choose assembly: Inner"])
+    choose_row("◆ Choose part: Pin")
+    check(f"◆ Choose part: Pin: {keys()} — then {choose_rows()}", keys() == [PIN] and choose_rows() == ["◇ Choose assembly: Inner", "◇ Choose assembly: Mid"])
+    choose_row("◇ Choose assembly: Inner")
+    check(f"◇ Choose assembly: Inner: {keys()} — then {choose_rows()}", keys() == ["I2/I2"] and choose_rows() == ["◆ Choose part: Pin", "◇ Choose assembly: Mid"])
+    choose_row("◆ Choose part: Pin", ctrl=True)
+    check(f"Ctrl+click ◆ Choose part: Pin: added {keys()}", sorted(keys()) == sorted(["I2/I2", PIN]))
     js(f"{A}.facePicks = []; {A}.select([])")
     time.sleep(0.3)
     click(BASE)

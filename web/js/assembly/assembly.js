@@ -603,7 +603,7 @@ export class Assembly {
     if (!deep) return [];
     const near = deep.key.split('/').slice(0, -1).join('/'), now = this.selKeys();
     const ways = [[deep.key, deep.part, '◆'], ...(near !== a.id ? [[near, this.placedAt(near)?.it.part, '◇']] : []), [a.id, a.part, '◇']];
-    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, ico: this.partIcon(pid), label: t2('Choose {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
+    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, ico: this.partIcon(pid), label: t2(icon === '◆' ? 'Choose part: {name}' : 'Choose assembly: {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
       title: t(icon === '◆' ? 'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)' : 'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)'),
       run: (e) => {
         const more = e?.ctrlKey || e?.metaKey;
