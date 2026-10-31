@@ -1108,6 +1108,29 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-inner-row .mt-name { font-weight: 500; }
 .as-inner-row .mt-icon { width: 14px; }
 .mt-item.has-inner { border-color: #3b82f655; background: transparent; }
+/* the assembly's list as compact as the project tree: one-line rows (24 px), 12 px a level, its head on one short line */
+#asmLeft { padding: 6px 8px 14px; } /* (room under the rows: a click there chooses none) */
+#asmLeft > .mt-head { padding: 0 2px 4px; margin-bottom: 4px; gap: 6px; align-items: center; }
+#asmLeft > .mt-head b { font-size: 12.5px; }
+/* docked in its widget (its header already says Sestava): the head is the 🔍 field alone, gone with no parts */
+.lw-widget #asmLeft > .mt-head > b, .lw-widget #asmLeft > .mt-head > .mt-sub, .lw-widget #asmLeft > .mt-head:has(.as-find[hidden]) { display: none; }
+.lw-widget #asmLeft > .mt-head .as-find { flex: 1 1 auto; margin-left: 0; }
+.as-list .mt-item { gap: 5px; min-height: 24px; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; white-space: nowrap; }
+.as-list .mt-item .mt-name { font-weight: 400; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; }
+.as-list .mt-item .mt-what { font-size: 11px; flex: 1 1 0; min-width: 0; }
+.as-list .mt-item .mt-icon { flex: none; width: 14px; }
+.as-list .as-twist { width: 14px; height: 18px; margin-right: -3px; border: 0; background: none; font-size: 10px; color: var(--muted); }
+.as-list .as-twist:hover { color: var(--text); }
+.as-list .as-inner-row { padding: 1px 6px 1px calc(18px + var(--depth) * 12px); }
+.as-list .as-inner-row.as-node { padding-left: calc(2px + var(--depth) * 12px); }
+.as-list .as-inner-row::before { left: calc(var(--depth) * 12px - 3px); } /* (under its sub-assembly's ▾) */
+.as-list .as-node:not(.as-inner-row) { padding-left: 2px; }
+.as-list:has(.as-node) .mt-item:not(.as-node):not(.as-inner-row) { padding-left: 18px; } /* (in line with a sub-assembly's icon, after its ▸) */
+.as-list .as-right { gap: 1px; padding-left: 6px; }
+.as-list .as-right .mini, .as-list .as-right .mt-acts { gap: 1px; }
+.as-list .as-right .mini { padding: 0 2px; min-width: 18px; text-align: center; }
+.as-list .as-right .as-eye { order: 9; } /* (the last: it stays where it is when the hover's buttons come in before it) */
+.as-right:has(.as-eye.hidden, .as-eye.clear) { background: linear-gradient(90deg, transparent, var(--panel) 8px); }
 .as-jtag { pointer-events: auto; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 5px; border-radius: 6px; background: #1d2633e6;
   border: 1px solid #3fb950; color: #c9f5d1; box-shadow: 0 2px 6px #0008; }
 .as-jtag:hover { background: #2a3a2e; }

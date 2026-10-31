@@ -1378,10 +1378,10 @@ export class Assembly {
       const shown = this.doc.display?.[it.id];
       row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}${found?.hits.has(it.id) ? ' as-hit' : ''}`; // (lit: litRows)
       row.dataset.inst = it.id;
-      // (👁 first: in one place whether the hover's buttons show or not; the others over the row's right end: its name
-      // and its middle stay a click that chooses the part)
-      row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
-        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}<span class="as-right">${lockBtn(it.part)}
+      // (its buttons, 👁 too, over the row's right end — on hover; a hidden 👁, a 🔒, a kept 💥 there without it: its
+      // name and its middle stay a click that chooses the part)
+      row.innerHTML = `<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
+        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}<span class="as-right">${eyeHtml(this, it.id)}${lockBtn(it.part)}
         <span class="mt-acts"><button class="mini" data-ailock-menu="@${it.id}" title="More: lock it for the AI …">⋯</button><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button></span>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);

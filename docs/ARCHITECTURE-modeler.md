@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The assembly's parts list as compact as the project tree (2026-10-31)** (the owner: "make the assembly menu more
+  compact, like the project's"). styles.css only, plus 👁 moved: rows one line, 24 px (were 35; the project tree's
+  25), 12.5 px names of normal weight, ellipsis; 12 px a level (was 16), the guide line under the parent's ▾, a small
+  ▸ / ▾ with no frame, a top row with no ▸ in line with the sub-assemblies' icons; every row button (👁 🔒 ⋯ 🏷 ⧉ ✕ 💥)
+  over the row's right end on hover, 18 px each — 👁 joined them there (the last: it stays put as the others come in;
+  a hidden / see-through 👁, a 🔒 and a kept 💥 stay in sight without the mouse). Docked in its widget (whose header
+  says Sestava already), the list's head is the 🔍 field alone (gone with no parts); the panel's padding smaller.
+  e2e: assembly_tree (buttons at the right end, middle and name free), hide_parts (👁 twice), assembly_multiselect
+  (a click under the rows), nested_select, ux_assembly, big_assembly.
 - **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking
   an object should offer choosing the part or — only when there is one — the sub-assembly). `chooseItems(q, a)` in
   suggestFaces' part section: for a face of a part inside the placed sub-assembly a (innerFace), the part's key, the
