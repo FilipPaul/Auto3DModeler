@@ -8,7 +8,11 @@ on a locked part refused with "je zamčený pro AI … vazby přidat lze"; the l
 set_parameter T (it drives Deska) refused and names it; set_look / move inside the locked Pohon refused; snap_faces to
 a locked part and into the locked Pohon's Kolík -> joined -> the user changes Ložisko's material by hand (done, the note
 "Díl je zamčený pro AI") -> the panel's reason chip (koupený) -> save, reload: the locks kept -> unlocked via the
-suggestion "🔓 Odemknout pro AI (3)" -> the AI may change them again -> no console errors, no native dialogs.
+suggestion "🔓 Odemknout pro AI (3)" -> the AI may change them again -> the AI's clicks (gui_action): a face of the
+locked Ložisko picked, "Zaoblit její hrany", OK -> refused, Ložisko unchanged; the user's same clicks right after -> the
+fillet made; the locked Stroj: a clicked joint (Dotyk) onto the locked Deska -> added, ✕ Vyjmout -> refused ->
+restore_version leaving the locked parts alone -> done; one that would change Ložisko -> refused, Ložisko kept -> no
+console errors, no native dialogs.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_lock.py http://127.0.0.1:5199 <out dir>
 """
@@ -322,6 +326,81 @@ try:
     check(not r.startswith("ERROR"), "the AI may colour Víko again", r[:100])
     check(not js(f"return [...document.querySelectorAll('#leftCol .as-list > [data-inst=\"{by['Víko']}\"] .ai-lock.on')].length"), "Víko's 🔒 gone")
     d.save_screenshot(f"{OUT}/ai_lock_unlocked.png")
+
+    # ------------------------------------------------------------------ the AI clicking (gui_action): checked where a change is recorded
+    ai("open_part", id="Ložisko")
+    wait(f"return !!{APP}.modeler.result?.body")
+    time.sleep(0.5)
+    feats = lambda: js(f"return JSON.stringify({APP}.modeler.part.features)")  # noqa: E731
+    vol = lambda: js(f"return {APP}.modeler.result?.body?.volume")  # noqa: E731
+    f0, v0 = feats(), vol()
+    ai("get_screenshot", view="iso")
+    r = ai("gui_action", pick="F2:end")
+    check(not r.startswith("ERROR") and "Zaoblit" in r, "the AI picks the locked Ložisko's top face: allowed (a choice), the table offers a fillet", r[:160])
+    r = ai("gui_action", suggest="Zaoblit její hrany")
+    check(not r.startswith("ERROR"), "…its suggestion ◜ Zaoblit její hrany opens the command", r[:120])
+    r = ai("gui_action", control="OK")
+    check(r.startswith("ERROR") and "🔒 Ložisko " + LOCKED in r and "put back" in r, "…the command's OK: refused with the lock's answer", r[:200])
+    time.sleep(1)
+    check(feats() == f0 and vol() == v0, "Ložisko unchanged (its steps, its volume)", (vol(), v0))
+    # the user's own clicks right after: not blocked (the same fillet, by the user's hand)
+    ai("gui_action", pick="F2:end")
+    s = suggest("Zaoblit její hrany")
+    check(s is not None, "the user sees ◜ Zaoblit její hrany")
+    if s:
+        s.click()
+        time.sleep(0.8)
+        ok_btn = js("return [...document.querySelectorAll('button')].find(b => b.offsetParent && b.textContent.trim() === 'OK')")
+        ok_btn.click()
+        time.sleep(1.5)
+    check(len(json.loads(feats())) == len(json.loads(f0)) + 1, "the user's own fillet on the locked Ložisko: done", len(json.loads(feats())))
+    js(f"{APP}.modeler.history.go(-1)")
+    time.sleep(1)
+    # a joint by clicking, in the locked Stroj, to the locked Deska: allowed; taking a part out of it: refused
+    ai("open_part", id="Stroj")
+    wait(f"return {A}.doc.instances.every(i => {A}.bodyOf(i)?.body)")
+    extra = data("insert_part", part="Rám")
+    wait(f"return {A}.doc.instances.length === 6 && {A}.doc.instances.every(i => {A}.bodyOf(i)?.body)")
+    ids = js(f"return {A}.doc.instances.map(i => [i.id, {A}.partName(i.part)])")
+    new = ids[-1][0]
+    deska = next(i for i, n in ids if n == "Deska")
+    print("the extra Rám:", new, str(extra)[:80])
+    js("return import('/js/ailock.js').then(m => m.setLock([arguments[0]], true))", pid("Stroj"))
+    time.sleep(0.4)
+    check("Stroj" in locked_ids(), "the user locks Stroj", locked_ids())
+    js(f"{A}.choose(null)")
+    ai("get_screenshot", view="iso")
+    mates = js(f"return {A}.doc.mates.length")
+    ai("gui_action", pick=f"{new} F2:end")
+    ai("gui_action", suggest="Dotyk")
+    r = ai("gui_action", pick=f"{deska} F2:end")
+    time.sleep(1)
+    check(not r.startswith("ERROR") and js(f"return {A}.doc.mates.length") == mates + 1, "the AI's clicked joint (Dotyk) onto the locked Deska in the locked Stroj: added", (r[:160], js(f"return {A}.doc.mates.length")))
+    js(f"{A}.choose(null)")
+    ai("gui_action", pick=new)
+    r = ai("gui_action", suggest="Vyjmout")
+    time.sleep(1)
+    check(r.startswith("ERROR") and "🔒 Stroj je zamčená pro AI" in r, "the AI's clicked ✕ Vyjmout in the locked Stroj: refused", r[:160])
+    check(js(f"return {A}.doc.instances.length") == 6, "…the part still there", js(f"return {A}.doc.instances.length"))
+
+    # ------------------------------------------------------------------ restore_version: refused when it would change a locked part
+    v1 = data("save_version", label="before the lock test")
+    v1 = (v1.get("saved") or v1.get("version") or {}).get("id")
+    ai("open_part", id="Víko")
+    ai("set_material", material="steel")
+    r = ai("restore_version", id=v1)
+    check(not r.startswith("ERROR"), "restore_version that leaves the locked parts as they are: done", r[:160])
+    time.sleep(1.5)
+    ai("open_part", id="Ložisko")
+    wait(f"return !!{APP}.modeler.result?.body")
+    sel = d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=material]")
+    js("arguments[0].value = 'ABS'; arguments[0].dispatchEvent(new Event('change'))", sel)
+    time.sleep(0.6)
+    check(js(f"return {APP}.modeler.part.material") == "ABS", "the user changes the locked Ložisko (ABS)")
+    r = ai("restore_version", id=v1)
+    check(r.startswith("ERROR") and "🔒 Ložisko " + LOCKED in r and "not restored" in r, "restore_version that would change the locked Ložisko: refused", r[:200])
+    time.sleep(0.5)
+    check(js(f"return {APP}.project.current.name") == "Ložisko" and js(f"return {APP}.modeler.part.material") == "ABS", "…Ložisko kept as the user left it")
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     check(not errs, "no console errors", errs)
