@@ -1062,6 +1062,13 @@ part's rolled-up `total`.
   list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and
   parts are lit; the panel says *Vybráno dílů: 5*, and the suggestions work on them all (👁 hide / see-through /
   isolate, H, ✕ *Take them out* — one Ctrl+Z). Esc or a click beside the rows chooses none.
+  **Parts inside sub-assemblies, several at once** (any depth, with placed parts too): click a part of a
+  sub-assembly in the view (the sub-assembly is chosen whole), then **Ctrl+click** another part of it — now the two
+  parts are chosen, not the sub-assembly; Ctrl+click more (in any sub-assembly, or a placed part), Ctrl+click one again
+  to take it out. In the list: Ctrl / Shift+click their rows. Each is lit by itself in the view and in the list; the
+  panel lists them (*I2/I2/I1*), the suggestions offer what fits them (🔒 for the AI, ◆ Only one of them, ◆ Open its
+  part for copies of one part) — not ✕ *Take them out* or 👁 hide, which would take or hide their whole
+  sub-assembly; Delete does nothing then. ✎ Edit it here works on one at a time.
   **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
   with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
   the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click

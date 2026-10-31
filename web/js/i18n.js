@@ -2529,6 +2529,8 @@ const CS = {
   'Ctrl+click adds or takes out a part': 'Ctrl+klik přidá nebo odebere díl',
   'Ctrl+click adds or takes out a part, Shift+click in the list chooses the rows between — what can be done with them all is in the suggestions.':
     'Ctrl+klik přidá nebo odebere díl, Shift+klik v seznamu vybere řádky mezi — co jde se všemi udělat, je v návrzích.',
+  'Parts inside a sub-assembly are changed in their own tab, or one at a time with ✎ Edit it here.':
+    'Díly uvnitř podsestavy se mění v jejich vlastní záložce, nebo po jednom přes ✎ Upravit zde.',
   // 🔗 a rigid group of many parts
   'Fix together ({n} parts)': 'Spojit pevně ({n} dílů)', '{name} ({n} parts)': '{name} ({n} dílů)', 'fixed together on': 'pevně spojeno na',
   'Choose its parts': 'Vybrat jeho díly', 'Dissolve the group: its parts stay where they are, each free again': 'Zrušit skupinu: díly zůstanou, kde jsou, každý zase volný',

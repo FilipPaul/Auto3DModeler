@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Several parts inside sub-assemblies chosen at once (2026-10-31)** (the owner: Ctrl+select of two parts of one
+  sub-assembly from the top assembly did not work). Cause: a click in the view hits the sub-assembly's merged body,
+  so Ctrl+click chose its placement ("I2") — on the one already chosen only "another face of it". Now the pointerup
+  works out the part under the mouse (innerFace, however deep; a snap on its edge too) and `nestedPick`: once a part
+  inside a sub-assembly is chosen (the list, or the sub-assembly clicked alone just before on one of its parts —
+  `lastDeep`), Ctrl+click adds / takes out that part's key ("I2/I2/I1"); nothing inside chosen: the old placement
+  pick (its joints). The view lights each chosen inner part (`innerLit` -> a list of face prefixes; AsmView `lit`
+  string or list), the list marks the placement's row (has-inner); renderMany / suggestMany count and name the keys
+  (placedAt), leave out ✕ Take them out, 👁 hide and Fix together of several inner parts (they would act on the whole
+  sub-assembly), offer ◆ Open its part for copies of one part; Delete with an inner part chosen does nothing.
+  tools/e2e_nested_select.py.
 - **✎ Edit a part in place at any depth (2026-10-31)** (the owner: a part nested in several levels of assemblies
   could not be edited in place from the top one). editInPlace took a top-level instance only; it now takes a key
   "I3/I1/I2": `placedAt(key, true)` walks the path through innerList (each placement's `inner`), composing the

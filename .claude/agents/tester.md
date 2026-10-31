@@ -214,6 +214,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_nested_edit.py <url> <dir>` covers ✎ Edit it here for a part two sub-assemblies deep, from the top (its
    row's ✎ / 🔓, a double-click refused while locked and its panel shown, the context in the part's frame — rotated
    and moved levels —, a hole added, back: top, sub-assembly (kept warm) and inner one show it, ✏ Sketch on its face).
+   `tools/e2e_nested_select.py <url> <dir>` covers several parts inside sub-assemblies chosen from the top (view
+   clicks + Ctrl at two depths and with a placed part, lit in view and list, the panel and suggestions, Delete safe,
+   list Ctrl / Shift / Ctrl+Shift rows, a plain click still the whole sub-assembly).
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
