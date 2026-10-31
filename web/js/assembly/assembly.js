@@ -1287,11 +1287,12 @@ export class Assembly {
       const shown = this.doc.display?.[it.id];
       row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`; // (lit: litRows)
       row.dataset.inst = it.id;
-      // (👁 first: in one place whether the hover's buttons show or not)
+      // (👁 first: in one place whether the hover's buttons show or not; the others over the row's right end: its name
+      // and its middle stay a click that chooses the part)
       row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
-        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}${lockBtn(it.part)}
+        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}<span class="as-right">${lockBtn(it.part)}
         <span class="mt-acts"><button class="mini" data-ailock-menu="@${it.id}" title="More: lock it for the AI …">⋯</button><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
-        <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
+        <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button></span>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
       const kids = this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null;
@@ -1363,7 +1364,7 @@ export class Assembly {
       row.className = 'mt-item as-inner-row';
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
-      row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>${lockBtn(n.part)}<span class="mt-acts"><button class="mini" data-ailock-menu="@${n.path}" title="More: lock it for the AI …">⋯</button></span>`;
+      row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span><span class="as-right">${lockBtn(n.part)}<span class="mt-acts"><button class="mini" data-ailock-menu="@${n.path}" title="More: lock it for the AI …">⋯</button></span></span>`;
       row.querySelector('.mt-name').textContent = this.partName(n.part);
       row.querySelector('.mt-what').textContent = n.id;
       row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });

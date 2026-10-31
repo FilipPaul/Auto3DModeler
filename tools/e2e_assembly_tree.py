@@ -164,6 +164,19 @@ try:
     looks = f"""return Object.fromEntries([...{A}.view.placed].map(([id, p]) => [id, p.lines.material === {A}.view.edgeMaterial ? 'edge'
         : p.lines.material === {A}.view.litEdge ? 'lit' : p.lines.material === {A}.view.chosenEdge ? 'chosen' : '?']))"""
     check(js(looks) == {"I1": "chosen", "I2": "chosen", "I3": "edge", "I4": "edge"}, "several rows chosen: all their parts' lines blue")
+    # a plain click in the middle of a row chooses its part: the hover's buttons (🔒 ⋯ 🏷 ⧉ ✕ 💥) sit over its right end
+    row("Lever I4").click()
+    time.sleep(0.3)
+    check(js(f"return [{A}.selKeys(), {A}.picks]") == [["I4"], None], "a click in the middle of a top row (under the mouse): chooses its part")
+    row("Pin I3", 1).click()
+    time.sleep(0.3)
+    check(js(f"return {A}.selKeys()") == ["I2/I3"], "a click in the middle of an inner row: chooses that part")
+    ActionChains(d).move_to_element(row("Frame")).perform()
+    time.sleep(0.2)
+    cover = js("""const r = arguments[0], b = r.getBoundingClientRect(), n = r.querySelector('.mt-name').getBoundingClientRect(), acts = r.querySelector('.as-right').getBoundingClientRect();
+        const at = (x) => document.elementFromPoint(x, b.top + b.height / 2);
+        return [!!at(b.left + b.width / 2).closest('.as-right'), !!at(n.left + 2).closest('.as-right'), Math.round(acts.right - b.right), getComputedStyle(r.querySelector('.mt-acts')).display]""", row("Frame"))
+    check(cover[:2] == [False, False] and -8 <= cover[2] <= 0 and cover[3] == "flex", f"under the mouse: the row's buttons at its right end, its middle and name free ({cover})")
     # the top rows as before
     pick(row("Frame"))
     time.sleep(0.2)

@@ -155,6 +155,7 @@ try:
     sg = suggest_rows()
     check(any("Vyjmout je (3)" in x for x in sg) and any("Skrýt / zobrazit" in x for x in sg), f"the suggestions for three: {sg}")
     js(f"{A}.view.setView('top')")
+    time.sleep(0.4)  # (drawn once: the camera's matrices the projection below reads are updated by a render)
     # a Ctrl+click in the view adds to the same set
     pt = js(f"""const it = {A}.inst('I1'), b = {A}.bodyOf(it).body.bbox, m = it.matrix;
       const p = [(b[0] + b[3]) / 2 + 150, (b[1] + b[4]) / 2 + 120, b[5]];

@@ -1089,6 +1089,16 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-boom { display: none; }
 /* the assembly's list as a tree: a placed sub-assembly folds open to its own parts */
 .as-twist { width: 18px; height: 18px; padding: 0; line-height: 1; margin-right: -4px; flex: none; font-size: 12px; }
+/* the parts list's row: its buttons (🔒 ⋯ 🏷 ⧉ ✕ 💥) over its right end on a fade of the row (as the step tree's) —
+   its name and middle stay a click that chooses the part; a 🔒 locked / 💥 kept in place shows there without the mouse */
+.as-list .mt-item { position: relative; }
+.as-right { position: absolute; right: 4px; top: 1px; bottom: 1px; display: flex; align-items: center; gap: 2px; padding-left: 8px; border-radius: 4px; }
+.as-right .mini { padding: 0 4px; line-height: 16px; }
+.as-right .ai-lock:not(.on) { display: none; }
+.mt-item:hover .as-right .ai-lock { display: inline-block; }
+.as-right:has(.ai-lock.on, .as-boom.off), .as-list.exploding .as-right { background: linear-gradient(90deg, transparent, var(--panel) 8px); }
+.mt-item:hover > .as-right { background: linear-gradient(90deg, transparent, var(--panel-2) 8px); }
+.mt-item.on > .as-right { background: linear-gradient(90deg, transparent, #1c2a3d 8px); }
 .as-inner-row { position: relative; padding: 4px 8px 4px calc(12px + var(--depth) * 16px); font-size: 12.5px; }
 .as-inner-row::before { content: ''; position: absolute; left: calc(var(--depth) * 16px); top: 0; bottom: 0; border-left: 1px solid #ffffff24; }
 .as-inner-row .mt-name { font-weight: 500; }
