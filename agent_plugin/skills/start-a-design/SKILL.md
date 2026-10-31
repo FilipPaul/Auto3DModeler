@@ -33,6 +33,7 @@ does it hold?" with the usual sizes as options).
 |---|---|
 | Automation / machine | design-principles, standard-parts, machined-part, mechanical-design, automation-design, fits-and-tolerances (+ print-functional for printed parts) |
 | ICT / FCT test fixture | the automation row + ict-fixture |
+| Cables / wiring named, or powered moving parts | + cable-routing (plan the cables with the concept) |
 | Functional print | design-principles, standard-parts, mechanical-design, print-functional (+ fits-and-tolerances for bearings, pins, shafts) |
 | Graphic / decorative | print-graphics (if printed); model-a-part for the modelling |
 | Load-carrying or joining parts, mixed materials | + materials-and-strength |

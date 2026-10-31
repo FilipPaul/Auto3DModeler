@@ -86,6 +86,9 @@ maker numbers.
   (1–6 mm for M22). An E-stop is red on yellow and easy to reach.
 - Leave the depth behind the panel the library part shows (M22 ≈ 43 mm) and room for the wires.
 
+## Cables
+Motors, sensors and valves have cables: load cable-routing at concept time (holes, clips, glands, chains).
+
 ## Check
 - Joints: every part held as in reality; the moving ones keep their way free (`get_assembly` free / fully_held).
 - `check_collisions` at the end positions of moving parts. Then the BOM from `get_assembly` (part numbers).

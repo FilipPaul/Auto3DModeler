@@ -1669,7 +1669,9 @@ can open them.
   **standard-parts** (as few kinds of bought parts as possible; it reports their count at hand-over),
   **machined-part** (CNC rules, stock sizes, materials, finishes), **materials-and-strength** (mixed printed / metal /
   POM / FR4 parts, joints, a quick bending check), **ict-fixture** (ICT / FCT test fixtures: probe plate, carrier,
-  pressure pins, guide pins), **mechanical-design**, **automation-design** — and **design-review** before it says a
+  pressure pins, guide pins), **cable-routing** (when you say which cables run from where to where, or the design has
+  motors, sensors, valves: a cable list with Ø and bend radii, holes / channels / clip spots / glands in the made parts,
+  an energy chain or service loop on moving axes, checked at both limits), **mechanical-design**, **automation-design** — and **design-review** before it says a
   design is done (function, strength, ergonomics, economy, safety as one table, fixes offered). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
