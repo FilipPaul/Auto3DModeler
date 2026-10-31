@@ -68,6 +68,13 @@ export function fastenerModel(kind, size, length) {
   };
 }
 
+/** How far point p is from the line through o along the unit d (no vectors made: a big assembly has thousands of holes). */
+function off(p, o, d) {
+  const x = p.x - o.x, y = p.y - o.y, z = p.z - o.z;
+  const cx = y * d.z - z * d.y, cy = z * d.x - x * d.z, cz = x * d.y - y * d.x;
+  return Math.sqrt(cx * cx + cy * cy + cz * cz);
+}
+
 /** The round faces of the placed parts in world coordinates: [{inst, name, r, o, d, t0, t1}] — t along d. */
 function holes(asm) {
   const out = [];
@@ -75,16 +82,18 @@ function holes(asm) {
   for (const it of asm.doc.instances) {
     const b = asm.bodyOf(it)?.body;
     if (!b || fasteners.has(it.id)) continue;
-    const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M);
+    const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M), mine = []; // (its own: the halves of a split one)
     for (const f of b.faces) {
       if (f.type !== 'cylinder' || !f.axis || !f.radius) continue;
       const d = new THREE.Vector3(...f.axis.d).applyMatrix3(N).normalize(), o = new THREE.Vector3(...f.axis.o).applyMatrix4(M);
       const c = new THREE.Vector3(...f.centroid).applyMatrix4(M), len = f.area / (2 * Math.PI * f.radius);
       // the centroid of a full cylinder is on its axis, halfway; of a half one (a split face) a little off it
       const tc = c.clone().sub(o).dot(d);
-      const same = out.find((h) => h.inst === it.id && Math.abs(h.r - f.radius) < 1e-4 && h.o.clone().sub(o).cross(h.d).length() < 1e-3 && Math.abs(Math.abs(h.d.dot(d)) - 1) < 1e-6);
+      const same = mine.find((h) => Math.abs(h.r - f.radius) < 1e-4 && Math.abs(Math.abs(h.d.dot(d)) - 1) < 1e-6 && off(o, h.o, h.d) < 1e-3);
       if (same) continue; // the other half of a split cylinder
-      out.push({ inst: it.id, name: f.name, r: f.radius, o, d, t0: tc - len / 2, t1: tc + len / 2, part: it.part });
+      const h = { inst: it.id, name: f.name, r: f.radius, o, d, t0: tc - len / 2, t1: tc + len / 2, part: it.part };
+      mine.push(h);
+      out.push(h);
     }
   }
   return out;
@@ -111,7 +120,7 @@ function planeAt(asm, inst, point, out) {
 export function findCandidates(asm) {
   const hs = holes(asm), lines = [];
   for (const h of hs) {
-    const line = lines.find((l) => Math.abs(Math.abs(l.d.dot(h.d)) - 1) < 1e-4 && h.o.clone().sub(l.o).cross(l.d).length() < 0.05);
+    const line = lines.find((l) => Math.abs(Math.abs(l.d.dot(h.d)) - 1) < 1e-4 && off(h.o, l.o, l.d) < 0.05);
     if (line) {
       const t = h.o.clone().sub(line.o).dot(line.d), s = Math.sign(h.d.dot(line.d));
       line.holes.push({ ...h, t0: t + s * (s > 0 ? h.t0 : h.t1), t1: t + s * (s > 0 ? h.t1 : h.t0) });

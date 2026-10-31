@@ -12,25 +12,44 @@ const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays alread
   return new T(bytes.buffer);
 };
 
+/** A body's triangles by face, once per body (kept on it): the triangles of face id f are tris[start[f] … start[f + 1]),
+ *  and each name's face ids — `own` its faces of that name, `any` also those that have it among their `names` (a
+ *  merged sub-assembly: thousands of round faces over a million triangles — each looked up without a pass over all). */
+export function facesOf(body) {
+  if (body._byFace) return body._byFace;
+  const P = (body._P = body._P || b64(body.positions, Float32Array)), F = (body._F = body._F || b64(body.face_ids, Uint32Array));
+  let max = 0;
+  for (const f of body.faces) max = Math.max(max, f.id);
+  for (let k = 0; k < F.length; k++) if (F[k] > max) max = F[k];
+  const start = new Uint32Array(max + 2);
+  for (let k = 0; k < F.length; k++) start[F[k] + 1]++;
+  for (let f = 0; f <= max; f++) start[f + 1] += start[f];
+  const at = start.slice(0, max + 1), tris = new Uint32Array(F.length);
+  for (let k = 0; k < F.length; k++) tris[at[F[k]]++] = k;
+  const own = new Map(), any = new Map(), put = (m, n, f) => { const l = m.get(n); if (l) l.push(f); else m.set(n, [f]); };
+  for (const f of body.faces) {
+    put(own, f.name, f);
+    for (const n of new Set([f.name, ...(f.names || [])])) put(any, n, f);
+  }
+  return (body._byFace = { P, start, tris, own, any });
+}
+
 /** Is a round face of a body a pin (the material inside it) rather than a hole? From its triangles' facing: outward
  *  from the axis = a pin. Kept on the body. */
 export function isPin(body, name) {
   body._pins = body._pins || {};
   if (name in body._pins) return body._pins[name];
-  body._P = body._P || b64(body.positions, Float32Array);
-  body._F = body._F || b64(body.face_ids, Uint32Array);
-  const f = body.faces.find((x) => x.name === name && x.axis);
+  const { P, start, tris, own } = facesOf(body), mine = own.get(name) || [], f = mine.find((x) => x.axis);
   if (!f) return (body._pins[name] = null);
-  const ids = new Set(body.faces.filter((x) => x.name === name).map((x) => x.id)), o = new THREE.Vector3(...f.axis.o), d = new THREE.Vector3(...f.axis.d).normalize();
-  const P = body._P, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), r = new THREE.Vector3();
+  const o = new THREE.Vector3(...f.axis.o), d = new THREE.Vector3(...f.axis.d).normalize();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), r = new THREE.Vector3(), e = new THREE.Vector3();
   let out = 0;
-  for (let tr = 0; tr < body._F.length; tr++) {
-    if (!ids.has(body._F[tr])) continue;
-    const k = tr * 9;
+  for (const x of new Set(mine.map((q) => q.id))) for (let j = start[x]; j < start[x + 1]; j++) {
+    const k = tris[j] * 9;
     a.set(P[k], P[k + 1], P[k + 2]);
     b.set(P[k + 3], P[k + 4], P[k + 5]);
     c.set(P[k + 6], P[k + 7], P[k + 8]);
-    n.subVectors(b, a).cross(c.clone().sub(a)); // (the triangle's outward side: counter-clockwise)
+    n.subVectors(b, a).cross(e.subVectors(c, a)); // (the triangle's outward side: counter-clockwise)
     r.copy(a).add(b).add(c).divideScalar(3).sub(o).projectOnPlane(d); // (from the axis to the triangle)
     out += Math.sign(n.dot(r));
   }

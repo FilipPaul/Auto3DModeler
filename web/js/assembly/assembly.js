@@ -39,7 +39,7 @@ import { ModelView } from '../modeler/view.js';
 import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
-import { busy } from '../busy.js';
+import { busy, painted } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
 import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
@@ -62,7 +62,7 @@ import { liveClashes, setClash, clashOn, scanDone, bandsOf } from './mechclash.j
 import { saveAnimation } from './anim.js';
 import { CLEAR, displayOf, displayed, displayItems, displayKey, eyeHtml, clickEye, displayNote, setVisibility } from './visibility.js';
 import { pressDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
-import { isPin } from './missing.js';
+import { isPin, facesOf } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
 import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses, settleEntries } from './harness.js';
@@ -73,6 +73,7 @@ import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, coupling
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const SMART_LATER = 5000; // (placed parts' faces over this: the whole assembly's suggestions worked out after the frame — smartSoon)
 const BIG_OPEN = 30; // (an assembly of more placed parts opens with the loading card: building and drawing them takes a while)
 const WARM = 3; // (assemblies of the project kept drawn while another is on screen: their meshes ready for the way back)
 const ID = () => new THREE.Matrix4().identity().toArray();
@@ -1055,18 +1056,14 @@ export class Assembly {
       showSuggest(vp, title, items, parts.length ? t('The first part stays fixed; the next ones are joined to it') : t('Make a part first: ＋ New 3D model'));
       return;
     }
-    const ready = this.doc.instances.every((it) => this.bodyOf(it)?.body);
-    const key = `${this.doc.instances.map((it) => `${it.id}${it.fixed ? '!' : ''}:${it.matrix.join(',')}`).join('|')}#${(this.doc.mates || []).length}`;
+    const ready = this.doc.instances.every((it) => this.bodyOf(it)?.body), key = this.smartKey();
     if (this._smart?.key !== key) this._smart = null;
     if (ready && !this._smart) { // (the geometry: once per change of the parts or joints)
-      const pins = [];
-      for (const it of this.doc.instances) {
-        if (it.fixed || it.fastener || (this.doc.mates || []).some((m) => m.move === it.id)) continue; // (a loose part)
-        try { pins.push(...pinFits(this, it.id, 1)); } catch { /* (no body) */ }
-      }
-      let fast = [];
-      try { fast = n > 1 ? findCandidates(this) : []; } catch { fast = []; }
-      this._smart = { key, pins: pins.sort((p, q) => p.score - q.score).slice(0, 2), fast };
+      // a big one (thousands of faces: merged sub-assemblies) worked out after this is on screen, a part at a time —
+      // never in the click or tab switch that shows the table
+      const faces = this.doc.instances.reduce((s, it) => s + (this.bodyOf(it)?.body?.faces?.length || 0), 0);
+      if (faces > SMART_LATER) this.smartSoon(key);
+      else this._smart = this.smartFind(key);
     }
     const sm = this._smart || { pins: [], fast: [] }, mech = this.mech?.list.length, clash = this.clashes?.length;
     sm.pins.forEach((f, k) => items.push({ ...this.pinItem(f, k), label: `${this.partName(this.inst(f.move.inst)?.part)}: ${this.pinItem(f, k).label}` }));
@@ -1087,6 +1084,44 @@ export class Assembly {
     items.push({ icon: '🔌', label: t('Cable harness…'), rank: 9.5, title: t('A cable or loose wires through points you click — its length, the bends, the BOM'), run: () => this.harnessTool.start() });
     if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
     showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
+  }
+
+  /** What the whole assembly's suggestions were worked out for: its parts, where they are, how many joints. */
+  smartKey() { return `${this.doc.instances.map((it) => `${it.id}${it.fixed ? '!' : ''}:${it.matrix.join(',')}`).join('|')}#${(this.doc.mates || []).length}`; }
+
+  /** The pins that fit holes of the loose parts among `list`, added to `pins`. */
+  smartPins(list, pins) {
+    for (const it of list) {
+      if (it.fixed || it.fastener || (this.doc.mates || []).some((m) => m.move === it.id)) continue; // (a loose part)
+      try { pins.push(...pinFits(this, it.id, 1)); } catch { /* (no body) */ }
+    }
+    return pins;
+  }
+
+  /** The whole assembly's pins that fit holes (pins: found already, else of its loose parts) and fasteners -> {key, pins, fast}. */
+  smartFind(key, pins = this.smartPins(this.doc.instances, [])) {
+    let fast = [];
+    try { fast = this.doc.instances.length > 1 ? findCandidates(this) : []; } catch { fast = []; }
+    return { key, pins: pins.sort((p, q) => p.score - q.score).slice(0, 2), fast };
+  }
+
+  /** smartFind after the frame is on screen, a part per task (the spinner and the clicks go on between), then the
+   *  table drawn again — unless the assembly changed or another is on screen meanwhile. */
+  async smartSoon(key) {
+    if (this.smartJob === key) return;
+    this.smartJob = key;
+    const doc = this.doc, pins = [], still = () => this.doc === doc && this.smartJob === key && this.smartKey() === key;
+    const quit = () => { if (this.smartJob === key) this.smartJob = null; }; // (shown again: started anew)
+    await painted();
+    for (const it of [...doc.instances]) {
+      if (!still()) { quit(); return; }
+      this.smartPins([it], pins);
+      await new Promise((ok) => setTimeout(ok, 0));
+    }
+    if (!still()) { quit(); return; }
+    this._smart = this.smartFind(key, pins);
+    this.smartJob = null;
+    if (this.active !== false && !this.sel && !this.picks && this.mode === 'idle') this.renderSuggest();
   }
 
   /** 💥 The explode amount (0 = together), the bar's slider following. */
@@ -1115,7 +1150,12 @@ export class Assembly {
     return (data?.instances || []).some((i) => i.part === target || (this.kindOf(i.part) === 'assembly' && this.contains(i.part, target, seen)));
   }
 
-  kindOf(pid) { return this.hooks.parts().find((p) => p.id === pid)?.kind; }
+  kindOf(pid) {
+    const list = this.hooks.parts(); // (by a map kept while the project's list is the same: asked thousands of times on a big assembly)
+    if (this.kinds?.list !== list || this.kinds.n !== list.length) this.kinds = { list, n: list.length, map: new Map(list.map((p) => [p.id, p])) };
+    const p = this.kinds.map.get(pid);
+    return p?.id === pid ? p.kind : list.find((q) => q.id === pid)?.kind;
+  }
 
   /** A part's icon in the tree: the project tree's (a library part as it came: the library's). */
   partIcon(pid) {
@@ -2793,14 +2833,18 @@ export class Assembly {
     if (!data || seen.has(pid)) return this.bodies[at];
     seen.add(pid);
     const list = place?.inner ? this.innerList(place) : data.instances || [];
-    const key = JSON.stringify(data) + JSON.stringify(place?.inner || null) + list.map((i) => this.bodyOf(i)?.key || '').join('|');
+    // its own sub-assemblies merged first: its key made of theirs as they are now (made before them, a nested one's
+    // first merge changed it — the whole body merged again on the next refresh)
+    const made = list.map((it) => (this.kindOf(it.part) === 'assembly' ? this.mergeAssembly(it.part, new Set(seen), it.inner ? it : null) : this.bodies[it.part]));
+    // (its parts and where they are: what the body is made of — not its joints or display, which opening it in its tab
+    // may tidy up: the same body kept)
+    const key = JSON.stringify(data.instances || []) + JSON.stringify(place?.inner || null) + made.map((m) => m?.key || '').join('|');
     if (this.bodies[at]?.key === key) return this.bodies[at];
     const pos = [], ids = [], faces = [], edges = [];
     let vol = 0, mass = 0, box = null, off = 0;
     const cog = new THREE.Vector3();
-    for (const it of list) {
-      const sub = this.kindOf(it.part) === 'assembly' ? this.mergeAssembly(it.part, new Set(seen), it.inner ? it : null) : this.bodies[it.part];
-      const b = sub?.body;
+    for (const [k, it] of list.entries()) {
+      const b = made[k]?.body;
       if (!b) continue;
       const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M), v = new THREE.Vector3();
       const P = b64(b.positions, Float32Array), F = b64(b.face_ids, Uint32Array);
@@ -4598,15 +4642,12 @@ export class Assembly {
   cylSpan(body, name, axis) {
     body._spans = body._spans || {};
     if (body._spans[name]) return body._spans[name];
-    body._P = body._P || b64(body.positions, Float32Array);
-    body._F = body._F || b64(body.face_ids, Uint32Array);
-    const ids = new Set(body.faces.filter((x) => x.name === name || (x.names || []).includes(name)).map((x) => x.id));
+    const { P, start, tris, any } = facesOf(body); // (its triangles by face: not a pass over all of them per name)
     const [o, d] = [axis.o, axis.d], L = Math.hypot(...d) || 1;
     let lo = Infinity, hi = -Infinity;
-    for (let tr = 0; tr < body._F.length; tr++) {
-      if (!ids.has(body._F[tr])) continue;
-      for (let k = tr * 9; k < tr * 9 + 9; k += 3) {
-        const s = ((body._P[k] - o[0]) * d[0] + (body._P[k + 1] - o[1]) * d[1] + (body._P[k + 2] - o[2]) * d[2]) / L;
+    for (const x of new Set((any.get(name) || []).map((f) => f.id))) for (let j = start[x]; j < start[x + 1]; j++) {
+      for (let k = tris[j] * 9; k < tris[j] * 9 + 9; k += 3) {
+        const s = ((P[k] - o[0]) * d[0] + (P[k + 1] - o[1]) * d[1] + (P[k + 2] - o[2]) * d[2]) / L;
         lo = Math.min(lo, s);
         hi = Math.max(hi, s);
       }
@@ -5005,6 +5046,15 @@ export class Assembly {
       this.parked.delete(id);
       if (slot.json !== json) { this.view.release(slot.view); slot = null; } // (changed meanwhile: opened anew)
     }
+    // not kept warm and big (its sub-assemblies' parts counted in): the loading card on screen before any of the work —
+    // the list, the suggestions, the bodies built and drawn — so the window never just stands still
+    const n = slot ? 0 : this.placedCount(data), card = n > BIG_OPEN ? busy(t2('Loading {name}…', { name: this.partName(id) || t('the assembly') })) : null;
+    if (card) { card.step(t2('{n} placed parts — building and drawing them…', { n })); await card.painted; }
+    try { await this.open(data, id, slot); } finally { card?.done(); }
+  }
+
+  /** load()'s work: the document on screen — put back warm (slot) or opened anew. */
+  async open(data, id, slot) {
     this.loadedId = id;
     if (this.section) this.toggleSection(); // (another assembly: not cut where the last one was)
     this.doc = slot ? slot.doc : structuredClone(data || { instances: [] });
@@ -5019,7 +5069,7 @@ export class Assembly {
     this.ms.reset(); // (its measurements: this assembly's)
     if (slot) { // put back as it was left: its meshes, the clash check's answer, the camera
       this.view.unpark(slot.view);
-      Object.assign(this, { clashes: slot.clashes, drawn: slot.drawn });
+      Object.assign(this, { clashes: slot.clashes, drawn: slot.drawn, _smart: slot.smart }); // (its suggestions' geometry too: not worked out again)
       this.render();
       await this.refresh({ warm: true, draw: true });
       this.view.setCamera({ ...slot.cam, aspect: this.view.camera.aspect }); // (the view's shape as it is now)
@@ -5028,10 +5078,15 @@ export class Assembly {
     this.drawn = null;
     this.clashes = undefined; // (not checked yet)
     this.render();
-    const n = this.doc.instances.length, card = n > BIG_OPEN ? busy(t2('Opening the assembly: {n} placed parts…', { n })) : null;
-    if (card) { card.step('Building the parts…'); await card.painted; }
-    try { await this.refresh(); } finally { card?.done(); }
+    await this.refresh();
     this.view.setView('iso');
+  }
+
+  /** How many parts an assembly document places, its sub-assemblies' parts counted in (what opening it builds and draws). */
+  placedCount(data, depth = 0) {
+    let n = 0;
+    for (const i of data?.instances || []) n += this.kindOf(i.part) === 'assembly' && depth < 8 ? Math.max(1, this.placedCount(this.hooks.partData(i.part), depth + 1)) : 1;
+    return n;
   }
 
   /** The assembly on screen put aside, warm (another assembly of the project goes on screen): its doc, drawn meshes,
@@ -5041,7 +5096,7 @@ export class Assembly {
     const checking = this.clashBusy; // (a check on its way: its answer is this one's — dropped, checked again on return)
     if (checking) { this.clashRun = (this.clashRun || 0) + 1; this.clashBusy = false; }
     this.parked.set(this.loadedId, { json: JSON.stringify(this.doc), doc: this.doc, view: this.view.park(), cam: this.view.cameraState(),
-      clashes: checking ? undefined : this.clashes, drawn: this.drawn });
+      clashes: checking ? undefined : this.clashes, drawn: this.drawn, smart: this._smart });
     this.clashes = undefined;
     while (this.parked.size > WARM) {
       const [old, s] = this.parked.entries().next().value;

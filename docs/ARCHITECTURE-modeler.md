@@ -7,6 +7,68 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⇆ A big imported STEP assembly switched top ⇄ sub-assembly at once (2026-10-31)** (the owner: "Sestava ICT
+  M1556.stp", 25 MB, opened as an assembly — 254 parts, 44 sub-assemblies —; the top assembly, "Sestava základní
+  desky", the top again: an enormous wait, the window frozen with no sign of work). Measured in a real Edge window (GPU,
+  Czech, a project-tree row clicked, to the switch done and its frame painted; tools/e2e_ict_switch.py --profile):
+  top → sub 575 ms (its card at 378 ms, after the work), back to the top 34 668 ms, sub again 431 ms, top again
+  29 528 ms — one long task each way back, no card. The CDP profile: 95 % in the Suggested table of the whole assembly
+  (suggestAssembly → pinFits → freeRounds → missing.js isPin / Assembly.cylSpan). The top holds 9 placements, all
+  sub-assemblies drawn as merged bodies of up to 13 000 faces / 1.3 M triangles; isPin and cylSpan went through every
+  triangle of the body for each round face name (thousands): quadratic. Its result (`_smart`) was one per Assembly, so
+  each other assembly on screen dropped the top's. Also on the first way back: every merged body made again
+  (mergeAssembly's key took its nested sub-assemblies' keys before they were merged — '' the first time, theirs the
+  next), and the project tree (~1 000 rows) drawn twice per switch, before the work. Done:
+  - missing.js facesOf(body): the triangles sorted by face once per body (start / tris arrays) and each name's faces
+    (own / any); isPin, cylSpan and smart.js roundsOf look a face's triangles up — cold suggestions 22 s → 1.5 s.
+  - smart.js pinFits: the chosen part's pins and holes sorted by Ø, a round face of another part meets only those of a
+    fitting Ø (binary search), not each against each; fasteners.js holes: a split cylinder's other half looked for among
+    the part's own holes (not all so far), the line test without new vectors.
+  - The whole assembly's suggestions kept with the assembly put aside (park / unpark: `smart`), and on a big one
+    (placed faces > SMART_LATER = 5000) worked out after the frame is on screen, a loose part per task (smartSoon), the
+    table drawn again when done — never inside the click or switch that shows it.
+  - mergeAssembly merges its own sub-assemblies first and keys on them as they are now, and on its parts and their
+    places only (data.instances — not its joints or display, which the first visit tidies: `mates: []`).
+  - kindOf and app.js partData by a map kept while the project's list is the same (Project.byId; was a find over 298
+    parts, thousands of times per render); Project.renderTree keeps its rows when they are the same (a tab switch: only
+    the lit row changes).
+  - Assembly.load: an assembly not kept warm with more than BIG_OPEN placed parts, its sub-assemblies' counted in
+    (placedCount), shows the loading card "Načítám ‹název›…" — "{n} vložených dílů — sestavuji a kreslím je…" — painted
+    before any of its work (the list, the suggestions, the bodies); the old card came after the first render.
+  After (the same runs): top → sub 207–315 ms (its card at 46–124 ms), back to the top 35–125 ms, sub 45–137 ms, top
+  33–115 ms. tools/e2e_ict_switch.py: top → sub → top → sub → top timed, the card within 100 ms of the click on any
+  step over 300 ms, budgets (the first visit < 1.5 s, every return < 0.5 s), no console errors; without the owner's
+  file (CI) the 150-part demo exported as a STEP assembly and opened the same way.
+- **The ICT file's first open measured; its picture no longer builds every part again (2026-10-31)** (a real Edge
+  window, Czech; ms from the file picked; a fresh A3D_DATA, then the saved .a3d after a server restart, the part cache
+  on disk warm). Cold: upload + /api/model/import (the STEP read whole to ask "an assembly?") 11.3 s → the question;
+  /api/model/import/assembly 26.5 s (read_step_tree 8.6 s — the file read a second time —, per part bbox, volume and
+  its own STEP written; one kernel process); 254 /api/model/rebuild 42.0 → 53.1 s (kernel 35 s in 3 processes: each
+  part's STEP read again ~15 s CPU, tessellation ~11 s); first frame 52.7 s; long tasks 6.4 s in the page (4.0 s at
+  37.9 s while the parts are added to the project, 1.4 s merging the sub-assemblies); the first collision check
+  120 s — the kernel call's 120 s timeout, no answer. Reopened: 254 rebuilds from the part cache 0.4 → 4.1 s (kernel
+  8.2 s), first frame 4.1 s, the collision check 111.6 s. Fixed here, cheap and clearly wasteful: the project's picture
+  (autosave's, the .a3d's: app.js thumb) built every placed part again on the server (bodyOf) — 254 more rebuilds,
+  12 MB more, competing with the assembly's own; now builtBody takes the body the assembly drew from the same steps
+  (503 → 255 rebuilds, the burst 16.3 → 11.0 s). e2e_ict_switch: projectThumb asks the server for no part.
+  Next (not done): pass the shapes from the import to the parts (no second STEP read: filecache), the question from
+  the structure only, bbox / volume once, the collision check of a big assembly (quick boxes first, in the background,
+  no timeout), parts streamed to the view as they come.
+- **Choosing in a big imported STEP assembly under 100 ms (2026-10-31)** (the owner, the same ICT file in Czech:
+  choosing anything — a part or a face in the view, a row of the list — took an enormous time). Measured (real window,
+  Czech, from the press to the painted frame; tools/e2e_ict_switch.py): in the top assembly a part 251 / 207 ms, another
+  105 ms, a list row 295 / 281 ms; in the sub-assembly every click 127–146 ms (on the original code; a first click before
+  the table's geometry was made went through the quadratic isPin: seconds). Not i18n this time (the t() memo held): the
+  CDP profile showed the Suggested table of the chosen part — pinFits placed every round face of the chosen merged
+  sub-assembly and of each other part in the world (worldFace with its innerFrame, thousands) on every click, restOn
+  every flat face of it; in the sub-assembly kindOf / partData's finds over 298 parts (fixed with the switch, above).
+  smart.js: each body's round faces in the world kept per placement (freeRounds: body -> "inst|matrix", the last 8
+  places of a dragged part); pinFits's answer kept per part until a part moves, a body changes or a joint is made (the
+  whole assembly's smartSoon fills it for every loose part after a switch); restOn looks only at flat faces whose own
+  normal faces up / down before placing them. After: top a part 47–58 ms, another 31–63, a row 31–59, empty space 25–42;
+  the sub-assembly 33–53 ms. e2e_ict_switch: a part (its face picked with it), another, a list row and empty space,
+  twice, in the top assembly and in the sub-assembly — painted under 100 ms each, each choosing what it should.
+
 - **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
   both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a
   muted hint per item; Open: 📁 any file on top, Projekt (🕘 the last three inline with pictures), Ukázky, Import · CAD a

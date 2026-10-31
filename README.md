@@ -1430,6 +1430,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   choosing a part in a 521-part assembly takes ~50 ms, hovering < 25 ms, opening it about a second. In Czech too: a
   click on a part, on empty space, Esc or a row of the parts list is painted in 40–80 ms (it took 2.5 s on the
   521-part rack, 11 s on the 150-part one, while each text the panels showed again was looked up anew).
+  A big STEP assembly opened as an assembly (the owner's 254-part board tester, 44 sub-assemblies) switches between
+  the top assembly and a sub-assembly in the project tree in 0.1–0.3 s (it took 30 s back to the top); an assembly
+  that takes a moment to open shows **Načítám ‹název›…** with a spinner at once, and choosing a part, a face or a row
+  in it is painted in 30–60 ms (it took 0.1–0.3 s, seconds the first time).
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
 - **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side); each part's cut

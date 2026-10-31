@@ -1822,6 +1822,13 @@ function partPayload() {
   };
 }
 
+/** A part's body as the assemblies drew it from these very steps — a picture of an assembly takes it, not built again
+ *  on the server (a 254-part STEP assembly: 254 rebuilds more after its first autosave). */
+const builtBody = (pid, features) => {
+  const b = assembly.bodies[pid];
+  return b?.body && JSON.stringify(b.features) === JSON.stringify(features) ? b.body : null;
+};
+
 // the parts of the project: tabs in the top bar
 const project = new Project($('partTabs'), {
   payload: (kind) => (kind === 'model' ? modeler.payload() : kind === 'assembly' ? assembly.payload() : kind === 'drawing' ? drawing2d.payload() : kind === 'sheet' ? sheet.payload() : structuredClone(partPayload())),
@@ -1863,7 +1870,7 @@ const project = new Project($('partTabs'), {
         const q = project.parts.find((x) => x.id === it.part), d = q && project.dataOf(q), mi = inner?.[it.id] || it.matrix;
         const m = M ? new THREE.Matrix4().fromArray(M).multiply(new THREE.Matrix4().fromArray(mi)).toArray() : mi;
         if (q?.kind === 'assembly' && depth < 4) await walk(d, m, depth + 1, it.inner);
-        else if (d?.features?.length) list.push({ body: await bodyOf(d.features), matrix: m, color: [0xa98be0, 0x7ee787, 0x58a6ff, 0xe3b341, 0xff9b7a][list.length % 5] });
+        else if (d?.features?.length) list.push({ body: builtBody(q.id, d.features) || await bodyOf(d.features), matrix: m, color: [0xa98be0, 0x7ee787, 0x58a6ff, 0xe3b341, 0xff9b7a][list.length % 5] });
       }
     };
     await walk(data, null, 0);
@@ -2065,7 +2072,7 @@ window.addEventListener('a3d:changed', () => {
 const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), right: $('asmRight') }, {
   toast, download, safeName: () => tabName(),
   parts: () => project.parts,
-  partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
+  partData: (id) => { const p = project.byId(id); return p && typeof p.data === 'object' ? p.data : null; },
   addModelPart: (name, data) => project.addBackground(name, data),
   // a STEP / STL / OBJ to insert: a solid step, or (a STEP assembly, if wanted) a new sub-assembly of the project
   importFile: async (file) => {
