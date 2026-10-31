@@ -1057,11 +1057,29 @@ part's rolled-up `total`.
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
   Ctrl+click adds that row to what is chosen. The top rows work as before. A row's buttons (🔒 ⋯ 🏷 ⧉ ✕ 💥) show
   on hover over its right end, so a click on its name or middle always chooses the part.
+  **🔍 Find a part** (the field in the list's header, *Hledat díl…*): type part of a name — no matter the case or the
+  accents (*zakladni* finds *Základní deska*) — and only the matching rows stay, with the sub-assemblies they are in
+  folded open; the found names are lit, a click chooses as usual (Ctrl / Shift too); Esc or ✕ shows all rows again.
+  **A part clicked in the view** has its row brought into sight: the sub-assemblies it is in fold open, the list
+  scrolls only as far as needed and the row is marked (the part under the mouse, however deep — the sub-assembly
+  itself stays chosen); with Ctrl, the row of the part just added. If the 🔍 filter hides that row, the filter is
+  cleared.
   **Several parts at once**: a click chooses one, **Ctrl+click** adds or takes out a part (in the list or in the
   view: the same set), **Shift+click** in the list chooses every row from the last one clicked to this one, as the
   list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and
   parts are lit; the panel says *Vybráno dílů: 5*, and the suggestions work on them all (👁 hide / see-through /
   isolate, H, ✕ *Take them out* — one Ctrl+Z). Esc or a click beside the rows chooses none.
+  **Parts inside sub-assemblies, several at once** (any depth, with placed parts too): click a part of a
+  sub-assembly in the view (the sub-assembly is chosen whole), then **Ctrl+click** another part of it — now the two
+  parts are chosen, not the sub-assembly; Ctrl+click more (in any sub-assembly, or a placed part), Ctrl+click one again
+  to take it out. In the list: Ctrl / Shift+click their rows. Each is lit by itself in the view and in the list; the
+  panel lists them (*I2/I2/I1*), the suggestions offer what fits them (🔒 for the AI, ◆ Only one of them, ◆ Open its
+  part for copies of one part) — not ✕ *Take them out* or 👁 hide, which would take or hide their whole
+  sub-assembly; Delete does nothing then. ✎ Edit it here works on one at a time.
+  **◆ Choose ‹part› / ◇ Choose ‹sub-assembly›** (*Vybrat …*): a click on a part inside a sub-assembly chooses the
+  sub-assembly placed here, and the Suggested table offers near its top ◆ *Choose* the part itself (the one under the
+  mouse) and ◇ *Choose* the sub-assembly it is in — at most two rows: the nearer ones, never the one chosen now (the
+  part chosen: its sub-assembly and the top one). Ctrl+click on such a row adds it to what is chosen.
   **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
   with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
   the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click
@@ -1257,7 +1275,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   until you unlock it (🔓 Editable from here), so nothing is changed by accident. The Suggested table always shows
   **✎ Edit the part here** for a chosen part — or a face, edge or point picked on it — however few rows it shows; a
   locked part is unlocked by that click. From a picked face, that face is chosen in the part too: ✏ Sketch on this
-  face, ◎ Hole here are one click away.
+  face, ◎ Hole here are one click away. **A part inside sub-assemblies** — at any depth — is edited from the top
+  assembly the same way: its row in the parts list (▸ the sub-assembly) has ✎ Edit it here and 🔓 / 🔒, a
+  double-click on it in the view opens that part (the deepest one under the mouse, not the whole sub-assembly), and
+  ✏ Sketch on this face works on its faces too. The rest of the top assembly — the other parts of its own
+  sub-assemblies too — stands see-through around it where it is; back in the assembly, it and every sub-assembly
+  that holds the part show the change.
 - **👁 Hide parts** (display only): the Suggested table always shows **👁 Hide / show…** for a chosen part (or a face
   of it, or two parts with Ctrl+click); a click opens its choices in a small list right next to that row (to the
   table's right, or left where there is no room) — **Hide**, **Make see-through** (25 %), **Hide the others

@@ -7,6 +7,47 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking
+  an object should offer choosing the part or — only when there is one — the sub-assembly). `chooseItems(q, a)` in
+  suggestFaces' part section: for a face of a part inside the placed sub-assembly a (innerFace), the part's key, the
+  sub-assembly it is in and a itself, minus the one chosen now, the first two (rank -1: near the top); "Choose
+  {name}" (Vybrat …), the icon tells which. A placed part's face: none (the old ◆ Select the whole part stays there;
+  for an inner face it is left out — ◇ Choose ‹top› says it). suggest.js passes the click to `run(e)`: Ctrl+click on
+  the row adds to what is chosen. tools/e2e_nested_select.py.
+- **🔍 Find a part in the assembly's list; the clicked part's row in sight (2026-10-31)** (the owner: a search in
+  the panel that lists the parts, and a part clicked in the view scrolled to and lit in the list). The field sits in
+  the list's header (no row of its own: the list keeps its height); input is debounced 150 ms, `findRows()` walks the
+  placed parts and their instanceTree once (names compared without case and accents, `plainText`) -> {hits, shown:
+  hits + the sub-assemblies they are in, open: those folded open for them, not saved}; renderList skips the rest,
+  marks hits (as-hit); the query is part of listKey, so a choice alone still only re-lights the kept rows. The
+  pointerup calls `reveal(key)` with the part under the mouse (innerFace, any depth): its sub-assemblies saved open,
+  a filter that hides it cleared (the click says which part is wanted — less surprising than a row missing), the
+  row marked (as-here) and scrolled into sight in its nearest scrolling box only, only as far as needed (no
+  scrollIntoView: it moved the panels around it). The project tree (parts.js) has no field: its rows are project
+  parts that open tabs, not placed parts. tools/e2e_nested_select.py (find + reveal at two depths),
+  e2e_assembly_multiselect clicks beside the rows after scrolling the list down (the view's click now scrolls it).
+- **Several parts inside sub-assemblies chosen at once (2026-10-31)** (the owner: Ctrl+select of two parts of one
+  sub-assembly from the top assembly did not work). Cause: a click in the view hits the sub-assembly's merged body,
+  so Ctrl+click chose its placement ("I2") — on the one already chosen only "another face of it". Now the pointerup
+  works out the part under the mouse (innerFace, however deep; a snap on its edge too) and `nestedPick`: once a part
+  inside a sub-assembly is chosen (the list, or the sub-assembly clicked alone just before on one of its parts —
+  `lastDeep`), Ctrl+click adds / takes out that part's key ("I2/I2/I1"); nothing inside chosen: the old placement
+  pick (its joints). The view lights each chosen inner part (`innerLit` -> a list of face prefixes; AsmView `lit`
+  string or list), the list marks the placement's row (has-inner); renderMany / suggestMany count and name the keys
+  (placedAt), leave out ✕ Take them out, 👁 hide and Fix together of several inner parts (they would act on the whole
+  sub-assembly), offer ◆ Open its part for copies of one part; Delete with an inner part chosen does nothing.
+  tools/e2e_nested_select.py.
+- **✎ Edit a part in place at any depth (2026-10-31)** (the owner: a part nested in several levels of assemblies
+  could not be edited in place from the top one). editInPlace took a top-level instance only; it now takes a key
+  "I3/I1/I2": `placedAt(key, true)` walks the path through innerList (each placement's `inner`), composing the
+  matrix, and gathers the context level by level — the other top parts and, at each level down, the other parts of
+  that sub-assembly (a merged body each for a sub-assembly beside it: a few bodies, never every part of a big one) —
+  all in the edited part's frame. `innerFace(a, "I2/I1/F2:end")` maps a merged body's face to the part however deep:
+  a double-click edits the deepest model part under the mouse (locked: its row chosen, its 🔒 in sight, the toast);
+  ✏ Sketch on this face works on it; renderInner shows ✎ Edit it here / 🔓 (editHtml, the same `editable(part)`
+  rules) and the AI lock row; the Suggested table of a chosen inner row leads with ✎ Edit the part here. No new kernel
+  work: back in the assembly, refresh rebuilds the changed part and mergeAssembly's keys (made of the parts' keys)
+  merge each sub-assembly holding it again — a sub-assembly kept warm included. tools/e2e_nested_edit.py.
 - **⇆ A big imported STEP assembly switched top ⇄ sub-assembly at once (2026-10-31)** (the owner: "Sestava ICT
   M1556.stp", 25 MB, opened as an assembly — 254 parts, 44 sub-assemblies —; the top assembly, "Sestava základní
   desky", the top again: an enormous wait, the window frozen with no sign of work). Measured in a real Edge window (GPU,

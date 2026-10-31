@@ -127,7 +127,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    comes from) or structured (the tree: qty_per_parent, total). Screws placed both in the assembly and in a
    sub-assembly are counted in both; the user sees the same in 📋 BOM (⬇ CSV / Excel) and can add a BOM page to the
    assembly's drawing (📋 Add BOM page). To change a part, `open_part` it — every
-   assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
+   assembly that uses it follows. The user can change one in place instead — ✎ Edit it here (its panel, or a
+   double-click on it; 🔓 unlocked per part) — also a part deep inside sub-assemblies: its row "I3/I2/I1" in the
+   parts list has the same ✎ and 🔓, the rest of the top assembly see-through around it. The user exports the assembly (STL or STEP) from its Export buttons.
 8. **Cables and wires** (🔌 Cable harness): `add_harness {type, points, …}` routes one through points — `{part: "I2",
    face: "F2:end"}` (it lies on that face's middle, Ø/2 off it; a round face: through the hole's centre), `{part, point:
    [x, y, z]}` (the part's own coordinates) or `{xyz: [x, y, z]}` (in space, to lead it round things). type `"wires"`
