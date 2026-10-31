@@ -224,6 +224,11 @@ Never report "works" without having run it; report failures with their output.
    in the sub-assembly's document, the axes on one line in both copies, the toast; Ctrl+Z; the AI's snap_faces with
    nested keys, get_assembly parts_inside; 🔒 locked: nothing joined, said; two copies' parts: the top's joint; the
    sub-assembly's panel: 🔓 / 🔒 and its joints counted).
+   `tools/e2e_sub_joint_parent.py <url> <dir>` covers a sub-assembly's own joints holding in its parent (a strut: rod +
+   body 4 mm off-axis, placed on two pins; ◎ Concentric made from the parent -> the body on the rod's axis there and in
+   its tab; the parent's joint of the body's eye on the 2nd pin: the loop through both levels closed, all held; 🧱 / ⚙;
+   the stroke locked in the strut's tab: on the axis, the pin joint ⚠ not held, the status says so; the owner's
+   "Sestava ICT M1556" when the server's data has it).
    `tools/e2e_suggest_groups.py <url> <dir>` covers the Suggested table in categories (Czech, the 150-part demo):
    showSuggest's rules on a bare box (one category: no header; several: the most relevant row's first, ranked inside,
    top 8 + ⋯, sections into tooltips, Show all still grouped), the whole assembly's table, a part's (◆ Open its part:

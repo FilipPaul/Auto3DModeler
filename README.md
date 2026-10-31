@@ -1270,6 +1270,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   A joint of this assembly on such a moving part (e.g. the lever's side parallel to the frame) holds that part inside
   the sub-assembly — the turn it locks is gone from the sliders — as long as the sub-assembly is held otherwise too
   (another joint, or 📌); a sub-assembly held only by that one joint moves as one piece, as before.
+  The sub-assembly's own joints have the last word: such a joint only moves the part the ways they leave it (a gas
+  strut's body slides and turns on its rod's axis, never off it). Held by its rod's eye on one pin and its body's eye
+  on another, the strut turns and pulls out to reach both; when it cannot (its stroke locked, too short), the body
+  stays on the rod's axis and the joint on the pin shows **⚠ not held** — rigid or moving alike.
 - **A sub-assembly's mechanisms work in the assembly it is in**: its own mechanisms (a crank loop, gears with a rack,
   a part turning on its own) are in **⚙ Mechanism** too, named *Klikový mechanismus (v Pohon)* — drive them by the
   slider, ▶ play them, ⚠ check their travel; choose the sub-assembly and **drag one of its parts** in the view (its
