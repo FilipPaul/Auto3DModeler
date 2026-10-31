@@ -5,7 +5,8 @@
 2. ⇱ Převzít obrys plochy do skici -> a sketch whose shapes are the face's loops (lines, arcs, circles, one ⇱ relation
    holding them; the solver: nothing free) — its length = the face's edges' length; extruded 5 mm -> a solid of the face's
    area × 5, its box the face's box (the outline matches); watertight is the kernel's (unit tests).
-3. The same file joined (op "add"): its flat face offers ✏ and ⇱ too; ✏ opens a sketch on it.
+3. The same file joined (op "add"): its flat face offers ✏ and ⇱ too; ✏ opens a sketch on it; a Ø4 circle sketched on
+   it and extruded 5 mm (op add) is built and adds π · 2² · 5 (NIST CTC-01 holds curves beside its solid).
 4. In an assembly: the imported part's flat face -> "✏ Skica na této ploše → upravit díl zde" and "＋ Nový díl se skicou
    na této ploše"; ＋ makes a new part placed where it is (the file in it see-through) and opens it with a sketch on
    that face.
@@ -268,6 +269,36 @@ try:
     check(f"the edge taken into a sketch on its face: {es}", es == ["line"] and js(f"return {M}.sk.f.plane.face.name") == face["name"])
     js(f"{M}.cancelSketch()")
     time.sleep(0.5)
+    # a Ø4 circle sketched on that face and extruded 5 mm, joined (op add): the part grows by π · 2² · 5 (the file's
+    # curves beside its solid made every joined extrude fail: "The solid operation failed")
+    v0 = js(f"return {M}.result.body.volume")
+    uv = js(f"""const v = {M}.view, f = v.body.faces.find(x => x.name === arguments[0]), pos = v.mesh.geometry.attributes.position.array, ids = v.faceIds;
+      const {{ o, x, n }} = f.frame, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
+      let best = null;
+      for (let t = 0; t < ids.length; t++) {{  // (the middle of the face's roundest triangle: inside it, not in a hole)
+        if (ids[t] !== f.id) continue;
+        const p = [0, 1, 2].map(k => [pos[t*9+k*3], pos[t*9+k*3+1], pos[t*9+k*3+2]]);
+        const l = [0, 1, 2].map(k => Math.hypot(...p[k].map((c, i) => c - p[(k + 1) % 3][i]))), s = (l[0] + l[1] + l[2]) / 2;
+        const r = Math.sqrt(Math.max(s * (s - l[0]) * (s - l[1]) * (s - l[2]), 0)) / s;
+        if (!best || r > best[2]) {{
+          const c = [0, 1, 2].map(i => (p[0][i] + p[1][i] + p[2][i]) / 3 - o[i]);
+          best = [c[0] * x[0] + c[1] * x[1] + c[2] * x[2], c[0] * y[0] + c[1] * y[1] + c[2] * y[2], r];
+        }}
+      }}
+      return best;""", face["name"])
+    print("circle spot:", uv)
+    check("joined: room for a Ø4 circle on the face", bool(uv) and uv[2] > 2.5)
+    print(call("add_feature", type="sketch", plane={"face": face["name"]}, shapes=[{"circle": {"x": uv[0], "y": uv[1], "d": 4}}]))
+    built()
+    out = call("add_feature", type="extrude", d=5, op="add")
+    print("joined extrude:", out[:200])
+    built()
+    st = js(f"return {M}.result.features.at(-1)")
+    v1 = js(f"return {M}.result.body.volume")
+    print("joined volume:", v0, "->", v1, "want +", round(math.pi * 4 * 5, 4), "status", {x: st.get(x) for x in ("id", "ok", "error")})
+    check("joined: the extrude onto the imported solid is built", st.get("ok") is True and "failed" not in out)
+    check("joined: the volume grows by π · 2² · 5", abs(v1 - v0 - math.pi * 4 * 5) < 0.02 * math.pi * 4 * 5)
+    d.save_screenshot(os.path.join(OUT, "step_sketch_joined_extrude.png"))
 
     # ---- 4. in an assembly: the imported part's face
     print(call("new_assembly", name="Sestava"))

@@ -160,7 +160,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_step_sketch.py <url> <dir>` covers a sketch on an imported STEP's face, in Czech with real clicks
    (nist_ctc_01): 👁 reference — its flat face with holes offers ✏ Skica na této ploše (plane = the face F1:f<n>, origin
    its centre) and ⇱ Převzít obrys plochy do skici (its loops as lines / arcs / circles held by one ⇱ relation, dof 0,
-   their length = the face's edges', extruded 5 mm = area × 5 in the face's box); ▣ joined — the same; an assembly —
+   their length = the face's edges', extruded 5 mm = area × 5 in the face's box); ▣ joined — the same, and a Ø4 circle
+   on that face extruded 5 mm add is built (+ π · 2² · 5: the file's curves beside its solid once made it fail); an assembly —
    ✏ … → upravit díl zde and ＋ Nový díl se skicou na této ploše (a new part, the file see-through, the sketch on that
    face); the AI through /api/agent/call (find_refs ref faces, shapes [{from_face}], extrude); no console errors.
    `tools/e2e_select_from_point.py <url> <dir>` covers a snap point offering what it belongs to (a hole's centre:

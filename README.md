@@ -20,7 +20,9 @@ Use **📂 Open ▾** to open a file. It offers:
 - a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
   choose (Shift+drop: straight to a quick part, as before);
 - a **CAD / 3D file**: STL / OBJ / 3MF / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
-  solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
+  solid as the first step (sketch on its faces, drill it, build a cover around it, extrude new material onto it or cut
+  into it; a 40 MB STEP in under a minute). Curves, points and loose surfaces a file holds beside its solid are left
+  out of the solid; in a file of several bodies a joined or cut step changes only the bodies it touches;
   STL / OBJ / 3MF open as a quick part (sliced, for printing; Shift+drop a STEP for that too; a 3MF from a slicer or our
   own export: all its objects, placed as in the file). A **STEP assembly** — what
   SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
