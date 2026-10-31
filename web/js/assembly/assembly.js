@@ -2991,6 +2991,7 @@ export class Assembly {
     this.renderBar();
     this.renderList();
     this.renderProps();
+    this.renderStatus(); // (⚠ not held: a sub-assembly's joints changed in its tab may leave one of this one's)
     if (cancelled) { this.hooks.toast(t('Cancelled — the parts not built are shown as they were (a change builds them).'), 'info', 6000); return; } // (no clash check either)
     this.scheduleClashes(); // (the ⚠ button tells)
   }
@@ -3451,21 +3452,33 @@ export class Assembly {
   /** A part (by id) at M held by its joints, the parts it hangs on staying where they are -> M. probe: only trying
    *  (nothing is noted on the joints). */
   holdPart(id, M, probe = false, skip = null) {
-    let fixed = null;
     const mine = (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m));
-    const ordered = [...mine.filter((m) => m.type !== 'rigid'), ...mine.filter((m) => m.type === 'rigid')]; // (🔗 fixed together: last, it has the last word)
-    ordered.forEach((m, k) => {
-      try {
-        const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
-        M = r.M;
-        fixed = fixed || r.fixed;
-        if (!probe) { delete m.broken; if (k === 0) m.centred = true; }
-      } catch { if (!probe) m.broken = true; }
-    });
-    for (const m of ordered.length > 1 ? ordered.filter((x) => x.type === 'ball' || x.type === 'seat') : []) { // ● a ball's centre back where it goes (a later joint turned it about another point)
-      try { M = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), false, fixed, false).M; } catch { /* (marked above) */ }
+    // a part inside a sub-assembly held by the top assembly's joints too: those first, then its own sub-assembly's
+    // joints from there (they have the last word: the rod stays on the body's axis — a top joint they do not let
+    // hold is ⚠ not held, it does not pull the part out of its own joints)
+    const outer = mine.filter((m) => this.outerMate(m)), runs = outer.length && outer.length < mine.length ? [outer, mine.filter((m) => !outer.includes(m))] : [mine];
+    for (const run of runs) {
+      let fixed = null;
+      const ordered = [...run.filter((m) => m.type !== 'rigid'), ...run.filter((m) => m.type === 'rigid')]; // (🔗 fixed together: last, it has the last word)
+      ordered.forEach((m, k) => {
+        try {
+          const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
+          M = r.M;
+          fixed = fixed || r.fixed;
+          if (!probe) { delete m.broken; if (k === 0) m.centred = true; }
+        } catch { if (!probe) m.broken = true; }
+      });
+      for (const m of ordered.length > 1 ? ordered.filter((x) => x.type === 'ball' || x.type === 'seat') : []) { // ● a ball's centre back where it goes (a later joint turned it about another point)
+        try { M = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), false, fixed, false).M; } catch { /* (marked above) */ }
+      }
     }
     return M;
+  }
+
+  /** A top assembly's joint on a part that moves inside a placed sub-assembly, in the engines that hold that part:
+   *  a sub-assembly's own (innerAsm: "^J2") or the flat one (flatAsm: "J2" on "I3/I2", its own ones "I3/J1"). */
+  outerMate(m) {
+    return String(m.id).startsWith('^') || (!!this.flatOf && String(m.move).includes('/') && !String(m.id).includes('/'));
   }
 
   /** Place every joined part again: each part's joints in order, a part after the parts it hangs on (placeAll); then
@@ -3484,6 +3497,22 @@ export class Assembly {
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
     if (this.doc.couplings) followCouplings(this, before, drive); // (⚙ a gear's turn turns the other one — inside a sub-assembly too)
+    this.checkJoints();
+    if (!drive) this.closeThrough();
+  }
+
+  /** A joint of this assembly on a part that moves inside a placed sub-assembly, not held (a gas strut held by its rod's
+   *  eye here and its body's eye there: the strut turns and pulls out to reach both): the loop through both levels
+   *  solved together (flatAsm) — kept when all its joints, the sub-assembly's own too, hold that way. */
+  closeThrough() {
+    if (this.owner || this.flatOf || !this.unmet().some((m) => this.insideMate(m))) return;
+    const fl = this.flatAsm();
+    if (!fl) return;
+    const snap = fl.doc.instances.map((x) => [x, [...x.matrix], structuredClone(x.hang)]);
+    let ok = false;
+    try { fl.applyMates(); ok = !fl.unmet().length; } catch { ok = false; }
+    if (!ok) { for (const [x, m, hang] of snap) { x.matrix = m; x.hang = hang; } return; } // (it cannot close: as it is, the joint ⚠ not held)
+    this.keepFlat(fl, null);
     this.checkJoints();
   }
 
@@ -3981,6 +4010,7 @@ export class Assembly {
     const it = this.inst(id);
     if (!it || this.kindOf(it.part) !== 'assembly') throw new Error(`${id} is not a sub-assembly.`);
     if (on) it.rigid = true; else delete it.rigid;
+    if (it.inner) this.settleInner(it); // (its parts as moved here, held by its own joints again: none pulled out of them)
     this.applyMates();
     this.commit();
   }

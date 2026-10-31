@@ -55,6 +55,19 @@ Date: 2026-10-25. Written by the architect agent.
   else the top's joint on "I1/<face>"; get_assembly lists `parts_inside` per sub-assembly (40 at most). A sub-assembly's
   panel says how many joints it keeps (read only here). No per-click cost on big assemblies: innerFace walks the key's
   levels only; the engine copies one sub-assembly's document when two faces are picked. tools/e2e_nested_join.py.
+- **A sub-assembly's joints hold in its parent (2026-11-01)** (the owner: "Sestava brány does not respect the joints of
+  its gas strut, moving or rigid"). Measured on his project: in Plynová vzpěra 175N_oa_6's tab the rod on the body's
+  axis (0 mm), in Sestava brány 9.40 mm beside it, nothing ⚠. Cause: the parent's J2 (the body's eye onto a pin, a
+  part moving inside the strut: insideMate) went into the strut's engine (innerAsm "^J2") after the strut's own
+  joints, and holdPart's last joint wins — the body pulled onto the pin, off the rod, kept as the placement's `inner`
+  (rigid too: setRigid kept that `inner`); the parent's checkJoints saw its own joints held, the strut's not checked.
+  The strut's stroke is locked (J1 gap −24.5): eye to eye 159.49 mm, pin to pin 164.20 — it cannot reach. Fix:
+  holdPart places a part held by both levels' joints by the top's ones first (`outerMate`: "^J…" in innerAsm, a top
+  joint on "I3/I2" in flatAsm), then its own sub-assembly's from there (a fresh run: they have the last word);
+  applyMates then tries the loop through both levels (`closeThrough`: flatAsm solved, kept when every joint holds —
+  a strut with a free stroke turns about one pin and pulls out to the other); setRigid holds a moved placement's
+  parts by their own joints again; refresh renders the status (⚠ n not held). Now: on the axis (0 mm), J2 ⚠ not
+  held. tools/e2e_sub_joint_parent.py (synthetic strut + the owner's project when the server's data has it).
 - **☰ The project tree folds and finds (2026-10-31)** (the owner: "the project tree should be expandable / collapsible
   and have the same search as the assembly menu"). parts.js renderTree: each row knows its key (the path of part ids
   from its top row) and its parent's; a row with rows under it (an assembly's parts, a part's drawing sheets) gets
