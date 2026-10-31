@@ -58,11 +58,11 @@ try:
     wait("return document.querySelectorAll('#tab-ai .ai-thumb').length === 2")
     print("after drop:", thumbs(), "| names", js("return [...document.querySelectorAll('#tab-ai .ai-thumb')].map(t => t.title)"))
 
-    # a text file is refused
-    js("""const dt = new DataTransfer(); dt.items.add(new File(['x'], 'notes.txt', { type: 'text/plain' }));
+    # an unknown type is refused (text files are attached as chips: tools/e2e_chat_attach.py)
+    js("""const dt = new DataTransfer(); dt.items.add(new File(['x'], 'setup.exe', { type: 'application/octet-stream' }));
       document.querySelector('#tab-ai').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));""")
     time.sleep(0.3)
-    print("text file ignored:", thumbs() == 2)
+    print("unknown file ignored:", thumbs() == 2 and not js("return document.querySelectorAll('#tab-ai .ai-file').length"))
 
     # ✕ removes one
     d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-thumb-x")[1].click()

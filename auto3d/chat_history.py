@@ -40,7 +40,8 @@ def keep(ev: dict) -> dict | None:
     """A chat event as the conversation keeps it (None: not kept — streaming pieces, status lines)."""
     t = ev.get("type")
     if t == "user":
-        return {"type": "user", "text": ev.get("text") or "", "photos": ev.get("photos") or []}
+        return {"type": "user", "text": ev.get("text") or "", "photos": ev.get("photos") or [],
+                **({"files": ev["files"]} if ev.get("files") else {})}  # (📎 attached files: name, size, path)
     if t == "text" and (ev.get("text") or "").strip():
         return {"type": "text", "text": ev["text"]}
     if t == "tool":
@@ -132,6 +133,8 @@ def summary(events: list, limit: int = 4000) -> str:
         text = re.sub(r"\s+", " ", ev.get("text") or "").strip()
         if t == "user" and ev.get("photos"):
             text = f"{text} [{len(ev['photos'])} photo(s)]".strip()
+        if t == "user" and ev.get("files"):
+            text = f"{text} [Attached: {', '.join(f.get('path') or f.get('name') or '' for f in ev['files'])}]".strip()
         cut = 300 if t == "user" else 400
         lines.append(f"{'User' if t == 'user' else 'AI'}: {text[:cut]}{'…' if len(text) > cut else ''}")
     flush()

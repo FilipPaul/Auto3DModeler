@@ -2208,21 +2208,36 @@ def api_chat_photo(name):
     return send_from_directory(CHAT_PHOTOS, name)
 
 
+CHAT_FILES = DATA / "agent" / "attachments"
+
+
+def _chat_files(items):
+    """Files attached to a chat message ([{name, data: data URL}], not photos) -> saved under data/agent/attachments,
+    with what the message to Claude says of each (auto3d/chat_attach.py: a text file's text, a CAD file's path)."""
+    from auto3d import chat_attach
+    files = []
+    for f in items or []:
+        data = f.get("data") or ""
+        files.append((str(f.get("name") or "file"), base64.b64decode(data.split(",", 1)[1] if data.startswith("data:") else data)))
+    return chat_attach.attach(CHAT_FILES, files)
+
+
 @app.post("/api/chat/send")
 def api_chat_send():
     body = request.get_json(force=True)
     text = (body.get("text") or "").strip()
     try:
         photos = [_save_chat_photo(p) for p in (body.get("photos") or [])[:MAX_CHAT_PHOTOS]]
+        files = _chat_files(body.get("files"))  # (📎 other files: text into the message, CAD files by their path)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if not text and not photos:
+    if not text and not photos and not files:
         return jsonify({"error": "Empty message."}), 400
     try:
         chat = _chat(_client())
         if isinstance(body.get("project"), dict):  # (the project on the page: a new conversation is about it)
             chat.project = {"id": str(body["project"].get("id") or ""), "name": str(body["project"].get("name") or "")}
-        chat.send(text, photos)
+        chat.send(text, photos, files)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})

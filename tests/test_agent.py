@@ -788,7 +788,7 @@ class TestChatPhotos(unittest.TestCase):
         sent = []
 
         class Stub:
-            def send(self, text, photos):
+            def send(self, text, photos, files=None):
                 sent.append((text, photos))
 
         orig = server._chat

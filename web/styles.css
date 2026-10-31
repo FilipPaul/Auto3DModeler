@@ -495,6 +495,12 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 .ai-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-thumb-x { position: absolute; top: 2px; right: 2px; border: 0; border-radius: 4px; background: #000a; color: #fff; font-size: 11px; padding: 1px 4px; cursor: pointer; }
 .ai-msg-photo { display: block; max-width: 160px; max-height: 120px; border-radius: 5px; margin-bottom: 4px; }
+.ai-file { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 2px 8px; background: var(--bg); font-size: 12px; align-self: center; }
+.ai-file > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-file small { opacity: .7; white-space: nowrap; }
+.ai-file-x { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 2px; font-size: 11px; opacity: .8; }
+.ai-file-x:hover { opacity: 1; color: #ffb3ad; }
+.ai-files { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 #tab-ai.drop .ai-form { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 8px; }
 .ai-panel.ai-busy .ai-status::before { content: '● '; color: var(--accent); animation: pulse 1s infinite; }
 .chip:disabled { opacity: .4; cursor: default; }

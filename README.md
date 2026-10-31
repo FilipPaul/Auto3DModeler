@@ -1502,11 +1502,20 @@ restarted.
 it. The list shows them newest first; **Load** opens the project as it was then — the project on screen is kept in
 the history first ("before loading"), so nothing is lost. ✕ deletes a state; the oldest go after 300.
 
-**Photos**: attach photos to a message with **📎 Photo**, by pasting (Ctrl+V) or by dropping them on the chat.
-Thumbnails show before you send, and ✕ removes one. You can attach up to 5 photos of up to 10 MB each; very
-large ones are scaled down to 2400 px. Claude sees the photos and can trace one into a part (for example
-*"make a cookie cutter from this, 90 mm wide"*). Photos are saved in `data/agent/photos/` so the tracing tools
-can open them.
+**Attachments**: attach photos and files to a message with **📎 Attachment** (📎 Příloha), by pasting (Ctrl+V) or by
+dropping them on the chat — up to 10 per message. Photos show as thumbnails, other files as chips (icon, name,
+size); ✕ removes one.
+- **Photos** (PNG, JPG, WEBP, GIF): up to 5 of up to 10 MB each; very large ones are scaled down to 2400 px. Claude
+  sees them and can trace one into a part (for example *"make a cookie cutter from this, 90 mm wide"*). They are
+  saved in `data/agent/photos/` so the tracing tools can open them.
+- **Text files** (.txt, .md, .csv, .tsv, .json, .xml, .yaml, .log, .ini / .cfg, source code such as .py / .js …):
+  their text goes into the message, with the file's name — whole up to 60 kB per file and 150 kB per message
+  (about 40k tokens); a longer one goes in as its first 200 lines and Claude is given the file to read the rest.
+  The encoding is detected (UTF-8, else Czech Windows-1250 or Western Windows-1252), so Czech letters come through.
+- **CAD files and drawings** (.step / .stp, .igs / .iges, .stl, .obj, .3mf, .dxf, .dwg, .pdf, a Gerber .zip, .a3d,
+  .svg; up to 50 MB): Claude gets the saved file's path and opens it with its tools when the message is about it.
+- Other types are refused with a message (*"Tento typ souboru zatím neumím přiložit"*). Files are saved in
+  `data/agent/attachments/`; the kept conversation shows the chips again.
 
 - It runs on **your own Claude Code** installation and sign-in (a Claude Pro / Max subscription or an API key):
   the app starts `claude -p` in the background — found on the PATH, in `~/.local/bin`, or the newest copy

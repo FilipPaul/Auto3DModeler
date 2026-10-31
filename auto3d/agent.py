@@ -379,19 +379,21 @@ class ChatSession:
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
         return prime
 
-    def send(self, text: str, photos: list | None = None):
+    def send(self, text: str, photos: list | None = None, files: list | None = None):
         """A user message, optionally with photos: [{"name", "media_type", "data" (base64), "path"}]. Claude
-        sees each photo and is told where it was saved (so it can trace it with trace_picture)."""
-        photos = photos or []
+        sees each photo and is told where it was saved (so it can trace it with trace_picture). files: other
+        attachments (chat_attach.attach: [{"name", "size", "path", "text"}]) — their `text` goes into the message."""
+        photos, files = photos or [], files or []
         if self.conv is None:
             self.conv = chat_history.new(self.project.get("id", ""), self.project.get("name", ""))
             self.emit({"type": "conv", **self.conv_meta()})
         self.pending = None
         prime = "" if self.running() else self.start()
         self.busy = True
-        self.emit({"type": "user", "text": text, "photos": [{"name": p["name"], "url": p["url"]} for p in photos]})
+        self.emit({"type": "user", "text": text, "photos": [{"name": p["name"], "url": p["url"]} for p in photos],
+                   **({"files": [{k: f[k] for k in ("name", "size", "path")} for f in files]} if files else {})})
         content = [{"type": "image", "source": {"type": "base64", "media_type": p["media_type"], "data": p["data"]}} for p in photos]
-        note = "\n".join(f"[Attached photo: {p['path']}]" for p in photos)
+        note = "\n".join([*(f"[Attached photo: {p['path']}]" for p in photos), *(f["text"] for f in files)])
         content.append({"type": "text", "text": "\n\n".join(x for x in (expand_command(text), note) if x)})
         self.pending = content
         self._write(content, prime)

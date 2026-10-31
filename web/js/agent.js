@@ -134,6 +134,19 @@ const TOOL_LABEL = {
 };
 
 const MAX_PHOTOS = 5, PHOTO_EDGE = 2400; // a longer side than this is scaled down (Claude sees ~1600 px anyway)
+// 📎 other files (auto3d/chat_attach.py has the same lists): a text file's text goes into the message (whole up to
+// 60 kB, else its first 200 lines), a CAD file or drawing is saved and named for the AI to open
+const MAX_ATTACH = 10, MAX_FILE_MB = 50, TEXT_CAP = 60 * 1024;
+const TEXT_EXT = 'txt md csv tsv json xml yaml yml log ini cfg conf toml py js mjs ts html css c h cpp hpp cs java sql sh bat ps1 vb bas gcode nc'.split(' ');
+const FILE_EXT = 'step stp igs iges stl obj 3mf dxf dwg pdf zip a3d svg'.split(' ');
+const extOf = (name) => (/\.([^.]+)$/.exec(name || '')?.[1] || '').toLowerCase();
+/** 'photo', 'text', 'file' (saved, its path to the AI) or null (not attached) for a dropped / chosen file. */
+const attachKind = (f) => (/^image\/(png|jpeg|webp|gif)$/.test(f.type) ? 'photo' : TEXT_EXT.includes(extOf(f.name)) ? 'text' : FILE_EXT.includes(extOf(f.name)) ? 'file' : null);
+const fileIcon = (name) => (TEXT_EXT.includes(extOf(name)) ? '📄' : /^(dxf|dwg|pdf|svg)$/.test(extOf(name)) ? '📐' : extOf(name) === 'zip' ? '🗜' : '🧊');
+const sizeLabel = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.max(1, Math.round(n / 1024))} kB` : `${n} B`);
+const readData = (file) => new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = fail; r.readAsDataURL(file); });
+/** An attached file as a chip: icon, name, size (title: where it was saved, in a sent message). */
+const fileChip = (f, x = '') => `<span class="ai-file" title="${escapeHtml(f.path || f.name)}"><span data-no-i18n>${fileIcon(f.name)} ${escapeHtml(f.name)}</span> <small>${sizeLabel(f.size || 0)}</small>${x}</span>`;
 
 /** A photo file -> data URL, scaled down when very large (keeps PNG for small pictures, else JPEG). */
 async function photoData(file) {
@@ -193,7 +206,7 @@ export class ChatPanel {
         · “Engrave my name on the flange”.</p>
         <p class="hint">“Make a 60 × 40 × 5 mm plate with four Ø4 holes 6 mm from the corners and rounded edges” · “Put the pin into
         the hole of the plate”.</p>
-        <p class="hint">📎 Attach a photo (or paste / drop it here) — “Make a cookie cutter from this, 90 mm wide”.</p>
+        <p class="hint">📎 Attach a photo or a file — text, CSV, STEP, DXF, PDF … (or paste / drop it here) — “Make a cookie cutter from this, 90 mm wide”.</p>
         <p class="hint">“Show me how to add a hole” — Claude points at each button in turn and waits for your click.</p>
         <p class="hint">/uiTester — Claude designs test parts, tries the app's buttons and reports what does not work · /suggest — ideas for new features.</p>
         <p class="hint">Runs on your own Claude Code sign-in (Claude subscription or API key) — the app only gives Claude its part tools.</p>
@@ -203,7 +216,7 @@ export class ChatPanel {
         <div class="ai-rec" hidden data-no-i18n></div>
         <textarea rows="3" placeholder="Message Claude… (Enter = send, Shift+Enter = new line)"></textarea>
         <div class="ai-send">
-          <label class="btn small ai-attach" title="Attach photos — or paste (Ctrl+V) or drop them here. Claude sees them and can trace one into a part.">📎 Photo<input type="file" accept="image/*" multiple hidden></label>
+          <label class="btn small ai-attach" title="Attach photos or files (text, CSV, code, STEP, STL, DXF, PDF …) — or paste (Ctrl+V) or drop them here. Claude sees photos, reads text files and opens CAD files.">📎 Attachment<input type="file" multiple hidden></label>
           <span class="ai-grow"></span>
           <button type="submit" class="btn primary small">Send</button><button type="button" class="btn small ai-stop" hidden>Stop</button>
         </div>
@@ -213,19 +226,20 @@ export class ChatPanel {
     const ta = this.$('textarea');
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } });
     this.$('.ai-form').addEventListener('submit', (e) => { e.preventDefault(); this.send(); });
-    // photos: 📎, paste or drop — shown as thumbnails until sent
+    // 📎 attachments: chosen, pasted or dropped — photos as thumbnails, other files as chips until sent
     this.photos = [];
+    this.files = [];
     const fileIn = this.$('.ai-attach input');
     fileIn.addEventListener('change', () => { this.addPhotos(fileIn.files); fileIn.value = ''; });
     ta.addEventListener('paste', (e) => {
-      const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+      const files = [...(e.clipboardData?.files || [])];
       if (files.length) { e.preventDefault(); this.addPhotos(files); }
     });
-    root.addEventListener('dragover', (e) => { if ([...e.dataTransfer.items].some((i) => i.type.startsWith('image/'))) { e.preventDefault(); e.stopPropagation(); root.classList.add('drop'); } });
+    root.addEventListener('dragover', (e) => { if ([...e.dataTransfer.items].some((i) => i.kind === 'file')) { e.preventDefault(); e.stopPropagation(); root.classList.add('drop'); } });
     root.addEventListener('dragleave', (e) => { if (!root.contains(e.relatedTarget)) root.classList.remove('drop'); });
     root.addEventListener('drop', (e) => {
       root.classList.remove('drop');
-      const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith('image/'));
+      const files = [...e.dataTransfer.files];
       if (files.length) { e.preventDefault(); e.stopPropagation(); this.addPhotos(files); }
     });
     this.$('.ai-stop').addEventListener('click', () => fetch(withClient('/api/chat/stop'), { method: 'POST' }));
@@ -495,9 +509,18 @@ export class ChatPanel {
   /** The answered questions as the message. */
   askText() { return (this.pendingAsks || []).filter((c) => c.answered && c.answered !== '…').map((c) => `${c.question} → ${c.answered}`).join('\n'); }
 
+  /** 📎 Attachments (chosen, pasted or dropped): photos as today, text and CAD files as chips; others refused in-app. */
   async addPhotos(files) {
     for (const f of [...files]) {
-      if (this.photos.length >= MAX_PHOTOS) { this.toast(`At most ${MAX_PHOTOS} photos per message.`, 'warning'); break; }
+      const kind = attachKind(f);
+      if (!kind) { this.toast(`${f.name}: this type of file cannot be attached yet.`, 'error'); continue; }
+      if (this.photos.length + this.files.length >= MAX_ATTACH) { this.toast(`At most ${MAX_ATTACH} attachments per message.`, 'warning'); break; }
+      if (kind !== 'photo') {
+        if (f.size > MAX_FILE_MB * 1048576) { this.toast(`${f.name} is larger than ${MAX_FILE_MB} MB.`, 'error'); continue; }
+        this.files.push({ name: f.name, size: f.size, kind, data: await readData(f) });
+        continue;
+      }
+      if (this.photos.length >= MAX_PHOTOS) { this.toast(`At most ${MAX_PHOTOS} photos per message.`, 'warning'); continue; }
       try {
         this.photos.push({ name: f.name || 'photo.png', data: await photoData(f) });
       } catch { this.toast(`${f.name} is not a photo (PNG, JPG, WEBP or GIF).`, 'error'); }
@@ -508,8 +531,13 @@ export class ChatPanel {
 
   renderPhotos() {
     const box = this.$('.ai-photos');
-    box.hidden = !this.photos.length;
-    box.innerHTML = '';
+    box.hidden = !this.photos.length && !this.files.length;
+    box.innerHTML = this.files.map((f, i) => fileChip(f, `<button type="button" class="ai-file-x" data-i="${i}" title="Remove this file">✕</button>`)).join('');
+    box.querySelectorAll('.ai-file').forEach((c, i) => {
+      if (this.files[i].kind === 'text') c.title = this.files[i].size > TEXT_CAP ? 'A long text: its first 200 lines go into the message, the AI gets the whole file' : 'Its text goes into the message';
+      else c.title = 'Saved for the AI — it gets the path and can open the file';
+    });
+    box.querySelectorAll('.ai-file-x').forEach((b) => b.addEventListener('click', () => { this.files.splice(+b.dataset.i, 1); this.renderPhotos(); }));
     this.photos.forEach((ph, i) => {
       const d = document.createElement('div');
       d.className = 'ai-thumb';
@@ -524,18 +552,19 @@ export class ChatPanel {
   async send() {
     const ta = this.$('textarea');
     let text = ta.value.trim();
-    if ((!text && !this.photos.length && this.recOn == null) || this.busy) return;
+    if ((!text && !this.photos.length && !this.files.length && this.recOn == null) || this.busy) return;
     if (this.access && this.access.state !== 'ok') { this.showAccess(true); return; } // (set it up first: the typed text stays)
-    const photos = this.photos;
+    const photos = this.photos, files = this.files.map(({ name, data }) => ({ name, data }));
     if (this.recOn !== null && this.recOn !== undefined) { text = `${text || t('Look at what I did.')}
 
 ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // (⏺ the recording with it)
     ta.value = '';
     this.photos = [];
+    this.files = [];
     this.renderPhotos();
     this.setBusy(true);
     try {
-      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT, project: this.project?.() || null }) });
+      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, files, client: CLIENT, project: this.project?.() || null }) });
       if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     } catch (e) {
       this.setBusy(false);
@@ -609,7 +638,8 @@ ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // 
       case 'user':
         this.current = null;
         this.turnPrompt = ev.text || '';
-        this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${escapeHtml(ev.text).replace(/\n/g, '<br>')}`);
+        this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${
+          ev.files?.length ? `<div class="ai-files">${ev.files.map((f) => fileChip(f)).join('')}</div>` : ''}${escapeHtml(ev.text).replace(/\n/g, '<br>')}`);
         if (!ev.old) this.setBusy(true); // (a kept conversation's message, shown again: no turn runs)
         if (this.conv && !this.conv.title) { this.conv.title = (ev.text || '').trim().split('\n')[0].slice(0, 80); this.renderConv(); }
         break;
