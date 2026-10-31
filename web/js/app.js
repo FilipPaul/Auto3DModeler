@@ -48,6 +48,7 @@ import { initAiLock } from './ailock.js';
 import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
 import { initStart, initWindowDrop } from './start.js';
+import { initFileMenus, markExport } from './filemenus.js';
 import { initNewProject } from './newproject.js';
 import { initMouseBack } from './mouseback.js';
 import { initStaleNotice } from './stale.js';
@@ -630,14 +631,24 @@ async function openDrawing(file, more = []) {
     for (const msg of d.issues || []) toast(msg, 'info', 8000);
   } catch (e) { toast(e.message, 'error', 9000); } finally { b.done(); }
 }
-$('cadInput').addEventListener('change', (e) => {
-  const all = [...e.target.files], f = all[0];
-  e.target.value = '';
+/** CAD / 3D / PCB files picked (📂 Open › STEP / IGES, STL / OBJ / 3MF, DXF / DWG, Gerber, ODB++): each the way its type opens. */
+function openCad(all) {
+  const f = all[0];
   // several Gerber / drill files picked together: one board (a drill file may be a .txt)
   if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) openDrawing(f, all.slice(1));
   // several STEP files: an assembly and the part files it refers to (CATIA) — the server opens the top one with them
   else if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) openSolid(f, all.slice(1));
   else if (f) (DRAWING_RE.test(f.name) ? openDrawing : OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
+}
+for (const id of ['cadInput', 'stepInput', 'meshInput', 'dxfInput', 'gerberInput', 'odbInput']) {
+  $(id).addEventListener('change', (e) => { const all = [...e.target.files]; e.target.value = ''; openCad(all); });
+}
+// 🗀 a folder of loose Gerber / drill files: one board (its other files left out)
+$('gerberDirInput').addEventListener('change', (e) => {
+  const all = [...e.target.files].filter((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name));
+  e.target.value = '';
+  if (all.length) openDrawing(all[0], all.slice(1));
+  else toast('There are no Gerber or drill files in that folder.', 'error', 6000);
 });
 $('pdfInput').addEventListener('change', (e) => { if (e.target.files[0]) openPdf(e.target.files[0]); e.target.value = ''; });
 $('sampleBtn').addEventListener('click', async () => {
@@ -1711,8 +1722,10 @@ canvas.addEventListener('pointercancel', endDrag);
 
 // ------------------------------------------------------------------ export / projects
 $('exportBtn').addEventListener('click', (e) => { e.stopPropagation(); markExportMenu(); $('exportBtn').parentElement.classList.toggle('open'); });
-/** ⏮ A 3D model rolled back: the Export menu's items marked, the note on top — its files are the part as the bar stands. */
+/** Export ▾: what fits the tab on screen lit, the rest greyed with its reason (filemenus.js); ⏮ a 3D model rolled back:
+ *  the items marked, the note on top — its files are the part as the bar stands. */
 function markExportMenu() {
+  markExport(state.workspace, { canSave: !$('saveBtn').disabled });
   const note = state.workspace === 'model' ? rollbackNote(modeler.part) : '', menu = $('exportMenu');
   menu.classList.toggle('rolled', !!note);
   menu.querySelector('.menu-note')?.remove();
@@ -1721,19 +1734,20 @@ function markExportMenu() {
   el.setAttribute('data-no-i18n', '');
   menu.prepend(el);
 }
-$('openBtn').addEventListener('click', (e) => { e.stopPropagation(); $('openMenuWrap').classList.toggle('open'); });
-// a choice closes the menu (the file dialog opens from the label)
-$('openMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item, button')) setTimeout(() => $('openMenuWrap').classList.remove('open'), 0); });
-document.addEventListener('click', (e) => { if (!e.target.closest('#openMenuWrap')) $('openMenuWrap').classList.remove('open'); });
-document.addEventListener('click', () => $('exportBtn').parentElement.classList.remove('open'));
+// a click closes Export ▾ (not one on its headers or a greyed item)
+document.addEventListener('click', (e) => { if (!e.target.closest('#exportMenu') || e.target.closest('[data-fmt]:not(.off)')) $('exportMenuWrap').classList.remove('open'); });
 $('exportMenu').addEventListener('click', async (e) => {
-  const fmtName = e.target.dataset.fmt;
-  if (!fmtName) return;
-  const b = busy(fmtName === 'print' ? 'Preparing the print…' : t2('Exporting {fmt}…', { fmt: fmtName.toUpperCase() }), { delay: 300 });
+  const item = e.target.closest('[data-fmt]'), fmtName = item?.dataset.fmt;
+  if (!fmtName || item.classList.contains('off')) return;
+  if (fmtName === 'a3d') { $('saveBtn').click(); return; } // (💾 the project: Save project)
+  const b = busy(fmtName === 'print' ? 'Preparing the print…' : t2('Exporting {fmt}…', { fmt: ({ pdfset: 'PDF', bomcsv: 'CSV', bomxlsx: 'XLSX' })[fmtName] || fmtName.toUpperCase() }), { delay: 300 });
   try { await exportAs(fmtName); } finally { b.done(); }
 });
 /** ⬇ Export in the workspace on screen. */
 async function exportAs(fmtName) {
+  if (fmtName === 'pdfset' && state.workspace === 'assembly') { $('exportMenuWrap').classList.remove('open'); await drawingSetPdf(project.active); return; }
+  if (fmtName === 'bomcsv' && state.workspace === 'assembly') { $('exportMenuWrap').classList.remove('open'); await assembly.exportBom(); return; }
+  if (fmtName === 'bomxlsx' && state.workspace === 'assembly') { $('exportMenuWrap').classList.remove('open'); await assembly.exportBomXlsx(); return; }
   if (fmtName === '3mf' && (state.workspace === 'model' || state.workspace === 'assembly')) { $('exportBtn').parentElement.classList.remove('open'); await export3mf(); return; }
   if (state.workspace === 'model') { $('exportBtn').parentElement.classList.remove('open'); await modeler.export(fmtName); return; }
   if (state.workspace === 'assembly') { $('exportBtn').parentElement.classList.remove('open'); await assembly.export(fmtName); return; }
@@ -2724,6 +2738,7 @@ $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.set
 
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openDemo, toast }); }); // 🎬 (demos.js)
+initFileMenus({ autosave, toast }); // 📂 Open ▾ / Export ▾: sections, the file inputs by kind, 🕘 the last projects, the keys
 if (!opened.has('sample') && !opened.has('project') && !opened.has('new')) setTimeout(() => autosave.offerLast(), 600);
 // 📄 New project (Open ▾, the project widget's ⋯, Ctrl+Alt+N): the one on screen kept, this window starts empty;
 // ✕ Close project (Open ▾, the ⋯, 📄's box): the same, back to the start screen with it first in 🕘 Recent projects

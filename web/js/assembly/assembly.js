@@ -54,7 +54,7 @@ import { lookColor, finishOf, cogText } from '../modeler/materials.js';
 import { exprField } from '../paramsui.js';
 import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
-import { openBomWindow } from './bomview.js';
+import { openBomWindow, bomXlsx } from './bomview.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
@@ -1462,6 +1462,15 @@ export class Assembly {
     if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: bom.rows.length }), 'ok');
   }
 
+  /** ⬇ BOM (Excel): the summary and the structured BOM, a sheet each (bomview.js bomXlsx; the server needs openpyxl). */
+  async exportBomXlsx() {
+    const aid = this.hooks.selfId?.(), name = `${this.hooks.safeName()} — ${t('BOM')}`;
+    try {
+      const blob = await bomXlsx(this.bomCtx(), aid, this.numberingOf(aid), name);
+      if (await this.hooks.download(blob, `${name}.xlsx`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) }).rows.length }), 'ok');
+    } catch (e) { this.hooks.toast(e.message, 'error', 8000); }
+  }
+
   /** 📋 BOM: the window with the whole BOM (Summary / Structured) of this assembly or any of its sub-assemblies. */
   openBom() {
     const aid = this.hooks.selfId?.(), seen = new Set([aid]), choices = [{ id: aid, name: this.partName(aid), depth: 0 }];
@@ -2803,6 +2812,7 @@ export class Assembly {
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; } finally { stop(); }
     }));
+    this.hooks.onChange?.(); // (Export ▾: the bodies are there — a demo just opened enables it)
     return cancelled;
   }
 

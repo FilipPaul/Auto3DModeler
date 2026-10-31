@@ -173,11 +173,11 @@ try:
     check("Export ▾ enabled with a solid", js("return !document.getElementById('exportBtn').disabled"))
     d.find_element(By.ID, "exportBtn").click()
     time.sleep(0.3)
-    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu button") if b.is_displayed()]
+    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu [data-fmt]:not(.off) .fm-t b") if b.is_displayed()]
     check("Export ▾: STL and STEP in sight", any(x.startswith("STL") for x in fm) and any(x.startswith("STEP") for x in fm))
     key(Keys.ESCAPE)
-    d.find_element(By.ID, "exportBtn").click()
     time.sleep(0.2)
+    check("Esc closes Export ▾", not js("return document.getElementById('exportMenuWrap').classList.contains('open')"))
     js(f"{M}.view.setView('iso')")
     time.sleep(0.6)
     cv = d.find_element(By.CSS_SELECTOR, "#modelViewport canvas")

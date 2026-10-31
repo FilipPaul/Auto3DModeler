@@ -268,10 +268,10 @@ try:
     check("Export ▾ enabled on a sheet", js("return !document.getElementById('exportBtn').disabled"))
     d.find_element(By.ID, "exportBtn").click()
     time.sleep(0.3)
-    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu button") if b.is_displayed()]
-    check("Export ▾ on a sheet: PDF, DXF and Tisk only", len(fm) == 3 and fm[0].startswith("PDF") and fm[1].startswith("DXF") and "Tisk" in fm[2], str(fm))
+    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu [data-fmt]:not(.off):not([data-fmt=a3d]) .fm-t b") if b.is_displayed()]
+    check("Export ▾ on a sheet: PDF, DXF and Tisk only lit (and the project)", len(fm) == 3 and "PDF" in fm[0] and fm[1].startswith("DXF") and "Tisk" in fm[2], str(fm))
     js("window.__dl = null")
-    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf].sheet-only").click()
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf]").click()
     wait("return !!window.__dl", 30)
     check("Export ▾ -> DXF: the sheet's DXF", js("return window.__dl.name").endswith(".dxf"), js("return window.__dl.name"))
     d.save_screenshot(f"{OUT}/ux_sheet_8_done.png")
@@ -308,10 +308,10 @@ try:
     check("Export ▾ enabled in a 2D drawing", js("return !document.getElementById('exportBtn').disabled"))
     d.find_element(By.ID, "exportBtn").click()
     time.sleep(0.3)
-    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu button") if b.is_displayed()]
-    check("Export ▾ in a 2D drawing: DXF only", len(fm) == 1 and fm[0].startswith("DXF"), str(fm))
+    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu [data-fmt]:not(.off):not([data-fmt=a3d]) .fm-t b") if b.is_displayed()]
+    check("Export ▾ in a 2D drawing: DXF only lit (and the project)", len(fm) == 1 and fm[0].startswith("DXF"), str(fm))
     js(f"window.__dl2 = null; {D}.hooks.download = async (blob, name) => {{ window.__dl2 = {{ name, size: blob.size }}; return true; }}")
-    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf].dwg-only").click()
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf]").click()
     wait("return !!window.__dl2", 30)
     check("Export ▾ -> DXF: the drawing's DXF", js("return window.__dl2.name").endswith(".dxf") and js("return window.__dl2.size") > 100, str(js("return window.__dl2")))
     s = js(f"return {D}.toScreen([24, 30])")

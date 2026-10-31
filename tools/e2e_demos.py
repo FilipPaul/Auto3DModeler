@@ -337,12 +337,12 @@ try:
     time.sleep(0.5)
     d.find_element(By.ID, "openBtn").click()
     time.sleep(0.2)
-    btn = d.find_element(By.ID, "demoBtn").text
+    btn = d.find_element(By.CSS_SELECTOR, "#demoBtn .fm-t b").text
     d.find_element(By.ID, "demoBtn").click()
     wait("return document.querySelectorAll('.demos [data-demo]').length")
     head = d.find_element(By.CSS_SELECTOR, ".demos h3").text
     names = [e.text for e in d.find_elements(By.CSS_SELECTOR, ".demos [data-demo] .aih-prompt")]
-    check(btn == "🎬 Demo projekty…" and head == "🎬 Demo projekty" and names == [x["name_cs"] for x in listing], f"Czech: {btn} | {head} | {names}")
+    check(btn == "Ukázkové projekty…" and head == "🎬 Demo projekty" and names == [x["name_cs"] for x in listing], f"Czech: {btn} | {head} | {names}")
     d.save_screenshot(f"{OUT}/demos_menu_cs.png")
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE" and "favicon" not in e["message"]]
     check(not errs, f"no errors in the console: {errs[:3]}")
