@@ -2037,11 +2037,19 @@ function drawingCtx() {
   };
 }
 async function drawingSetPdf(aid, { quiet = false } = {}) {
-  const b = quiet ? null : busy('Making the drawings…');
-  const ctx = { ...drawingCtx(), progress: (n, m) => b?.step(m ? t2('{n} / {m}', { n, m }) : t2('{n} assemblies read…', { n }), m ? n / m : null) };
+  let stopped = false; // (✕ Cancel on the card: no more drawings started, then "Save the finished drawings?")
+  const b = quiet ? null : busy('Making the drawings…', { onCancel: () => { stopped = true; b.step('Cancelling — finishing the drawings under way…'); } });
+  const ctx = { ...drawingCtx(), stop: () => stopped, progress: (n, m) => !stopped && b?.step(m ? t2('{n} / {m}', { n, m }) : t2('{n} assemblies read…', { n }), m ? n / m : null) };
   await b?.painted;
   try {
     const set = await sheet.drawingSet(aid, ctx);
+    if (set.cancelled) {
+      b.done();
+      const how = await sheet.askKeep(set);
+      if (how === 'drop') { toast(t2('Cancelled — {n} drawings discarded.', { n: set.made.length }), 'info', 5000); return null; }
+      toast(t2('{n} of {m} drawings saved — the next run makes only the rest.', { n: set.done, m: set.total }), 'ok', 7000);
+      if (how !== 'pdf' || !set.svgs.length) return null;
+    }
     b?.step('Putting the PDF together…');
     const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs: set.svgs, name: tabName() }) });
     if (!res.ok) throw new Error((await res.json()).error || res.statusText);

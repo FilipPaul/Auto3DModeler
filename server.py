@@ -1152,19 +1152,38 @@ def _sheet_call(op, arg, body):
 
 @app.post("/api/sheet/build")
 def api_sheet_build():
-    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame, rid} -> {geometry (views,
-    points), layout, dims} — a drawing sheet."""
+    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame, rid, cache (a drawing set:
+    _sheet_kept)} -> {geometry (views, points), layout, dims} — a drawing sheet."""
     body = request.get_json(force=True)
+    ck, kept = _sheet_kept("sheet", body)
+    if kept is not None:
+        return kept
     data, err = _sheet_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
                                       "per_view": body.get("per_view") or {}, "section": bool(body.get("section"))}, body)
     if err:
         return err
-    return _sheet_layout(data, body)
+    return _sheet_layout(data, body, ck)
 
 
-def _sheet_layout(data, body):
+def _sheet_kept(op, body):
+    """A drawing set's request (body "cache": true | "only"): its key in the sheet cache (sheetcache) and the kept
+    answer ({…, ck, hit: true}), or, "only" and not kept, {miss: true, ck} — nothing made (the page counts what it
+    has first). -> (ck or None, a response or None)."""
+    if not body.get("cache"):
+        return None, None
+    from auto3d.modeler import sheetcache
+    ck = sheetcache.key(op, body)
+    data = sheetcache.get(ck)
+    if data is not None:
+        return ck, jsonify({**data, "ck": ck, "hit": True})
+    if body["cache"] == "only":
+        return ck, jsonify({"miss": True, "ck": ck})
+    return ck, None
+
+
+def _sheet_layout(data, body, ck=None):
     """A sheet's layout made for its own scale ("1:2522") and frame ({m: [l, t, r, b], title}) when it has them (its
-    holes' positions and callouts placed clear again for it)."""
+    holes' positions and callouts placed clear again for it). ck: kept in the sheet cache under that key."""
     if body.get("scale") or body.get("frame"):
         from auto3d.modeler.sheet import layout, place
         try:
@@ -1173,19 +1192,34 @@ def _sheet_layout(data, body):
                 data["dims"] = place(data["geometry"], data["layout"], data["dims"])
         except (ValueError, TypeError, KeyError) as exc:
             return jsonify({"error": f"The sheet's layout could not be made: {exc}"}), 422
+    if ck:
+        from auto3d.modeler import sheetcache
+        sheetcache.keep(ck, data)
+        data = {**data, "ck": ck, "hit": False}
     return jsonify(data)
+
+
+@app.post("/api/sheet/forget")
+def api_sheet_forget():
+    """{keys: [ck …]} -> {dropped} — a cancelled drawing set's "No, discard": the drawings it made leave the cache."""
+    from auto3d.modeler import sheetcache
+    keys = (request.get_json(force=True) or {}).get("keys")
+    return jsonify({"dropped": sheetcache.drop(keys if isinstance(keys, list) else [])})
 
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
     """{instances (placed, as for clashes), paper, scale, frame, base (the id of the part it stands on: its free holes
-    dimensioned), rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    dimensioned), rid, cache} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
+    ck, kept = _sheet_kept("assembly", body)
+    if kept is not None:
+        return kept
     data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0,
                                                "base": body.get("base")}, body)
     if err:
         return err
-    return _sheet_layout(data, body)
+    return _sheet_layout(data, body, ck)
 
 
 @app.post("/api/sheet/place")

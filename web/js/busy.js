@@ -34,7 +34,7 @@ function card() {
     el.innerHTML = `<span class="load-spin" aria-hidden="true"></span><div class="load-body"><b class="load-text" data-no-i18n></b>
       <span class="load-step" data-no-i18n></span><span class="load-bar" hidden><i></i></span></div>
       <span class="load-secs" data-no-i18n></span><button class="mini load-cancel" hidden title="${esc(t('Stop this (the part stays as it was)'))}">${esc(t('Cancel'))}</button>`;
-    el.querySelector('.load-cancel').addEventListener('click', cancelAll);
+    el.querySelector('.load-cancel').addEventListener('click', () => { const c = top(); if (!stage && c?.onCancel) { c.cancelling = true; draw(); c.onCancel(); } else cancelAll(); });
     document.body.appendChild(el);
   }
   return el;
@@ -52,8 +52,8 @@ function draw() {
   bar.hidden = frac == null;
   if (frac != null) bar.firstElementChild.style.width = `${Math.round(frac * 100)}%`;
   const cancel = box.querySelector('.load-cancel');
-  cancel.hidden = !stage;
-  cancel.disabled = !!stage?.cancelling;
+  cancel.hidden = !stage && !c.onCancel; // (the card's own ✕ Cancel: busy(text, {onCancel}))
+  cancel.disabled = !!(stage ? stage.cancelling : c.cancelling);
   secs();
   box.hidden = false;
   if (!ticker) ticker = setInterval(secs, 1000);
@@ -69,9 +69,10 @@ function secs() {
 
 /** A card for a slow operation (text: what it does, in English — translated here) -> {step(text, frac?), done(),
  *  painted: a promise for when the card is on screen}. step(): the step it is on (frac 0…1: a bar, e.g. the upload).
- *  delay (ms): shown only if it takes that long (a quick export does not flash it; its work is the server's). */
-export function busy(text, { delay = 0 } = {}) {
-  const c = { text: t(text), step: '', pct: null, at: performance.now(), shown: !delay };
+ *  delay (ms): shown only if it takes that long (a quick export does not flash it; its work is the server's).
+ *  onCancel: the card has its own ✕ Cancel (once: then disabled) — the caller stops its work itself. */
+export function busy(text, { delay = 0, onCancel = null } = {}) {
+  const c = { text: t(text), step: '', pct: null, at: performance.now(), shown: !delay, onCancel };
   cards.push(c);
   if (delay) setTimeout(() => { if (cards.includes(c) && !c.aside) { c.shown = true; draw(); } }, delay);
   draw();
