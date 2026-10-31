@@ -2534,6 +2534,16 @@ const CS = {
   'Choose {name}': 'Vybrat {name}',
   'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)': 'Jen tento díl, ne jeho podsestava (Ctrl+klik: přidá se k vybraným)',
   'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)': 'Podsestava, ve které je, jako celek (Ctrl+klik: přidá se k vybraným)',
+  // 🔗 two parts inside one sub-assembly joined from the top assembly: the joint is the sub-assembly's
+  'Joint saved in the sub-assembly {name} — every copy of it follows (Ctrl+Z: back).': 'Vazba uložena do podsestavy {name} — všechny její kopie se změní s ní (Ctrl+Z: zpět).',
+  '{name} is locked for changes from this assembly — 🔓 unlock it in its panel (🎨 Look and editing) to add joints inside it.':
+    '{name} je zamčená pro změny z této sestavy — odemkněte ji 🔓 v jejím panelu (🎨 Vzhled a úpravy), pak do ní jde přidat vazby.',
+  'Joints inside it: from here': 'Vazby uvnitř: odsud', 'Joints inside it: locked here': 'Vazby uvnitř: odsud zamčeno',
+  'Unlock it: two faces picked on its parts here are joined inside it': 'Odemknout: dvě plochy jejích dílů vybrané tady se spojí vazbou uvnitř ní',
+  'Lock it: no joints are made inside it from this assembly': 'Zamknout: z této sestavy se do ní vazby nepřidávají',
+  'Unlock it to join its parts to each other from here.': 'Odemkněte ji, ať jde její díly spojovat vazbami odsud.',
+  'Two faces of its parts picked here (Ctrl+click) are joined inside it — every copy of it follows.': 'Dvě plochy jejích dílů vybrané tady (Ctrl+klik) se spojí vazbou uvnitř ní — všechny její kopie se změní s ní.',
+  '{n} joint(s) inside {sub} — open it to see or change them.': 'Vazby uvnitř {sub}: {n} — otevřete ji, ať je vidíte nebo změníte.',
   'Find a part…': 'Hledat díl…','No part has that in its name.': 'Žádný díl to nemá v názvu.',
   'Only the rows whose name has this in it (and the sub-assemblies they are in) — Esc clears it':
     'Jen řádky, které to mají v názvu (a podsestavy, ve kterých jsou) — Esc hledání zruší',

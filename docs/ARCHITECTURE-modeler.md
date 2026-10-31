@@ -7,6 +7,23 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔗 Joints between parts inside sub-assemblies, made from the top (2026-10-31)** (the owner: pick a circle on each
+  of two parts of a sub-assembly from the top assembly with Ctrl, join them concentric). The picks: pointerup takes a
+  Ctrl+click on another part's face (`pickOwner`: innerFace's key, however deep) as the second face when one of the
+  two is inside a sub-assembly — facePicks [a, b], both keys chosen (lit as nestedPick's); renderSuggest shows the
+  faces' table before the several-parts one. `pairHome(fp)`: both faces on one placed sub-assembly -> the deepest
+  sub-assembly both parts are in, and `subEngine(pid, key)`: this Assembly's ways (Object.create, as innerAsm) on a
+  copy of its document in its own frame (faces renamed by dropping the levels above it) — suggestFaces, clickJoint,
+  joinRound, the AI's snap_faces run there unchanged (📌, which side moves, seats, couplings …); its commit is
+  `subCommit`: refused when the sub-assembly is 🔒 locked from here (`doc.editable[pid] === false`, a toggle in its
+  panel's 🎨 Look and editing; open by default), else its instances / mates / groups / couplings / springs written to
+  the project's document, refresh (mergeAssembly's keys are its parts' places: each body it is in merged again, every
+  copy), one undo step, the toast "Vazba uložena do podsestavy ‹název›". Undo: the top's History captures `subs`
+  (the documents of the sub-assemblies changed from here: `subTouched`; `noteSub` puts their old state into the steps
+  before), restore writes them back; back from a tab where one changed (`subsMoved`): the steps go. Faces of parts in
+  two placed sub-assemblies, or with a placed part: the top's joint on the merged faces, as before. A sub-assembly's
+  panel says how many joints it keeps (read only here). No per-click cost on big assemblies: innerFace walks the key's
+  levels only; the engine copies one sub-assembly's document when two faces are picked. tools/e2e_nested_join.py.
 - **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking
   an object should offer choosing the part or — only when there is one — the sub-assembly). `chooseItems(q, a)` in
   suggestFaces' part section: for a face of a part inside the placed sub-assembly a (innerFace), the part's key, the

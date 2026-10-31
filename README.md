@@ -1080,6 +1080,15 @@ part's rolled-up `total`.
   sub-assembly placed here, and the Suggested table offers near its top ◆ *Choose* the part itself (the one under the
   mouse) and ◇ *Choose* the sub-assembly it is in — at most two rows: the nearer ones, never the one chosen now (the
   part chosen: its sub-assembly and the top one). Ctrl+click on such a row adds it to what is chosen.
+  **🔗 Join parts inside a sub-assembly from the top**: click a face, a hole's or a pin's circle on a part inside a
+  sub-assembly (any depth), **Ctrl+click** one on another part — both faces are picked and lit, both parts chosen, and
+  the Suggested table offers what joins them, as for two placed parts (◎ *Concentric*, *Touch*, *Put it on* …). Two
+  parts inside **one** sub-assembly: the joint is that sub-assembly's own (the deepest one both are in) — its parts
+  move inside it, every copy of it follows, and a toast says *Vazba uložena do podsestavy ‹název›*; open the
+  sub-assembly to see or change the joint (its panel here says how many it keeps). Parts in two different
+  sub-assemblies, or one with a placed part: the joint is this assembly's and moves the whole sub-assembly (📌 fixed
+  and which side moves: as always). Ctrl+Z takes it back. A sub-assembly can be 🔒 locked for this (its panel, 🎨 *Look
+  and editing*: *Joints inside it: locked here*) — then nothing is joined inside it and the app says so.
   **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
   with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
   the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click

@@ -219,6 +219,10 @@ Never report "works" without having run it; report failures with their output.
    list Ctrl / Shift / Ctrl+Shift rows, a plain click still the whole sub-assembly) and 🔍 find in the list ("PIN"
    with its sub-assemblies, accents ignored, Esc) + a part clicked in the view: its row unfolded, marked, scrolled to
    (a filter hiding it cleared; with Ctrl too) + ◆ Choose ‹part› / ◇ Choose ‹sub-assembly› rows of a clicked face.
+   `tools/e2e_nested_join.py <url> <dir>` covers joints between parts inside sub-assemblies made from the top (Ctrl+click
+   two circles on two parts of one sub-assembly, two levels deep: both picked and chosen, ◎ Concentric -> the joint
+   in the sub-assembly's document, the axes on one line in both copies, the toast; Ctrl+Z; 🔒 locked: nothing joined, said; two copies' parts: the top's joint; the
+   sub-assembly's panel: 🔓 / 🔒 and its joints counted).
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,

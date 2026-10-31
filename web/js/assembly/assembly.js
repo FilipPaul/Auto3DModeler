@@ -83,6 +83,7 @@ const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.roun
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 const NO_CLIP = []; // (no ✂ section: the parts' materials share this empty list)
 const RING_PX = 9; // (a ring smaller on the screen (radius, px): its centre and quadrants are neither shown nor taken by a click)
+const SUB_KEYS = ['instances', 'mates', 'groups', 'couplings', 'springs']; // (what a joint made inside a sub-assembly from the top changes in its document)
 
 const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
   if (typeof s !== 'string') return s;
@@ -453,10 +454,12 @@ export class Assembly {
     this.mode = 'idle'; // 'idle' | 'joint-from' | 'joint-to' (picking the two faces of a new joint)
     this.jointType = 'touch';
     this.explode = 0;
+    this.subTouched = new Set(); // (sub-assemblies given joints from here: their documents are in the undo steps — subCommit)
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}), ...(this.doc.groups?.length ? { groups: this.doc.groups } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}), ...(this.doc.groups?.length ? { groups: this.doc.groups } : {}), ...(this.subTouched?.size ? { subs: this.subStates() } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
+        if (s.subs) this.putSubs(s.subs); // (a joint made inside a sub-assembly from here: its document back too)
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
         if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
@@ -502,7 +505,9 @@ export class Assembly {
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
    *  flush, gap …; round and flat: tangent), made by a click. */
   suggestFaces(vp, fp) {
-    const kindOf = (q) => ({ cylinder: 'round', plane: 'flat', sphere: 'ball', cone: 'cone' }[q.face.type] || 'other');
+    const home = this.pairHome(fp); // (two parts inside one sub-assembly: the joints it would keep — made there)
+    if (home) { home.eng.suggestFaces(vp, home.fp); return; }
+    const kindOf =(q) => ({ cylinder: 'round', plane: 'flat', sphere: 'ball', cone: 'cone' }[q.face.type] || 'other');
     const balls = ['ball', 'round', 'cone'];
     const fits = (k1, k2) => Object.entries(JOINT_TYPES).filter(([, j]) => !j.pick && (
       (j.faces === 'plane' && k1 === 'flat' && (k2 === undefined || k2 === 'flat')) || (j.faces === 'cylinder' && k1 === 'round' && (k2 === undefined || k2 === 'round'))
@@ -898,8 +903,8 @@ export class Assembly {
     if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
     if (this.harnessTool.suggest(vp, showSuggest)) return; // (🔌 a harness edited or chosen)
     if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
-    if (this.picks) { this.suggestMany(vp); return; } // (several: what to do with them all)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
+    if (this.picks && fp.length !== 2) { this.suggestMany(vp); return; } // (several: what to do with them all — two faces of them picked: what joins them)
     if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
     const sp = !b && this.snapPick?.inst === a.id ? this.snapPick : null, p = sp?.point; // (a snap point clicked on it)
@@ -1821,9 +1826,9 @@ export class Assembly {
         ${this.flexHtml(it)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}${chainsHtml(this, it.id)}
+        ${this.jointsHtml(it.id)}${this.subJointsHint(it.part)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}${chainsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
-          ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
+          ${this.editHtml(it)}${this.subLockHtml(it.part)}${this.lookHtml(it)}</details>`;
       lockPanel(box, it.part); // (🔒 Locked for the AI: its part)
       if (missHere) this.mech.bindMissing(box);
       box.querySelector('[data-a=flexsub]')?.addEventListener('change', (ev) => this.setRigid(it.id, !ev.target.checked));
@@ -1860,6 +1865,7 @@ export class Assembly {
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
+      box.querySelector('[data-a=subLock]')?.addEventListener('click', () => this.toggleSubLock(it.part));
       box.querySelector('.as-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
       box.querySelector('[data-a=fix]')?.addEventListener('click', () => this.toggleFixed(it.id));
       box.querySelector('[data-a=reset]')?.addEventListener('click', () => { const reset = () => { if (!this.mayMove(it.id, true, reset)) return; it.matrix = ID(); this.applyMates(); this.commit(); }; reset(); });
@@ -1913,11 +1919,12 @@ export class Assembly {
       <div class="row-actions wrap">${this.hooks.openPart ? `<button class="btn small primary" data-a="openInner" title="${esc(t('Change it in its own tab (the assembly follows)'))}">${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>
         <button class="btn small" data-a="openSub">◇ ${esc(t2('Open {sub}', { sub }))}</button>` : ''}
         <button class="btn small" data-a="wholeSub">${esc(t2('Choose the whole {sub}', { sub }))}</button></div>
-      ${this.editHtml(node)}`;
+      ${this.editHtml(node)}${this.subJointsHint(node.part)}${this.subLockHtml(node.part)}`;
     lockPanel(box, node.part); // (🔒 Locked for the AI: its part)
     if (inner) this.bindInner(box, it, inner);
     box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(`${it.id}/${path}`)); // (✎ however deep: the rest of this assembly around it)
     box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(node.part));
+    box.querySelector('[data-a=subLock]')?.addEventListener('click', () => this.toggleSubLock(node.part));
     box.querySelector('[data-a=openInner]')?.addEventListener('click', () => this.hooks.openPart(node.part));
     box.querySelector('[data-a=openSub]')?.addEventListener('click', () => this.hooks.openPart(it.part));
     box.querySelector('[data-a=wholeSub]').addEventListener('click', () => this.choose(it.id));
@@ -3749,6 +3756,129 @@ export class Assembly {
     return parts.length ? { sub, parts } : null;
   }
 
+  // ------------------------------------------------------------------ joints between parts inside a sub-assembly, made here
+  /** The part a picked face ({inst, face}) is on: "I3", or "I3/I1/I2" for a part inside a placed sub-assembly. */
+  pickOwner(q) {
+    const name = String(q?.face?.name || '');
+    return (name.includes('/') && this.innerFace(this.inst(q.inst), name)?.key) || q?.inst;
+  }
+
+  /** Two faces picked on two parts inside one placed sub-assembly ("I3/I1/I2" and "I3/I4", however deep): the deepest
+   *  sub-assembly both are in gets the joint (its parts move inside it; every copy of it follows) -> {key ("I3"),
+   *  pid (its part), eng (subEngine), fp (the two faces as it names them, in its frame)} — or null: two placed parts,
+   *  or parts of two placed sub-assemblies (this assembly's joint: the whole sub-assembly moves). */
+  pairHome(fp) {
+    if (fp?.length !== 2 || !fp[0]?.inst || fp[0].inst !== fp[1]?.inst || this.owner || this.flatOf) return null;
+    const [a, b] = fp.map((q) => String(this.pickOwner(q)).split('/'));
+    if (a.join('/') === b.join('/')) return null;
+    let c = 0;
+    while (c < a.length - 1 && c < b.length - 1 && a[c] === b[c]) c++;
+    const key = a.slice(0, c).join('/'), at = c ? this.placedAt(key) : null;
+    if (!at || this.kindOf(at.it.part) !== 'assembly') return null;
+    const eng = this.subEngine(at.it.part, key), out = [];
+    for (const q of fp) { // ("I1/I2/F1:end" of placement I3, the joint in I3/I1: "I2" and "F1:end")
+      const segs = String(q.face.name).split('/').slice(c - 1), inst = segs[0], face = segs.slice(1).join('/');
+      try { out.push({ inst, face: { ...eng.worldFace(inst, face), name: face } }); } catch { return null; }
+    }
+    return { key, pid: at.it.part, eng, fp: out };
+  }
+
+  /** The sub-assembly `pid` (placed here at `key`) as an engine of its own: this assembly's ways (addJoint, joinRound,
+   *  clickJoint, suggestFaces, the AI's snap_faces …) on a copy of its document, in its own frame; what it commits is
+   *  written to its document (subCommit). No drawing or panels of its own; its 'ok' words: subCommit's one instead. */
+  subEngine(pid, key) {
+    const doc = structuredClone(this.hooks.partData(pid) || {}), eng = Object.create(this), toast = this.hooks.toast;
+    doc.instances = doc.instances || [];
+    doc.mates = (doc.mates || []).map((m, i) => ({ id: m.id || `J${i + 1}`, type: m.type || 'touch', gap: m.gap || 0, ...m }));
+    Object.assign(eng, { doc, owner: { id: key, part: pid }, home: { key, pid }, _sel: null, _sel2: null, picks: null, selInner: null, instAt: null, mode: 'idle', jointFrom: null,
+      hoverFace: null, repair: null, facePicks: [], _via: null, health: null, whyCache: null, travelNote: null, playing: null, flexCache: null, flatCache: null, loops: null, exDirs: null,
+      hooks: { ...this.hooks, selfId: () => pid, safeName: () => this.partName(pid), toast: (msg, kind, ...more) => { if (kind !== 'ok') toast(msg, kind, ...more); } } });
+    for (const k of ['draw', 'render', 'renderBar', 'renderList', 'renderProps', 'renderSuggest', 'renderStatus', 'drawMarks', 'drawJointTags', 'hint', 'scheduleClashes']) eng[k] = () => {};
+    eng.refresh = async () => {};
+    eng.commit = () => this.subCommit(eng);
+    return eng;
+  }
+
+  /** What a sub-assembly's engine (subEngine) did, kept: its document written (its parts where the new joint put them:
+   *  every copy of it follows), one undo step here, the merged bodies made again and drawn, said. Not when it is 🔒
+   *  locked for changes from here (subLocked): said, nothing changes. eng.done: the promise of it all. */
+  subCommit(eng) {
+    const { pid, key } = eng.home, name = this.partName(pid), data = this.hooks.partData(pid);
+    if (!data) return;
+    if (this.subLocked(pid)) {
+      eng.refused = t2('{name} is locked for changes from this assembly — 🔓 unlock it in its panel (🎨 Look and editing) to add joints inside it.', { name });
+      this.hooks.toast(eng.refused, 'warning', 7000);
+      return;
+    }
+    this.noteSub(pid); // (its document as it was: in the undo step before this one)
+    for (const k of SUB_KEYS) { if (eng.doc[k] === undefined) delete data[k]; else data[k] = structuredClone(eng.doc[k]); }
+    const moved = eng.sel && eng.doc.instances.some((i) => i.id === eng.sel) ? `${key}/${eng.sel}` : null;
+    eng.done = (async () => {
+      this.facePicks = [];
+      this.snapPick = null;
+      await this.refresh(); // (its merged body — and each one it is in — made again: their keys are its parts' places)
+      if (moved) this.select([moved]);
+      this.commit();
+      this.hooks.toast(t2('Joint saved in the sub-assembly {name} — every copy of it follows (Ctrl+Z: back).', { name }), 'ok', 5000);
+    })();
+  }
+
+  /** 🔒 A sub-assembly locked for changes from this assembly: no joints made inside it from here (not said: open). */
+  subLocked(pid) { return this.doc.editable?.[pid] === false; }
+
+  toggleSubLock(pid) {
+    const ed = { ...(this.doc.editable || {}) };
+    if (ed[pid] === false) delete ed[pid]; else ed[pid] = false;
+    if (Object.keys(ed).length) this.doc.editable = ed; else delete this.doc.editable;
+    this.render();
+    this.hooks.onChange?.();
+  }
+
+  /** A placed sub-assembly's 🔓 / 🔒 for joints made inside it from here (its panel's 🎨 Look and editing). */
+  subLockHtml(pid) {
+    if (this.kindOf(pid) !== 'assembly') return '';
+    const locked = this.subLocked(pid);
+    return `<div class="row-actions wrap as-sublock"><button class="btn small ${locked ? '' : 'on'}" data-a="subLock" title="${esc(t(locked ? 'Unlock it: two faces picked on its parts here are joined inside it' : 'Lock it: no joints are made inside it from this assembly'))}">${locked ? `🔒 ${esc(t('Joints inside it: locked here'))}` : `🔓 ${esc(t('Joints inside it: from here'))}`}</button></div>
+      <span class="hint">${esc(t(locked ? 'Unlock it to join its parts to each other from here.' : 'Two faces of its parts picked here (Ctrl+click) are joined inside it — every copy of it follows.'))}</span>`;
+  }
+
+  /** The joints a placed sub-assembly keeps itself (read only here): how many, and where to change them. */
+  subJointsHint(pid) {
+    const n = this.kindOf(pid) === 'assembly' ? (this.hooks.partData(pid)?.mates || []).length : 0;
+    return n ? `<p class="hint as-subj">🔗 ${esc(t2('{n} joint(s) inside {sub} — open it to see or change them.', { n, sub: this.partName(pid) }))}</p>` : '';
+  }
+
+  /** A sub-assembly's document as an undo step keeps it. */
+  subState(pid) { const d = this.hooks.partData(pid) || {}; return Object.fromEntries(SUB_KEYS.filter((k) => d[k] !== undefined).map((k) => [k, d[k]])); }
+  subStates() { return Object.fromEntries([...this.subTouched].map((pid) => [pid, this.subState(pid)])); }
+
+  /** A sub-assembly about to be changed from here the first time: its document as it is now put in the steps so far. */
+  noteSub(pid) {
+    if (this.subTouched.has(pid)) return;
+    this.subTouched.add(pid);
+    const was = structuredClone(this.subState(pid)), h = this.history;
+    for (const s of [...h.undo, h.base]) if (s && !s.subs?.[pid]) s.subs = { ...(s.subs || {}), [pid]: structuredClone(was) };
+    if (h.base) h.baseKey = JSON.stringify(h.base);
+  }
+
+  /** Undo / redo: the sub-assemblies' documents as the step had them. */
+  putSubs(subs) {
+    for (const [pid, s] of Object.entries(subs)) {
+      const d = this.hooks.partData(pid);
+      if (d) for (const k of SUB_KEYS) { if (s[k] === undefined) delete d[k]; else d[k] = s[k]; }
+    }
+  }
+
+  /** Back to this assembly with a sub-assembly changed in its own tab since a joint was made inside it from here: the
+   *  undo steps here would put it back — they go. */
+  subsMoved() {
+    if (!this.subTouched.size) return;
+    const base = this.history.base?.subs || {};
+    if ([...this.subTouched].every((pid) => JSON.stringify(this.subState(pid)) === JSON.stringify(base[pid]))) return;
+    this.subTouched = new Set();
+    this.history.reset();
+  }
+
   // ------------------------------------------------------------------ mechanisms through both levels
   /** This assembly with the parts that move inside its ⚙ moving (not 🧱 rigid) sub-assemblies taken in as parts of
    *  its own ("I3/I2", placed in the world) — one engine (holdPart, applyMates, motionsOf, moveFree … as they are)
@@ -4459,7 +4589,7 @@ export class Assembly {
       if (want === 'mixed' && this.mode === 'joint-to' && h.face.type === this.jointFrom?.face?.type) return false; // the other kind
     } else if (h.face.type !== want) return false;
     if (this.mode === 'joint-from' && this.jointFrom?.inst && h.inst !== this.jointFrom.inst) return false;
-    if (this.mode === 'joint-to' && h.inst === this.jointFrom?.inst) return false;
+    if (this.mode === 'joint-to' && this.pickOwner(h) === this.pickOwner(this.jointFrom)) return false; // (two parts inside one sub-assembly: may be joined there)
     return true;
   }
 
@@ -4500,7 +4630,7 @@ export class Assembly {
   }
 
   clickJoint(h) {
-    if (this.jointType === 'gap' && ['cylinder', 'cone'].includes(h?.face?.type) && h.inst !== this.jointFrom?.inst) { // ↔ a distance to a round face: between the axes
+    if (this.jointType === 'gap' && ['cylinder', 'cone'].includes(h?.face?.type) && this.pickOwner(h) !== this.pickOwner(this.jointFrom)) { // ↔ a distance to a round face: between the axes
       this.jointType = 'axis_distance';
       if (!this.faceFits(h)) this.jointType = 'gap';
     }
@@ -4522,6 +4652,17 @@ export class Assembly {
     }
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
+    const home = this.pairHome([this.jointFrom, h]);
+    if (home) { // two parts inside one sub-assembly: the joint made there (subEngine), this one back to idle
+      Object.assign(home.eng, { jointType: type, mode: 'joint-to', jointFrom: home.fp[0] });
+      this.mode = 'idle';
+      this.jointFrom = null;
+      this.hoverFace = null;
+      this.hint('');
+      home.eng.clickJoint(home.fp[1]);
+      if (!home.eng.done) { this.renderBar(); this.draw(); } // (not made: as it was)
+      return;
+    }
     if (type === 'spring') { // 〰 a spring's end to the face it pushes on
       const from = this.jointFrom;
       this.mode = 'idle';
@@ -4698,6 +4839,14 @@ export class Assembly {
       const had = this.facePicks || [];
       if (more && !pick && had.length && !h) return; // (a Ctrl+click beside the parts: the face picked first stays)
       const deep = h?.face?.name ? this.innerFace(this.inst(h.inst), h.face.name)?.key : null; // (a part inside a sub-assembly: its key, however deep)
+      const own = pick && this.pickOwner(pick), was = had.length === 1 && this.inst(had[0].inst) ? this.pickOwner(had[0]) : null;
+      if (more && own && was && own !== was && (own.includes('/') || was.includes('/'))) { // Ctrl: a face of another part, one of them inside a sub-assembly — the two faces (what joins them), both parts chosen
+        this.facePicks = [had[0], pick];
+        this.lastDeep = null;
+        this.select([was, own]);
+        this.reveal(own);
+        return;
+      }
       if (more && deep && this.nestedPick(deep)) { this.facePicks = []; this.drawMarks(); this.reveal(deep); return; }
       this.lastDeep = more ? null : deep;
       this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
@@ -5217,7 +5366,7 @@ export class Assembly {
     // last WARM of them, each with its meshes, camera and clash list) and, if kept, put back. Either way refresh builds
     // and draws only the parts whose 3D model changed meanwhile (a dimension changed in its tab)
     const id = this.hooks.selfId?.() || null, json = JSON.stringify(data || { instances: [] });
-    if (id && id === this.loadedId && json === JSON.stringify(this.doc)) { await this.refresh({ warm: true }); return; }
+    if (id && id === this.loadedId && json === JSON.stringify(this.doc)) { this.subsMoved(); await this.refresh({ warm: true }); return; }
     if (this.loadedId && this.loadedId !== id) this.park();
     let slot = id ? this.parked.get(id) : null;
     if (slot) {
@@ -5243,6 +5392,7 @@ export class Assembly {
     this.explode = 0;
     Object.assign(this.harnessTool, { edit: null, sel: null, pt: null, hover: null });
     settleEntries(this); // (⛓ an older file's cable through a chain: the end it enters decided once, now)
+    this.subTouched = new Set();
     this.history.reset();
     this.ms.reset(); // (its measurements: this assembly's)
     if (slot) { // put back as it was left: its meshes, the clash check's answer, the camera
