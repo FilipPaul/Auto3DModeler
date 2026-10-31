@@ -1507,7 +1507,7 @@ button.tr-tw:hover { color: var(--text); }
 .vs-list button.danger .vs-i.k-part, .vs-list button.danger .vs-i.k-asm { background: none; } /* (✕ Take it out: red, as every delete) */
 .vs-list .vs-i .ico { display: block; }
 /* the categories of a table (suggest.js grouped): a small muted header, no line above the first */
-.view-suggest .vs-sec.vs-grp, .sg-menu .vs-sec.vs-grp { font-size: 10px; letter-spacing: .06em; padding: 5px 8px 1px; border-top: 0; }
+.view-suggest .vs-sec.vs-grp, .sg-menu .vs-sec.vs-grp { font-size: 10px; line-height: 12px; letter-spacing: .06em; padding: 3px 8px 0; border-top: 0; } /* (as low as it reads: the table stays small over the view) */
 .view-suggest .vs-sec.vs-grp:not(:first-child) { margin-top: 2px; border-top: 1px solid #ffffff10; }
 .vs-list button.danger, .vs-list button.danger .vs-i { color: #ff8c84; }
 .vs-hint { margin: 0; padding: 0 11px 8px; font-size: 11px; color: var(--muted); }

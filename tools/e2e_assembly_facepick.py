@@ -109,7 +109,9 @@ try:
     time.sleep(1)
     print("Concentric: the joints", js(f"return {A}.doc.mates.map(m => [m.type, m.move, m.onto])"), "| the pin on the hole's axis:",
           [round(v, 2) for v in world("I2", [0, 0, 0])[:2]], "vs", [hx, hy])
-    click("I1", [bb[0] + 5, bb[1] + 5, bb[5]])  # the Base's top …
+    # the Base's top — at its far corner: the near one (front left in the iso view) sits under the Suggested table in
+    # the view's bottom left once the pin is chosen (its rows in categories, with their headers, reach that high)
+    click("I1", [bb[3] - 5, bb[4] - 5, bb[5]])  # the Base's top …
     # … and the pin's end (a small face: set as the click would)
     js(f"const a = {A}; a.facePicks = [a.facePicks[0], {{ inst: 'I2', face: a.worldFace('I2', 'F2:end') }}]; a.sel2 = 'I2'; a.render()")
     time.sleep(0.4)
