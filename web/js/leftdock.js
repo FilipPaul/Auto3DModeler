@@ -749,7 +749,8 @@ class LeftDock {
       box.classList.toggle('lw-off', !show);
       if (!show) continue;
       any = true;
-      Object.assign(box.style, { left: `${Math.round(r.left)}px`, top: `${Math.round(r.top + hh)}px`, width: `${Math.round(r.width)}px`, height: `${Math.max(0, Math.round(r.height - hh))}px` });
+      const bx = ph.clientLeft, by = ph.clientTop; // (inside its card's edge)
+      Object.assign(box.style, { left: `${Math.round(r.left + bx)}px`, top: `${Math.round(r.top + by + hh)}px`, width: `${Math.round(r.width - 2 * bx)}px`, height: `${Math.max(0, Math.round(r.height - 2 * by - hh))}px` });
     }
     ph.classList.toggle('has-sg', any);
   }

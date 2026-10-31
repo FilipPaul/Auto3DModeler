@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **▭ Docked widgets as cards (2026-10-31)** (the owner: "a little hard at first look to see where a pinned widget starts
+  and ends"). The side columns (`.lw-col`) are a darker gutter (`--dock-gutter`: the page's `--bg`) with a 4 px padding
+  (`--dock-gap`); each docked widget is a card on it — `--dock-card` surface, a 1 px `--dock-edge` hairline,
+  `--dock-radius` 6 px corners; the splitter between two is the gutter itself (6 px to grab) with a short centred grip
+  that turns into a full accent line on hover / drag. A folded card is its header alone (no line under it). Costs 4 px
+  a seam (the old splitter was 5) + 4 px top / bottom and the same at the sides; headers stay 26 px, no new clicks or
+  strings. Floating widgets keep their own look; the empty column's strip has no padding. The docked Suggested table
+  (position: fixed over its card) sits inside the card's edge (`sync`: clientLeft / clientTop) with matching bottom
+  corners. All in CSS variables, so a light theme sets five values. tools/e2e_dock_both.py (+2 checks: gap 3–6 px,
+  1 px edge, radius, card ≠ gutter, a visible grip, header ≤ 26 px, both columns); e2e_left_pins.py measures widths
+  inside the gutter.
 - **🔗 Joints between parts inside sub-assemblies, made from the top (2026-10-31)** (the owner: pick a circle on each
   of two parts of a sub-assembly from the top assembly with Ctrl, join them concentric). The picks: pointerup takes a
   Ctrl+click on another part's face (`pickOwner`: innerFace's key, however deep) as the second face when one of the
