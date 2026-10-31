@@ -150,9 +150,16 @@ class TestMcpServer(unittest.TestCase):
     def test_chat_loads_the_skills(self):
         from auto3d.agent import ChatSession
         from auto3d.guides import PLUGIN_DIR
-        cmd = ChatSession("http://127.0.0.1:1").command("claude")
+        from unittest import mock
+        with mock.patch.dict("os.environ", {"A3D_AI_INTERNET": "0"}):  # 🌐 internet off in the AI settings
+            cmd = ChatSession("http://127.0.0.1:1").command("claude")
         self.assertEqual(cmd[cmd.index("--tools") + 1], "Skill")  # no files, no shell: only the skills
-        self.assertIn("Skill", cmd[cmd.index("--allowedTools") + 1])
+        self.assertEqual(cmd[cmd.index("--allowedTools") + 1], "mcp__auto3d,Skill")
+        with mock.patch("auto3d.fetchcad.internet_on", return_value=True):  # on: web search too, still no files / shell / page reading
+            web = ChatSession("http://127.0.0.1:1").command("claude")
+        self.assertEqual(web[web.index("--tools") + 1], "Skill,WebSearch")
+        self.assertEqual(web[web.index("--allowedTools") + 1], "mcp__auto3d,Skill,WebSearch")
+        cmd = web
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
         for name in ("start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design",
