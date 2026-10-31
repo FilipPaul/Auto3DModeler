@@ -41,7 +41,7 @@ import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
 import { nextFrames } from './frames.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
-import { busy, busyFile, busyAside, painted, postWithProgress } from './busy.js'; // (a file opening, an export …: the loading card)
+import { busy, busyFile, busyAside, busyOpen, sizeText, painted, postWithProgress } from './busy.js'; // (a file opening, an export …: the loading card)
 import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
 import { initAiLock } from './ailock.js';
@@ -2229,18 +2229,18 @@ async function readProjectFile(file, b = null) {
 }
 
 async function openProject(file) {
-  const b = busyFile(file);
-  await b.painted;
   try {
-    const { project: proj, versions: history } = await readProjectFile(file, b);
-    b.step('Opening the parts…');
-    await openLoaded(proj);
-    if (history) { // 🕘 saved with its version history: into the new project's store
-      await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: history }).catch((e) => toast(e.message, 'warning', 7000));
-      await versions?.changed();
-    }
-    toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
-  } catch (e) { toast(e.message, 'error'); } finally { b.done(); }
+    await busyOpen(t2('Loading {name} ({size})…', { name: file.name, size: sizeText(file.size) }), async (b) => {
+      const { project: proj, versions: history } = await readProjectFile(file, b);
+      b.step('Opening the parts…');
+      await openLoaded(proj);
+      if (history) { // 🕘 saved with its version history: into the new project's store
+        await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: history }).catch((e) => toast(e.message, 'warning', 7000));
+        await versions?.changed();
+      }
+      toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
+    });
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 /** A 🎬 demo's name in the app's language (its file holds both: its `demo` record), else the project's name. */
@@ -2256,12 +2256,14 @@ async function openLoaded(proj) {
   autosave?.fresh();
   showProjectName();
 }
-/** A 🎬 demo on screen (openLoaded), with the loading card while its parts are made. */
-async function openDemo(proj) {
-  const b = busy(t2('Opening {name}…', { name: projectNameOf(proj) || t('the demo') }));
-  b.step('Opening the parts…');
-  await b.painted;
-  try { await openLoaded(proj); } finally { b.done(); }
+/** A 🎬 demo on screen (openLoaded), with the loading card from the click (name: the demo's, in the app's language)
+ *  while it is fetched (load() -> the project) and its parts are made. */
+async function openDemo(load, name) {
+  await busyOpen(t2('Opening {name}…', { name: name || t('the demo') }), async (b) => {
+    const proj = await load();
+    b.step('Opening the parts…');
+    await openLoaded(proj);
+  });
 }
 $('projectInput').addEventListener('change', (e) => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; });
 

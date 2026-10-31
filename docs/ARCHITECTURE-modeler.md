@@ -171,6 +171,26 @@ Date: 2026-10-25. Written by the architect agent.
   normal faces up / down before placing them. After: top a part 47–58 ms, another 31–63, a row 31–59, empty space 25–42;
   the sub-assembly 33–53 ms. e2e_ict_switch: a part (its face picked with it), another, a list row and empty space,
   twice, in the top assembly and in the sub-assembly — painted under 100 ms each, each choosing what it should.
+- **🕘 A project opened from Recent projects says so from the click (2026-10-31)** (the owner: "loading a project from
+  the intro screen from recent projects, the screen freezes without informing the user"). Autosave.open fetched the
+  project, kept the one on screen, migrated it and filled the project before anything showed; the only card was the
+  assembly's own "Načítám ‹sestava›…" (over BIG_OPEN placed parts), put up inside loadAll — 87–155 ms after the click
+  (cold server, real window, the ICT assembly), gone before the first frame was painted, nothing for a smaller active
+  part; a 🎬 demo fetched its file before its card. And a reload (or a closed tab) left the last page's collision check
+  running in the kernel: the project opened next waited for it — 120 s on the ICT assembly, "Čekám na CAD jádro". Done:
+  busy.js `busyOpen(text, work)` — the card up and painted before work(), done after a painted frame once it returns —
+  used by Autosave.open (the start screen's pictures, 🕘 Recent projects…, Open ▾'s last three, the "continue where you
+  left off" strip, ↶ the previous project, a ⧉ window's project: "Otevírám ‹name›…"), openProject (a .a3d opened or
+  dropped) and openDemo (demos.js hands it a loader: the fetch inside the card). Assembly.load puts no card of its own
+  over one already up (its "{n} vložených dílů…" becomes that card's step); buildBodies counts the parts on it —
+  busyCount "Sestaveno 120 z 254 dílů…" with its bar, the kernel's stage after it ("· Čekám na CAD jádro…") — and
+  refresh says "Kreslím…" (painted) before merging and drawing. Assembly: on pagehide the collision check still running
+  is cancelled (sendBeacon /api/progress/<rid>/cancel). After (real window, Czech): the card 6–9 ms after the click, a
+  frame of it at 11–12 ms, the ICT project's first frame 2.6–3.9 s (cold server 3.2–3.9 s; was 3.6 s, the card gone 260
+  ms before it), the card gone 5–20 ms after it; the 500-part demo's 0.44–0.55 s headless; opened again after a reload
+  2.8–4.0 s (was 120 s). A project whose every tab was closed (none) leaves the start screen at loadAll's first render,
+  not after its first part is built. Left: one 1.3–1.4 s long task while the ICT assembly is merged and drawn (under
+  "Kreslím…", the spinner turning on the compositor). tools/e2e_open_recent.py.
 
 - **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
   both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a

@@ -1663,7 +1663,8 @@ const CS = {
   // the loading card (busy.js): a file opening, a project, a demo, an export …
   'Loading {name} ({size})…': 'Načítám {name} ({size})…', 'Uploading to the server…': 'Nahrávám na server…', 'Reading the {kind} file…': 'Čtu soubor {kind}…',
   'Making the mesh…': 'Tvořím síť…', 'Drawing…': 'Kreslím…', 'Drawing the 3D model…': 'Kreslím 3D model…', 'Reading the drawing…': 'Čtu výkres…',
-  'Reading the project…': 'Čtu projekt…', 'Opening the parts…': 'Otevírám díly…', 'Opening {name}…': 'Otevírám {name}…', 'the demo': 'ukázku',
+  'Reading the project…': 'Čtu projekt…', 'Opening the parts…': 'Otevírám díly…', 'Opening {name}…': 'Otevírám {name}…', 'the demo': 'ukázku', 'the project': 'projekt',
+  'Built {n} of {m} parts…': 'Sestaveno {n} z {m} dílů…',
   'Exporting {fmt}…': 'Exportuji {fmt}…', 'Preparing the print…': 'Připravuji tisk…', 'Checking collisions: {n} parts…': 'Kontroluji kolize: {n} dílů…',
   'Opening the assembly: {n} placed parts…': 'Otevírám sestavu: {n} vložených dílů…',
   'Loading {name}…': 'Načítám {name}…', '{n} placed parts — building and drawing them…': '{n} vložených dílů — sestavuji a kreslím je…', 'the assembly': 'sestavu',

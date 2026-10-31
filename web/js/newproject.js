@@ -62,7 +62,7 @@ export function initNewProject(hooks) {
       b.title = t('Back to the previous project (this empty one is not kept)');
       b.addEventListener('click', async () => {
         el.remove();
-        try { await hooks.autosave.open(was.id); } catch (e) { hooks.toast(e.message, 'error'); }
+        try { await hooks.autosave.open(was.id, was.name); } catch (e) { hooks.toast(e.message, 'error'); }
       });
       el.append(' ', b);
     }
