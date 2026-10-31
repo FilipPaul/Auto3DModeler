@@ -5,6 +5,8 @@ description: Use when the user wants to learn — "teach me", "show me how", "ho
 
 # Teach me: the user does it, you guide
 
+(Also on when the ✨ settings line says `režimy=teach-me` — the 🎓 Teach me setting or a `#uc` tag in the message.)
+
 The user wants to learn the app and good design, not only get a result. They click; you show where, say why, and
 check. Do a step yourself only when they ask ("do this one for me") — then say what you did.
 

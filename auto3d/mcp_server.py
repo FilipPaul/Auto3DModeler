@@ -6,7 +6,8 @@ Started by Claude Code from the app's chat (see auto3d/agent.py), or by hand fro
 
 It speaks MCP's JSON-RPC over stdin / stdout (one message per line) and forwards every tool call to the
 running app (POST /api/agent/call), which applies it to the part open in the browser. The app's chat adds
-`--client <id>`: the calls act in the window of that chat only (without it: in the window in use).
+`--client <id>`: the calls act in the window of that chat only (without it: in the window in use); `--group <workspace>`
+(⚡ Lean mode): only that workspace's tools are listed (agent_tools.TOOL_GROUPS).
 Standard library only.
 """
 from __future__ import annotations
@@ -30,6 +31,7 @@ CALL_TIMEOUT = 180  # seconds: building a part with many objects or tracing a bi
 OLDER_SERVER = ("Unknown tool {tool}: this app server is older than the tool list (the code moved on since it started) "
                 "— tell the user to restart the app (close it and start it again), then call the tool again.")
 CLIENT = None  # --client: the app window whose chat started this server (its calls go there only)
+GROUP = None   # --group: list only this workspace's tools (⚡ Lean mode; None: all)
 
 
 def _unreachable(url: str, why) -> dict:
@@ -81,7 +83,7 @@ def handle(msg: dict, url: str):
     elif method == "ping":
         result = {}
     elif method == "tools/list":
-        result = {"tools": mcp_tool_list()}
+        result = {"tools": mcp_tool_list(GROUP)}
     elif method == "tools/call":
         p = msg.get("params") or {}
         name, args = p.get("name", ""), p.get("arguments") or {}
@@ -108,11 +110,12 @@ def handle(msg: dict, url: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    global CLIENT
+    global CLIENT, GROUP
     ap.add_argument("--url", default="http://127.0.0.1:5173")
     ap.add_argument("--client", default=None, help="the app window whose chat this is (its tool calls act there only)")
+    ap.add_argument("--group", default=None, help="list only this workspace's tools (model, assembly, sheet, drawing, quick)")
     a = ap.parse_args()
-    url, CLIENT = a.url.rstrip("/"), a.client or None
+    url, CLIENT, GROUP = a.url.rstrip("/"), a.client or None, a.group or None
     stdin = sys.stdin.buffer
     out = sys.stdout.buffer
     for raw in stdin:

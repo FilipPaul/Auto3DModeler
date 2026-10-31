@@ -1484,6 +1484,24 @@ conversation and a note in the chat says so. **＋ New conversation** starts afr
 ✕ deletes one (after a confirm). A reload of the page keeps the conversation on screen — also after the app was
 restarted.
 
+**✨ Settings** (in the chat's head): how the AI works on this project, in place of the log — every change applies at
+once and is saved with the project (it travels in the `.a3d`).
+- **Design profile**: ⚙ Automation / ICT (CNC, standard parts, easy manufacture and assembly, design review), 🖨 Functional
+  print (the same for 3D printing), 🎨 Decoration (3D print, no engineering rules) or ✎ Custom — a profile sets the
+  choices below; changing one of them makes it Custom.
+- **Manufacturing** (CNC machining, 3D print, Laser / sheet metal — several at once), **Ask before designing** (key sizes
+  only · everything · don't ask, decide), **Answers** (brief · normal · with explanation).
+- **Behaviour**, each with what it costs: 📦 Standard parts, 🏭 Easy manufacture, 🔩 Easy assembly, 🔍 Design review
+  (+3–6k tokens), 🎓 Teach me (+10–25k), 🐞 Bug hunter (+15–40k), 🌐 Search the internet for parts (on; off: Claude
+  Code starts again without web search, kept for the server in `data/ai/settings.json`), ⚡ Lean mode
+  (−12–18k: Claude gets only the tools of the workspace on screen — e.g. 43 of 113 in a 3D model; switching the
+  workspace or the mode restarts Claude Code unseen, its session resumed). A meter shows the tokens per task and the speed.
+- **Use as default**: new projects (and older ones without settings) start with these.
+Claude gets them as one short line before your message (`[Nastavení: profil=…; výroba=…; …]`), only when they changed.
+**Tags** in a message change them for that message only: `#uc` (teach me), `#chyby` (bug hunter), `#kontrola` (review),
+`#rychle` (lean, no review, brief), `#cnc`, `#tisk`, `#bez-otazek` — typing `#` lists them; they are taken out of the
+text and shown as chips on your message.
+
 **🕘 History** (in the chat's top bar): after each AI turn that changed something, the server keeps the whole project
 (every part — 3D models, assemblies, drawings) in `data/history/` next to `server.py`, with the message that made
 it. The list shows them newest first; **Load** opens the project as it was then — the project on screen is kept in

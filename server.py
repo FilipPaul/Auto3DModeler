@@ -27,6 +27,7 @@ from auto3d import timings
 from auto3d.agent import ROUTE, ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import chat_history
+from auto3d import ai_settings
 from auto3d import library as parts_library
 from auto3d import title_templates
 from auto3d import autosave
@@ -2150,7 +2151,11 @@ def api_chat_send():
         chat = _chat(_client())
         if isinstance(body.get("project"), dict):  # (the project on the page: a new conversation is about it)
             chat.project = {"id": str(body["project"].get("id") or ""), "name": str(body["project"].get("name") or "")}
-        chat.send(text, photos)
+        # ✨ the project's AI settings and the workspace on screen (⚡ Lean mode), when the page sends them
+        extra = {"settings": body["settings"], "workspace": str(body.get("workspace") or "")} if isinstance(body.get("settings"), dict) else {}
+        if extra:  # (🌐 for the chat's start: the next process searches the internet or not)
+            ai_settings.save_internet(DATA, ai_settings.clean(extra["settings"])["internet"])
+        chat.send(text, photos, **extra)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})

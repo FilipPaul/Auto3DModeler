@@ -44,6 +44,12 @@ Never report "works" without having run it; report failures with their output.
    `AUTO3D_CLAUDE=<absolute path>/tools/fake_claude.py CLAUDE_CONFIG_DIR=<scratch>/claude`): typed + Enter -> the
    user's bubble at once, then the answer; the Send button; Stop during a slow answer stops it; the next message is
    answered; no console errors.
+   `tools/e2e_ai_settings.py <url> <dir> <claude config dir>` covers ✨ Nastavení AI with the stand-in Claude Code (its own
+   server as for e2e_chat_send): the panel in Czech, profiles set the toggles, a change → ✎ Vlastní, the meter; the
+   settings line reaches Claude with the first message and not with an unchanged second; `#u` + Enter / `#cn` + Tab
+   from the tags' list, chips, the line overridden for that message; ⚡ Úsporný režim: the MCP server lists 43 of 113
+   tools (the process restarted unseen, the session resumed); 💾 Save → the .a3d keeps them, reopened; Použít jako
+   výchozí → a new project / an older one gets them; no console errors, no native dialogs.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).

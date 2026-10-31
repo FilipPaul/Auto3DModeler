@@ -716,6 +716,41 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .ai-conv-text b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-conv-when { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-conv-none { font-size: 12px; color: var(--muted); padding: 4px 2px; }
+/* ✨ AI settings (aisettings.js): in place of the log, compact rows of choices, the toggles with their cost, the meter */
+.ai-set.on { border-color: var(--accent); color: var(--accent); }
+.ai-settings { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 2px 8px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.ai-settings[hidden] { display: none; }
+.ais-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.ais-head b { font-size: 13px; }
+.ais-proj { flex: 1; color: var(--muted); font-size: 11px; }
+.ais-h { margin-top: 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ais-seg { display: flex; flex-wrap: wrap; gap: 3px; }
+.ais-seg button { flex: 1 1 auto; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: inherit; cursor: pointer; white-space: nowrap; }
+.ais-seg button:hover { color: var(--text); border-color: #44505f; }
+.ais-seg button.on { color: var(--text); border-color: var(--accent); background: #1f3a5f88; }
+.ais-togs { display: flex; flex-direction: column; gap: 1px; }
+.ais-tog { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 5px; cursor: pointer; }
+.ais-tog:hover { background: var(--panel-2); }
+.ais-tog input { margin: 0; accent-color: var(--accent); }
+.ais-tog span:first-of-type { flex: 1; }
+.ais-cost { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ais-meter { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; align-items: center; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+.ais-bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.ais-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3fb950, #d29922, #f85149); background-size: 300px 100%; transition: width .2s; }
+.ais-est { font-variant-numeric: tabular-nums; }
+.ais-speed { color: var(--muted); letter-spacing: 1px; white-space: nowrap; }
+.ais-tip { margin-top: 4px; font-size: 11px; color: var(--muted); }
+.ais-acts { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.ais-isdef { font-size: 11px; color: var(--muted); }
+.ais-isdef[hidden], .ais-default[hidden] { display: none; }
+/* # the message tags: the list above the box while typing one, the chips on a sent message */
+.ai-tagmenu { display: flex; flex-direction: column; gap: 1px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+.ai-tagmenu[hidden] { display: none; }
+.ai-tagopt { text-align: left; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; font-size: 12px; padding: 2px 6px; cursor: pointer; }
+.ai-tagopt span { color: var(--muted); }
+.ai-tagopt:hover, .ai-tagopt.on { background: var(--panel-2); }
+.ai-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.ai-chip { font-size: 11px; padding: 0 6px; border-radius: 999px; background: #2f5a8f; color: #dbe9ff; }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
 .ai-drawer { width: min(var(--chat-w, 440px), 100vw); }

@@ -40,7 +40,8 @@ def keep(ev: dict) -> dict | None:
     """A chat event as the conversation keeps it (None: not kept — streaming pieces, status lines)."""
     t = ev.get("type")
     if t == "user":
-        return {"type": "user", "text": ev.get("text") or "", "photos": ev.get("photos") or []}
+        return {"type": "user", "text": ev.get("text") or "", "photos": ev.get("photos") or [],
+                **({"tags": ev["tags"]} if ev.get("tags") else {})}  # (#uc #cnc …: the message's ✨ setting tags)
     if t == "text" and (ev.get("text") or "").strip():
         return {"type": "text", "text": ev["text"]}
     if t == "tool":

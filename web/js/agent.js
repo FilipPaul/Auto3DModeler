@@ -2,12 +2,14 @@
 // app's MCP tools. The server relays each tool call to this page (long-poll), the page applies it like
 // the user would (visible at once, undoable) and posts the result back. The chat itself streams from
 // the server as Server-Sent Events. Its conversations are kept on the server (auto3d/chat_history.py): 🕘 Previous
-// conversations lists them, one opened goes on (Claude's session resumed, or a new one told it in short).
+// conversations lists them, one opened goes on (Claude's session resumed, or a new one told it in short). ✨ Settings: how the
+// AI works on this project (aisettings.js) — sent with each message; #tags typed in a message change them for it.
 
 import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
 import { recorder } from './recorder.js';
 import { pageBuild } from './stale.js';
+import { aiSettings, settingsPanel, TAGS } from './aisettings.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -152,11 +154,13 @@ const session = { get: (k) => { try { return sessionStorage.getItem(k); } catch 
   set: (k, v) => { try { if (v) sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch { /* private window */ } } };
 
 export class ChatPanel {
-  /** hooks: project() -> {id, name} (the project on screen: a new conversation is about it), onShow() (the chat in sight). */
-  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow }) {
+  /** hooks: project() -> {id, name} (the project on screen: a new conversation is about it), onShow() (the chat in sight),
+   *  workspace() -> the one on screen (⚡ Lean mode: only its tools). */
+  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow, workspace }) {
     this.root = root;
     this.toast = toast;
     this.project = project;
+    this.workspace = workspace;
     this.onShow = onShow;
     this.conv = null; // the conversation on screen ({id, title, created …}; null: a new one, made with its first message)
     this.onTurnDone = onTurnDone; // ({prompt}) after each AI turn
@@ -171,6 +175,7 @@ export class ChatPanel {
         <span class="ai-acts">
           <button class="mini ai-undo" title="Undo the last change (Ctrl+Z) — the AI's changes are steps in the app's undo history">↶ Undo</button>
           <button class="mini ai-hist" title="The project after each change Claude made — browse it and load one back">🕘 History</button>
+          <button class="mini ai-set" title="How the AI designs, asks and answers on this project">✨ Settings</button>
           <button class="mini ai-key" title="Sign in, change the API key or sign out">🔑 Access</button>
         </span>
       </div>
@@ -181,6 +186,7 @@ export class ChatPanel {
       </div>
       <div class="ai-convs" hidden></div>
       <div class="ai-access" hidden></div>
+      <div class="ai-settings" hidden></div>
       <div class="ai-log"><div class="ai-empty">
         <p><b>Describe what you want</b> — Claude works on the part in the app: opens drawings, traces pictures, sets
         sizes, adds holes, text and objects, checks the printer and exports.</p>
@@ -197,6 +203,7 @@ export class ChatPanel {
       <form class="ai-form">
         <div class="ai-photos" hidden></div>
         <div class="ai-rec" hidden data-no-i18n></div>
+        <div class="ai-tagmenu" hidden></div>
         <textarea rows="3" placeholder="Message Claude… (Enter = send, Shift+Enter = new line)"></textarea>
         <div class="ai-send">
           <label class="btn small ai-attach" title="Attach photos — or paste (Ctrl+V) or drop them here. Claude sees them and can trace one into a part.">📎 Photo<input type="file" accept="image/*" multiple hidden></label>
@@ -207,7 +214,12 @@ export class ChatPanel {
     this.$ = (s) => root.querySelector(s);
     this.log = this.$('.ai-log');
     const ta = this.$('textarea');
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } });
+    ta.addEventListener('keydown', (e) => {
+      if (this.tagKey(e)) return; // (# the tags' list open: its keys)
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
+    });
+    ta.addEventListener('input', () => this.renderTags());
+    ta.addEventListener('blur', () => setTimeout(() => this.renderTags(false), 150));
     this.$('.ai-form').addEventListener('submit', (e) => { e.preventDefault(); this.send(); });
     // photos: 📎, paste or drop — shown as thumbnails until sent
     this.photos = [];
@@ -231,6 +243,8 @@ export class ChatPanel {
     this.$('.ai-undo').addEventListener('click', () => this.onUndo());
     this.$('.ai-hist').addEventListener('click', () => onHistory?.());
     this.$('.ai-key').addEventListener('click', () => this.showAccess(true));
+    this.settings = settingsPanel(this.$('.ai-settings'), { toast, onClose: () => this.showSettings(false) });
+    this.$('.ai-set').addEventListener('click', () => this.showSettings(this.$('.ai-settings').hidden));
     this.updateUndo();
     this.checkStatus();
     this.connect();
@@ -277,6 +291,58 @@ export class ChatPanel {
       b.addEventListener('click', () => { this.recOn = +b.dataset.id; this.recMenu = false; this.renderRec(); this.$('textarea').focus(); });
     }
     for (const b of box.querySelectorAll('.ai-rec-copy')) b.addEventListener('click', () => recorder.copy(+b.dataset.id)); // (📋 the text to the clipboard)
+  }
+
+  // ------------------------------------------------------------------ ✨ AI settings, # tags
+  /** The ✨ AI settings panel in place of the log (the box to write in stays). */
+  showSettings(open) {
+    if (open && !this.$('.ai-access').hidden) return; // (the AI set up first)
+    this.$('.ai-settings').hidden = !open;
+    this.log.hidden = open;
+    this.$('.ai-set').classList.toggle('on', open);
+    if (open) { this.showConvs(false); this.settings.update(); }
+  }
+
+  /** "#…" being typed: the tags that fit it, above the box (a click or Enter / Tab puts one in). false: closed. */
+  renderTags(open = true) {
+    const ta = this.$('textarea'), box = this.$('.ai-tagmenu');
+    const m = open && ta.value.slice(0, ta.selectionStart).match(/(?:^|\s)#([\w-]*)$/);
+    const hits = m ? TAGS.filter((x) => x.tag.startsWith(m[1].toLowerCase())) : [];
+    box.hidden = !hits.length;
+    if (!hits.length) { this.tagHits = null; box.innerHTML = ''; return; }
+    if (JSON.stringify(hits.map((x) => x.tag)) !== JSON.stringify((this.tagHits || []).map((x) => x.tag))) this.tagSel = 0;
+    this.tagHits = hits;
+    this.tagFrom = ta.selectionStart - m[1].length - 1;
+    this.tagTyped = m[1].toLowerCase();
+    box.innerHTML = hits.map((x, i) => `<button type="button" class="ai-tagopt ${i === this.tagSel ? 'on' : ''}" data-i="${i}"><b data-no-i18n>#${x.tag}</b> <span>${escapeHtml(t(x.label))}</span></button>`).join('');
+    for (const b of box.querySelectorAll('.ai-tagopt')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); this.pickTag(+b.dataset.i); });
+  }
+
+  pickTag(i) {
+    const ta = this.$('textarea'), x = this.tagHits?.[i];
+    if (!x) return;
+    const end = ta.selectionStart;
+    ta.value = `${ta.value.slice(0, this.tagFrom)}#${x.tag} ${ta.value.slice(end).replace(/^\s+/, '')}`;
+    const at = this.tagFrom + x.tag.length + 2;
+    ta.setSelectionRange(at, at);
+    ta.focus();
+    this.renderTags(false);
+  }
+
+  /** The tags' list open: ↑ ↓ choose, Enter / Tab put it in, Escape closes -> true when the key was its. */
+  tagKey(e) {
+    if (!this.tagHits) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      this.tagSel = (this.tagSel + (e.key === 'ArrowDown' ? 1 : this.tagHits.length - 1)) % this.tagHits.length;
+      this.renderTags();
+    } else if (e.key === 'Enter' && this.tagHits[this.tagSel].tag === this.tagTyped) { // (typed whole: Enter sends)
+      this.renderTags(false);
+      return false;
+    } else if (e.key === 'Enter' || e.key === 'Tab') this.pickTag(this.tagSel);
+    else if (e.key === 'Escape') this.renderTags(false);
+    else return false;
+    e.preventDefault();
+    return true;
   }
 
   // ------------------------------------------------------------------ 🕘 previous conversations (kept on the server)
@@ -357,7 +423,8 @@ export class ChatPanel {
     const open = force || s.state !== 'ok' || !!why;
     const box = this.$('.ai-access');
     box.hidden = !open;
-    this.log.hidden = open;
+    if (open) this.showSettings(false);
+    this.log.hidden = open || !this.$('.ai-settings').hidden;
     this.$('.ai-form').hidden = open;
     this.root.classList.toggle('ai-setup', open);
     clearTimeout(this.accessTimer);
@@ -531,7 +598,8 @@ ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // 
     this.renderPhotos();
     this.setBusy(true);
     try {
-      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT, project: this.project?.() || null }) });
+      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT, project: this.project?.() || null,
+        settings: aiSettings.get(), workspace: this.workspace?.() || '' }) }); // (✨ the project's AI settings)
       if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     } catch (e) {
       this.setBusy(false);
@@ -605,7 +673,8 @@ ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // 
       case 'user':
         this.current = null;
         this.turnPrompt = ev.text || '';
-        this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${escapeHtml(ev.text).replace(/\n/g, '<br>')}`);
+        this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${escapeHtml(ev.text).replace(/\n/g, '<br>')}${
+          ev.tags?.length ? `<div class="ai-chips">${ev.tags.map((g) => `<span class="ai-chip" title="${escapeHtml(t(TAGS.find((x) => x.tag === g)?.label || ''))}" data-no-i18n>#${escapeHtml(g)}</span>`).join('')}</div>` : ''}`);
         if (!ev.old) this.setBusy(true); // (a kept conversation's message, shown again: no turn runs)
         if (this.conv && !this.conv.title) { this.conv.title = (ev.text || '').trim().split('\n')[0].slice(0, 80); this.renderConv(); }
         break;

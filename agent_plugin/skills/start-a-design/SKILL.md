@@ -5,7 +5,9 @@ description: Use at the start of every new design — a new part, a device, a br
 
 # Start a design: the brief
 
-Before the first sketch, know these three things. Take from the user's words what they already said; ask the rest
+Before the first sketch, know these three things. Take from the user's words — and from the ✨ settings line
+(`[Nastavení: profil=…; výroba=…; ptát=…]`: profil answers 1, výroba answers 2; `ptát=neptat`: ask nothing, decide and
+say what you chose) — what they already said; ask the rest
 with `ask_user {question, options, recommended}` — one call per question, in this turn, then **end the turn** and
 wait for the answers (they come as the next message). Always recommend one option (shown first, ★) and say in its
 description why it fits what the user asked.

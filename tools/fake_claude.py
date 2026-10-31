@@ -7,9 +7,13 @@ with its session id, then for each message a tool line and an answer that tells 
 Its sessions are files under $CLAUDE_CONFIG_DIR/projects/fake/<id>.jsonl (where the server looks for a session to
 resume); `--resume <id>` of a session that is not there fails as Claude Code does ("No conversation found …", exit 1).
 A message with "SLOW" in it is answered slowly: a piece of text every 0.5 s for a minute first (to press Stop in).
+The ✨ settings line before a message ("[Nastavení: …]") is left out of the echo (the session file has the whole text). A
+message with "TOOLS?" in it: the app's MCP server (as --mcp-config starts it) is asked for its tools, the echo ends with
+" | tools: <count>" (⚡ Lean mode lists fewer).
 """
 import json
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -19,6 +23,15 @@ from pathlib import Path
 def out(msg):
     sys.stdout.write(json.dumps(msg) + "\n")
     sys.stdout.flush()
+
+
+def mcp_tool_count(args) -> int:
+    """How many tools the app's MCP server (from --mcp-config) lists."""
+    cfg = json.loads(args[args.index("--mcp-config") + 1])["mcpServers"]["auto3d"]
+    p = subprocess.Popen([cfg["command"], *cfg["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    msgs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}]
+    out, _ = p.communicate("".join(json.dumps(m) + "\n" for m in msgs).encode(), timeout=30)
+    return len(json.loads(out.decode().splitlines()[1])["result"]["tools"])
 
 
 def main():
@@ -48,6 +61,9 @@ def main():
             f.write(json.dumps({"text": text}) + "\n")
         summary = "yes" if text.startswith("[This continues an earlier conversation") else "no"
         said = text.split("]\n\n", 1)[1] if summary == "yes" else text
+        if said.startswith("[Nastavení:"):  # (the ✨ settings line)
+            said = said.split("]", 1)[1].lstrip()
+        tools = f" | tools: {mcp_tool_count(args)}" if "TOOLS?" in said else ""
         out({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "mcp__auto3d__get_model", "input": {}}]}})
         out({"type": "user", "message": {"content": [{"type": "tool_result", "content": "a model"}]}})
         if "SLOW" in said:
@@ -56,7 +72,7 @@ def main():
                 out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": f"{i} "}}})
                 time.sleep(0.5)
         out({"type": "assistant", "message": {"content": [{"type": "text", "text":
-             f"Echo #{n}: {said[:60]} | resumed: {resume or 'no'} | summary: {summary}"}]}})
+             f"Echo #{n}: {said[:60]} | resumed: {resume or 'no'} | summary: {summary}{tools}"}]}})
         out({"type": "result", "is_error": False, "result": "", "total_cost_usd": 0, "duration_ms": 1})
 
 

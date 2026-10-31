@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✨ AI settings: profile, manufacturing, asking, answers, rules and modes per project (2026-10-31)** (the owner's
+  approved design). web/js/aisettings.js: the panel (✨ Settings in the chat's head, in place of the log; profiles set
+  make / standard / dfm / dfa / review, a change → ✎ Custom; a tokens-per-task meter), kept in the project file
+  (`ai_settings`, Project.toJSON / loadAll; none → the app's default in localStorage, "Use as default"); the chat's
+  # autocomplete and chips. auto3d/ai_settings.py: clean, parse_tags (#uc #chyby #kontrola #rychle #cnc #tisk
+  #bez-otazek, Czech letters too), settings_line (≈ 190 chars); ChatSession.send(settings, workspace) prepends it only
+  when it changed (sent_line; reset by a new conversation / a session not resumed). ⚡ Lean mode: agent_tools.TOOL_GROUPS
+  (general + quick / model / assembly / sheet / drawing), mcp_server `--group`; another group → the process restarts
+  unseen (_restart, `--resume`); 🌐 internet: the server writes <data>/ai/settings.json {"internet"} (read by
+  fetchcad.internet_on at the chat's start), a change restarts the process the same way. Schemas (chars / 4): all 113 tools ≈ 28.7k tokens; model 43 ≈ 11.8k (−16.9k),
+  assembly 53 ≈ 14.8k (−13.8k), sheet ≈ 7.4k, drawing ≈ 5.4k, quick ≈ 7.1k, start screen ≈ 4.5k. SYSTEM_PROMPT routes
+  the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter / lean).
+  Tests: test_ai_settings (line, tags, groups, the chat's line / restart, the project file), tools/e2e_ai_settings.py.
+
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
   mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design
