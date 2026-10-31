@@ -41,7 +41,7 @@ from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf, gp_
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.Interface import Interface_Static
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader
-from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_FORWARD, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
+from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_EDGE, TopAbs_FACE, TopAbs_FORWARD, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
 from OCP.TopExp import TopExp, TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
 from OCP.TopoDS import TopoDS
@@ -65,15 +65,18 @@ are the same: tests/test_parallel_bool.py)."""
 _BOPS = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoAPI_Fuse}
 
 
-def bop(op, args, tools):
+def bop(op, args, tools, fuzzy=0.0):
     """args ∩ / − / ∪ tools: op "common" / "cut" / "fuse", args and tools a shape or a list of shapes -> the built
     BRepAlgoAPI operation (IsDone, Shape and its history for _carry). Every boolean of the kernel goes through here.
     Non-destructive: the arguments are left as they were (a sub-shape whose tolerance has to grow is copied into the
     result) — the steps' shapes are kept and used again (doc's prefix cache: every preview of a step cuts the same
     earlier body), and a destructive boolean grew their tolerances in place: a hole dragged near a pin's rim left its
-    edge 12 mm "thick", after which a Ø4 hole down the pin's axis cut nothing (app report)."""
+    edge 12 mm "thick", after which a Ø4 hole down the pin's axis cut nothing (app report). fuzzy (mm): what is that
+    close counts as touching (combine's second try)."""
     mk = _BOPS[op]()
     mk.SetNonDestructive(True)
+    if fuzzy:
+        mk.SetFuzzyValue(float(fuzzy))
     a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
     for s in args if isinstance(args, (list, tuple)) else [args]:
         a.Append(s)
@@ -1460,19 +1463,73 @@ def view_triangles(shape, tol):
 
 
 def combine(body, tool, op):
-    """body ∪ tool or body − tool, names of both carried over."""
+    """body ∪ tool or body − tool, names of both carried over. A body of several solids (an imported assembly) is
+    joined / cut only with the solids the tool touches; the other solids stay as they are (parts of the file that
+    overlap each other are not merged by a joined step far from them: a Ø4 boss on Reespirator's 26 parts took 99 mm³
+    off). A boolean that is not done is tried again with a fuzzy value (_fuzzy_retry)."""
     if body is None:
         if op == "cut":
             raise KernelError("There is nothing to cut yet — make the first extrude “Add material”.")
         return tool
-    mk = bop("cut" if op == "cut" else "fuse", body.shape, tool.shape)
+    kind = "cut" if op == "cut" else "fuse"
+    args, rest = _reached(body.shape, tool.shape)
+    mk = bop(kind, args, tool.shape)
     if not mk.IsDone():
-        raise KernelError("The solid operation failed.")
-    res = mk.Shape()
+        mk = _fuzzy_retry(kind, args, tool.shape)
+    res = mk.Shape() if not rest else compound([mk.Shape(), *rest])
     names = _carry(mk, body.names, res)
     for n, fs in _carry(mk, tool.names, res).items():
         names.setdefault(n, []).extend(fs)
     return _unify(Body(res, names))
+
+
+def _reached(shape, tool):
+    """The solids of a shape of several that the tool touches, goes into or sits inside, and the others: (a shape or a
+    list to take part in the boolean, [solids left as they are]); one solid, or all reached: (the shape, [])."""
+    if shape.ShapeType() != TopAbs_COMPOUND or solids(shape) < 2:
+        return shape, []
+    b = Bnd_Box()
+    BRepBndLib.Add_s(tool, b, False)
+    if b.IsVoid():
+        return shape, []
+    lo, hi = b.CornerMin(), b.CornerMax()
+    t = [lo.X(), lo.Y(), lo.Z(), hi.X(), hi.Y(), hi.Z()]
+    gap = 1e-3 * max(1.0, *(t[k + 3] - t[k] for k in range(3)))
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    from OCP.TopAbs import TopAbs_OUT
+    v = next(_subshapes(tool, TopAbs_VERTEX), None)
+    if v is None:
+        return shape, []
+    corner = BRep_Tool.Pnt_s(TopoDS.Vertex(v))
+    near, rest = [], []
+    for s, bb in _solid_boxes(shape):
+        far = any(bb[k] > t[k + 3] + gap or t[k] > bb[k + 3] + gap for k in range(3))
+        if not far:  # (in the box: does it touch the tool, or hold it — then no boundary is near, a corner is inside)
+            d = BRepExtrema_DistShapeShape(s, tool)
+            far = d.IsDone() and d.Value() > gap and BRepClass3d_SolidClassifier(s, corner, gap).State() == TopAbs_OUT
+        (rest if far else near).append(s)
+    if not rest or not near:
+        return shape, []
+    return near, rest
+
+
+FUZZY = (1e-5, 1e-4)
+"""The second tries of a boolean that failed, × the size of the part's box: a file from another CAD program whose faces
+miss each other by its own tolerance (1e-3 … 1e-2 mm) is joined as if they touched."""
+
+
+def _fuzzy_retry(op, a, b):
+    """A boolean that failed tried again with a fuzzy value (FUZZY): the first one that is done and gives a valid solid,
+    else KernelError."""
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    bb = bbox(compound([*(a if isinstance(a, list) else [a]), b])) or [0, 0, 0, 1, 1, 1]
+    size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])
+    for k in FUZZY:
+        mk = bop(op, a, b, fuzzy=k * size)
+        if mk.IsDone() and solids(mk.Shape()) and BRepCheck_Analyzer(mk.Shape()).IsValid():
+            return mk
+    raise KernelError("The solid operation failed.")
 
 
 def _unify(body):
@@ -2793,14 +2850,35 @@ def loose_faces(shape):
     return out
 
 
+def _beside_solids(shape):
+    """Does a shape with solids also hold pieces of its own that are no solid — a STEP's curves and points (NIST's
+    wireframe of its sizes beside the solid)? OpenCASCADE's fuse refuses a solid together with edges ("The solid
+    operation failed" for every joined extrude on nist_ctc_01), so a body is made of its solids only."""
+    from OCP.TopAbs import TopAbs_COMPSOLID
+    from OCP.TopoDS import TopoDS_Iterator
+    if shape.ShapeType() != TopAbs_COMPOUND or not solids(shape):
+        return False
+    todo = [shape]
+    while todo:
+        it = TopoDS_Iterator(todo.pop())
+        while it.More():
+            t = it.Value().ShapeType()
+            if t == TopAbs_COMPOUND:
+                todo.append(it.Value())
+            elif t not in (TopAbs_SOLID, TopAbs_COMPSOLID):
+                return True
+            it.Next()
+    return False
+
+
 def solid_body(shape, fid, whole=False):
     """A solid made elsewhere (a STEP file, a quick part) as a body; its faces are named <fid>:f<k> (k: the face's
-    place in the whole file's shape — its colours are found by it). Loose faces beside its solids are left out (see
-    loose_faces); whole: kept (a reference body)."""
+    place in the whole file's shape — its colours are found by it). Loose faces, curves and points beside its solids are
+    left out (see loose_faces, _beside_solids); whole: kept (a reference body)."""
     fm = _face_map(shape)
     names = {f"{fid}:f{k}": [fm.FindKey(k + 1)] for k in range(fm.Extent())}
     loose = None if whole else loose_faces(shape)
-    if loose is None:
+    if loose is None and (whole or not _beside_solids(shape)):
         return Body(shape, names)
     solid_list = list(_subshapes(shape, TopAbs_SOLID))
     body = solid_list[0] if len(solid_list) == 1 else compound(solid_list)

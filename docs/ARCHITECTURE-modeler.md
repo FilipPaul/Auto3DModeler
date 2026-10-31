@@ -7,6 +7,23 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **▣ New material joined onto an imported STEP (fix, 2026-10-31)** (the owner designs around bought parts: "sketch on
+  its face and extrude a matching part"). nist_ctc_01 and nist_stc_06 failed every joined extrude, even a plain circle
+  ("The solid operation failed"; a cut worked). Root cause: their STEP holds wireframe curves beside the solid (CTC-01:
+  78 loose edges; STC-06: 31 compounds of them) — the body was the file's compound of solid + edges, and OpenCASCADE's
+  fuse refuses arguments of different dimensions (a cut allows them). Not tolerances, sewing or orientation: the solid
+  alone is valid and fuses. Fix: kernel.solid_body makes a joined / cut body of the solids only when the file holds
+  anything else beside them (_beside_solids; loose faces were already left out); the face names F1:f<n> are the
+  file's face indices as before (edges hold no faces), so projects keep pointing at the same faces; 👁 references keep
+  the whole shape. kernel.combine: a body of several solids (an imported assembly) is joined / cut only where the
+  tool's box reaches and it touches or holds the tool (_reached: box, then BRepExtrema + a classifier); the rest stay —
+  Reespirator's 26 parts overlap each other, a Ø4 boss on one merged two and took 99 mm³ off. A boolean that is not
+  done is tried again with a fuzzy value of 1e-5 / 1e-4 × the box (_fuzzy_retry, bop(fuzzy=)), kept only when it
+  gives valid solids (BRepCheck_Analyzer). No healing / unify on import (it would renumber the faces). Tests:
+  tests/test_step_join.py (new: each STEP part / assembly of samples.json — a circle ≤ Ø4 on its largest free flat face,
+  extruded 5 mm add: + π r² · 5, the same number of valid solids with closed shells, STEP write → read; cut: what the
+  cylinder holds; files > 1 MB with A3D_SLOW_SAMPLES=1 — all 31 pass), tools/e2e_step_sketch.py (a joined Ø4 extrude
+  on nist_ctc_01: + π · 2² · 5).
 - **📎 Příloha: text, CAD files and drawings in the AI chat (2026-10-31).** The chat's 📎 Photo became 📎 Attachment
   (picker, paste, drop; at most 10 per message; photos as before). auto3d/chat_attach.py: a text file (.txt .md .csv
   .json .xml .yaml .log .ini, code …) goes into the message as a fenced block with its name — whole up to 60 kB, at
@@ -36,7 +53,7 @@ Date: 2026-10-25. Written by the architect agent.
   get_model taken_from; model-a-part skill. Fixed on the way: kernel._mixed_wire turns a smooth curve drawn against its
   loop's way round (a hole with such a curve was added, not cut — nist_ftc_10's pocket loop). Not done: a solid step
   cannot be moved inside a 3D model (it follows a newer file); a joined nist_ctc_01 does not fuse with new material
-  (an older OCCT boolean failure of that file, also for a plain circle). Tests: tests/test_step_sketch.py (new: volumes,
+  (fixed the same day: its curves beside the solid, see "New material joined onto an imported STEP"). Tests: tests/test_step_sketch.py (new: volumes,
   watertight, STEP round trip, a moved file followed, solver), tools/e2e_step_sketch.py (new).
 
 - **The AI designs parts that are easy to assemble: easy-assembly skill (2026-10-31)** (DFA, later a setting
