@@ -4,7 +4,7 @@ import { leftDock } from './leftdock.js';
 import { suggestMenu } from './suggest.js';
 import { params } from './params.js';
 import { loadParams } from './paramsui.js';
-import { lockBtn, lockItems } from './ailock.js';
+import { aiHolds, lockBtn, lockItems } from './ailock.js';
 
 // A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
 // becomes a part; click a tab to switch, double-click to rename, ✕ to close the tab (the part stays in the project:
@@ -294,7 +294,7 @@ export class Project {
   /** Delete a part from the project (☰ Parts ✕), after asking. */
   async remove(id, ask = true) {
     const p = this.parts.find((q) => q.id === id);
-    if (!p || this.parts.length < 2 || this.busy) return;
+    if (!p || this.parts.length < 2 || this.busy || aiHolds(p)) return; // (🔒 the AI clicking ✕ on a part locked for it)
     const used = this.usedBy(id);
     const msg = `${t('Delete the part “{name}” from the project?').replace('{name}', p.name)}${used.length ? `\n\n${t('It is used in: {list} — it would be missing there.').replace('{list}', used.join(', '))}` : ''}`;
     if (ask && !(await confirmIn(msg, { ok: 'Delete', danger: true }))) return;
@@ -349,7 +349,7 @@ export class Project {
 
   rename(id, name) {
     const p = this.parts.find((q) => q.id === id);
-    if (p && name) p.name = name;
+    if (p && name && !aiHolds(p)) p.name = name;
     this.render();
   }
 

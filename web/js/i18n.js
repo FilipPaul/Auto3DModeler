@@ -2413,6 +2413,7 @@ const CS = {
   'The AI may add joints to it, but not change it — you can still change it': 'AI k němu smí přidat vazby, ale nesmí ho měnit — vy ho měnit můžete',
   'The part is locked for the AI — you can still change it.': 'Díl je zamčený pro AI — vy ho měnit můžete.',
   'The assembly is locked for the AI — you can still change it.': 'Sestava je zamčená pro AI — vy ji měnit můžete.',
+  'The AI tried to change a part locked for it — put back as it was.': 'AI se pokusila změnit díl zamčený pro AI — vráceno, jak bylo.',
   'More: lock it for the AI …': 'Další: zamknout pro AI …', 'None chosen (Esc)': 'Nic nevybráno (Esc)',
 };
 

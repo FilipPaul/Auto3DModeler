@@ -46,6 +46,7 @@ export function lockInfo(id) {
 
 /** The answer to a refused call (Czech, as the owner wrote it; the AI reads it). */
 export function refusal(p) {
+  if (typeof p === 'string') p = partOf(p) || { name: p };
   const l = lockOf(p), asm = p.kind === 'assembly';
   return `🔒 ${p.name} je ${asm ? 'zamčená' : 'zamčený'} pro AI (${WHY_CS[l?.reason] || (asm ? 'schválená sestava' : 'koupený / vyrobený díl')}) — tohle se na ${asm ? 'ní' : 'něm'} měnit nesmí; vazby přidat lze. `
     + '(AI lock: only the user can unlock it. Add joints, change another part, or ask the user.)';
@@ -164,7 +165,12 @@ document.addEventListener('click', (e) => {
 // the user changing a locked part by hand: a gentle note, once a part (never stopped) — only a step right after the
 // user's own input (not a rebuild's late update, not the AI's)
 let lastInput = 0;
-for (const ev of ['pointerdown', 'keydown', 'change', 'input']) document.addEventListener(ev, () => { lastInput = Date.now(); }, true);
+for (const ev of ['pointerdown', 'keydown', 'change', 'input']) {
+  document.addEventListener(ev, (e) => {
+    lastInput = Date.now();
+    if (e.isTrusted && clicking?.until !== Infinity) clicking = null; // (the user's own input after the AI's click: theirs again)
+  }, true);
+}
 History.watchers.add((h, dir) => {
   if (dir !== 0 || aiCalling || !ctx || Date.now() - lastInput > 2000) return;
   const p = ctx.project.current;
@@ -268,12 +274,130 @@ export function guard(tool, args = {}) {
   return null;
 }
 
-/** Run an AI tool call with the lock checked (agent.js startBridge). */
+/** Run an AI tool call with the lock checked (agent.js startBridge); its clicks (gui_action) watched as they change. */
 export async function guarded(tool, args, run) {
   const r = guard(tool, args);
   if (r) return r;
   aiCalling++;
-  try { return await run(); } finally { aiCalling--; }
+  try { return tool === 'gui_action' ? await clicked(run) : await run(); } finally { aiCalling--; }
+}
+
+// ------------------------------------------------------------------------------------------- the AI's clicks (gui_action)
+// The AI may click the app as the user would: what that changes is checked where every change is recorded (History.veto,
+// the undo step) — not by the button — so a step that would change a locked part or assembly is refused and put back,
+// whichever button made it (a fillet from the suggestions, ✎ Edit in place, a dimension dragged, a field typed into). A
+// joint added to a locked assembly stays allowed (as snap_faces); choosing, turning the view, measuring and hiding are
+// no change. What changed without a step (a field not confirmed yet) is put back when the click is done; a rename or a
+// delete of the part is refused where the project applies it (aiHolds).
+let clicking = null; // {snap: {id: {name, data}}, until, refused: Set} — while the AI's click runs (and a moment after it: a late step)
+const VIEW_KEYS = ['measures', 'hidden_dims', 'display', 'light', 'editable']; // (what the view keeps in a part: no change)
+const TAIL_MS = 3000;
+
+/** A part's data as the lock compares it: the view's keys left out (poses: the placed parts' places, left out too). */
+function bare(d, poses = false) {
+  if (!d || typeof d !== 'object') return d ?? null;
+  const o = { ...d };
+  for (const k of VIEW_KEYS) delete o[k];
+  if (poses && Array.isArray(o.instances)) o.instances = o.instances.map(({ matrix, hang, ...it }) => it);
+  return o;
+}
+/** JSON with the keys sorted (a saved version and the part on screen compared). */
+const canon = (x) => JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v));
+
+/** Only joints added (the old ones all kept), else as it was but the poses: a joint moves the parts it holds (a part
+ *  dragged, a mechanism driven by clicking — no joint added: a change, as move_free). */
+function jointsOnly(was, now) {
+  const a = bare(was, true), b = bare(now, true), ma = a?.mates || [], mb = b?.mates || [];
+  if (!a || !b || mb.length <= ma.length) return false;
+  const ids = new Set(mb.map((m) => m.id));
+  if (!ma.every((m) => ids.has(m.id))) return false;
+  return canon({ ...a, mates: null }) === canon({ ...b, mates: null });
+}
+
+const lockedNow = () => Object.fromEntries((ctx?.project.parts || []).filter((p) => lockOf(p)).map((p) => [p.id, { name: p.name, data: structuredClone(dataOf(p)) }]));
+
+/** The locked parts the AI's click changed -> [{id, p (null: gone), s: as they were}]. */
+function broken(c) {
+  const out = [];
+  for (const [id, s] of Object.entries(c.snap)) {
+    const p = partOf(id), d = p ? dataOf(p) : null;
+    if (p && p.name === s.name && (canon(bare(d)) === canon(bare(s.data)) || jointsOnly(s.data, d))) continue;
+    out.push({ id, p, s });
+  }
+  return out;
+}
+
+const live = () => !!clicking && (clicking.until === Infinity || Date.now() <= clicking.until);
+
+function refused(c, ids) {
+  for (const id of ids) c.refused.add(id);
+  if (c.until !== Infinity) ctx.toast(t('The AI tried to change a part locked for it — put back as it was.'), 'warning', 6000); // (a late step: the AI was answered already)
+}
+
+// a step about to be recorded while the AI clicks: refused when it changes a locked part (the other locked parts it
+// touched — a bolt's holes drilled into one — put back with it)
+History.veto = (h) => {
+  if (!ctx || h === hist || !clicking) return false;
+  if (!live()) { clicking = null; return false; }
+  const bad = broken(clicking), cur = ctx.project.current;
+  if (!bad.length) return false;
+  for (const { p, s } of bad) if (p && p !== cur) { p.data = structuredClone(s.data); p.name = s.name; }
+  refused(clicking, bad.map((b) => b.id));
+  return true;
+};
+
+/** The project about to apply a rename or a delete of this part: refused (true) while the AI clicks and it is locked. */
+export function aiHolds(idOrPart) {
+  if (!live()) return false;
+  const p = typeof idOrPart === 'string' ? partOf(idOrPart) : idOrPart;
+  if (!p || !lockOf(p)) return false;
+  refused(clicking, [p.id]);
+  return true;
+}
+
+/** What the click left changed without a step: put back as it was (the part on screen: its step undone, else loaded again). */
+async function putBack(c) {
+  const bad = broken(c);
+  if (!bad.length) return;
+  for (const { id, p, s } of bad) {
+    c.refused.add(id);
+    if (!p) { if (ctx.project.lastDeleted?.p.id === id) ctx.project.undoDelete(); continue; }
+    p.name = s.name;
+    if (p !== ctx.project.current) { p.data = structuredClone(s.data); continue; }
+    const h = p.kind === 'model' ? ctx.modeler?.history : p.kind === 'assembly' ? ctx.assembly?.history : null;
+    if (h?.base && JSON.stringify(h.capture()) !== h.baseKey) await h.restore(structuredClone(h.base));
+    if (broken({ snap: { [id]: s } }).length) {
+      const hs = ctx.project.hooks.getHistory(p.kind);
+      await ctx.project.hooks.load(structuredClone(s.data), { switching: true, kind: p.kind });
+      ctx.project.hooks.setHistory(hs, p.kind);
+    }
+  }
+  ctx.refresh?.();
+}
+
+/** The AI's gui_action run with its changes watched: a locked part changed -> refused with the lock's answer, put back. */
+async function clicked(run) {
+  const c = clicking = { snap: lockedNow(), until: Infinity, refused: new Set() };
+  let r;
+  try { r = await run(); } finally { c.until = Date.now() + TAIL_MS; }
+  await putBack(c);
+  if (!c.refused.size) return r;
+  const p = partOf([...c.refused][0]);
+  return { ...r, text: `${p ? refusal(p) : '🔒'} — the click's change to it was not applied (put back as it was). ${r?.text ?? ''}`, error: true };
+}
+
+/** 🔒 The project a version / a variant would bring (restore_version, switch_variant) -> null, or the refusal when it
+ *  would change a part locked for the AI (its data, its name, its lock — or take it away). now: the project file now. */
+export function lockedChange(next, now) {
+  if (!ctx || !next?.parts) return null;
+  const was = new Map((now?.parts || []).map((q) => [q.id, q]));
+  for (const p of ctx.project.parts) {
+    if (!lockOf(p)) continue;
+    const a = was.get(p.id), b = next.parts.find((q) => q.id === p.id);
+    const side = (q) => (q ? canon([q.name, bare(q[q.kind === 'classic' ? 'classic' : q.kind]), q.ai_lock || null]) : null);
+    if (a && side(a) !== side(b)) return { text: `${refusal(p)} The version would change it — it was not restored.`, error: true };
+  }
+  return null;
 }
 
 /** Start: what the lock looks at, and how the screens draw it again (app.js). */

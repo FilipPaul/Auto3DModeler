@@ -14,6 +14,9 @@ export class History {
   // Who else hears of every step, in every workspace: fn(history, dir) — dir 0: recorded, -1: undone, +1: redone (⏺ the
   // recording of moves, recorder.js).
   static watchers = new Set();
+  // Asked before a step is recorded: veto(history) -> true refuses it — the state goes back to the last recorded one
+  // (🔒 the AI clicking a change into a part locked for it — ailock.js).
+  static veto = null;
 
   /** capture(): the state to record; restore(snapshot): put it back; onChange(): update the buttons. */
   constructor({ capture, restore, onChange = () => {}, limit = 100 }) {
@@ -34,6 +37,10 @@ export class History {
 
   /** Record the current state as a step (nothing happens when it did not change). */
   commit() {
+    if (this.base !== null && History.veto?.(this)) {
+      Promise.resolve(this.restore(clone(this.base))).catch(() => {}).then(() => this.onChange());
+      return false;
+    }
     const did = this.record();
     if (did) { History.committed?.(this); for (const fn of History.watchers) fn(this, 0); }
     return did;

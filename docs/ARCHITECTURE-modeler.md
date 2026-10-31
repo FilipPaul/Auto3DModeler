@@ -54,9 +54,25 @@ Date: 2026-10-25. Written by the architect agent.
   locked sub-assembly (place / move_free / remove / limits by "I2/I1"), bolt_parts drilling a locked part — refused
   with "🔒 <part> je zamčený pro AI (…) — tohle se na něm měnit nesmí; vazby přidat lze." list_parts / get_model /
   get_assembly (parts, inner parts, the assembly) say ai_locked + reason; no tool unlocks. SYSTEM_PROMPT and the
-  skills model-a-part / change-a-model / assemble-parts one line each. Not covered: gui_action (the AI clicking the
-  GUI as the user would) and restore_version / switch_variant (the whole project) are not checked. Tests:
-  test_project.test_ai_lock, test_agent.test_the_ai_respects_the_lock, tools/e2e_ai_lock.py.
+  skills model-a-part / change-a-model / assemble-parts one line each. Tests: test_project.test_ai_lock,
+  test_agent.test_the_ai_respects_the_lock, tools/e2e_ai_lock.py.
+- **🔒 The lock's gaps closed: the AI's clicks, versions (2026-10-31).** gui_action runs with its changes watched
+  (ailock.js clicked): the locked parts' data is kept as the click starts; History.veto (history.js — asked before
+  any undo step is recorded, in every workspace) refuses a step that changes one (the view's keys — measures,
+  hidden dims, display, light, edit-in-place — left out) and puts it back (the history's last state; another locked
+  part it touched, e.g. a bolt's holes: its data back), whatever button made it; a locked assembly may gain joints
+  (its mates only grow, the old ones kept; the poses that come with them free — a part dragged or a mechanism driven
+  by clicking without a new joint is a change, as move_free; drive_mechanism stays open). What changed without a step (a field
+  not confirmed yet) is put back when the click is done (the step undone, else the part loaded again); a rename /
+  delete of a locked part is refused where parts.js applies it (aiHolds). The answer starts with the lock's refusal
+  ("… put back as it was"); a late step (≤ 3 s after the click, before the user's own input) is refused with a toast.
+  The user's own (trusted) input is never checked. restore_version / switch_variant: **refused** (not merged) when the
+  version / the variant's newest version would change a locked part — its data, name, lock, or take it away
+  (lockedChange compares the version's project with the one now, keys sorted); take_part refused for a locked part
+  by its id. e2e_ai_lock.py: the AI's pick + "Zaoblit její hrany" + OK on the locked Ložisko -> refused, unchanged;
+  the user's same clicks right after -> done; a clicked joint (Dotyk) onto the locked Deska in the locked Stroj ->
+  added; ✕ Vyjmout there -> refused; restore_version leaving the locks alone -> done, one that would change Ložisko
+  -> refused.
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
   mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design

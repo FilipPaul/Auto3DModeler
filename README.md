@@ -1484,8 +1484,12 @@ sketches, material, colour, name, the 𝑥 parameters that drive it, nor delete 
 move, remove or re-join the parts or edit its cables and mechanisms — it is told *"🔒 … je zamčený pro AI … vazby
 přidat lze"* and takes another way. It **may** still add joints to locked parts and into a locked sub-assembly, insert
 them, measure them and use them in drawings and the BOM; `list_parts` / `get_model` / `get_assembly` say
-`ai_locked`. Only you can lock or unlock (the AI has no tool for it), and you can still edit a locked part — a short
-note reminds you that it is locked for the AI.
+`ai_locked`. The same holds when the AI clicks the app as you would (a fillet from the suggestions, ✎ Upravit díl zde,
+a dragged dimension, a typed field): such a change is refused and put back as it was — adding a joint by clicking
+stays allowed, and choosing, turning the view and measuring are no change. Restoring a version or switching to a
+variant that would change a locked part is refused for the AI, as is taking a locked part from another variant. Only
+you can lock or unlock (the AI has no tool for it), and you can still edit a locked part — a short note reminds you
+that it is locked for the AI.
 
 **🕘 Previous conversations** (the bar under the chat's head): every conversation is kept on the server
 (`data/chats/`, the last 200) with the project it was about. The list shows this project's conversations first (the

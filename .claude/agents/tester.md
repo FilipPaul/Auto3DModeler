@@ -923,8 +923,10 @@ Never report "works" without having run it; report failures with their output.
    into the locked sub-assembly allowed; set_look / paint_faces / move_free / remove_from_assembly inside it refused;
    edit_feature / add_feature / set_material / delete_part / rename_part refused with "je zamčený pro AI … vazby
    přidat lze", the library screw too; set_parameter driving a locked part refused and names it; the user's own edit
-   of a locked part done with the note; the reason chip; save + reload keeps the locks; "🔓 Odemknout pro AI (3)"; no
-   console errors, no native dialogs (exit code 1 on a failure).
+   of a locked part done with the note; the reason chip; save + reload keeps the locks; "🔓 Odemknout pro AI (3)"; the
+   AI's gui_action (pick + "Zaoblit její hrany" + OK) on a locked part refused and put back, the user's same clicks
+   done; a clicked joint into the locked Stroj added, its ✕ Vyjmout refused; restore_version that would change a
+   locked part refused; no console errors, no native dialogs (exit code 1 on a failure).
    `tools/e2e_assembly_groups.py <url> <dir>` covers 🔗 a rigid group (Czech: five flags and the inner crank of
    "Pohon" chosen with Shift / Ctrl+click -> "Spojit pevně (6 dílů)": nothing moved, one undo step, get_assembly
    `groups` (base I2, the flags; not in `joints`), one row "Klika (6 dílů)"; driven 10° / 45° every flag turns with the

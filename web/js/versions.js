@@ -12,6 +12,7 @@
 // confirmed inline: its versions go with it).
 import { t, getLang } from './i18n.js';
 import { leftDock } from './leftdock.js';
+import { lockedChange, lockOf, refusal } from './ailock.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
@@ -526,6 +527,8 @@ export class Versions {
       },
       restore_version: async ({ id } = {}) => {
         if (!VID.test(String(id ?? ''))) throw new Error('id: a version id from list_versions (e.g. 20261029-152453-b9f9ef).');
+        const no = lockedChange((await call(this.url(`/v/${encodeURIComponent(id)}`))).project, this.now().project); // (🔒 a locked part it would change: refused)
+        if (no) return no;
         const r = await this.restore(id);
         return { text: JSON.stringify({ restored: id, version: brief(r.version), before: r.before ? brief(r.before) : null, undo: r.before ? `restore_version {id: "${r.before.id}"}` : null }) };
       },
@@ -546,6 +549,8 @@ export class Versions {
         await need();
         const v = variantOf(variant);
         if (v.id === this.data.current) return { text: `“${this.varName(v)}” is the variant on screen already.` };
+        const no = v.head ? lockedChange((await call(this.url(`/v/${encodeURIComponent(v.head)}`))).project, this.now().project) : null;
+        if (no) return { ...no, text: no.text.replace('The version would change it — it was not restored.', 'The variant would change it — it was not switched to.') };
         await this.switchVariant(v.id);
         return { text: JSON.stringify({ variant: { id: v.id, name: this.varName(v) }, parts: (this.hooks.project()?.parts || []).map((p) => p.name) }) };
       },
@@ -568,6 +573,7 @@ export class Versions {
         const there = (await this.otherParts()).filter((o) => o.variant === v.id), w = String(part ?? '').toLowerCase();
         const o = there.find((x) => x.part === part || x.name.toLowerCase() === w) || there.find((x) => w && x.name.toLowerCase().includes(w));
         if (!o) throw new Error(`No part “${part}” in variant “${this.varName(v)}” — its parts: ${there.map((x) => `${x.part} “${x.name}”`).join(', ') || 'none saved'}.`);
+        if (lockOf(o.part)) return { text: `${refusal(o.part)} take_part would replace it — not taken.`, error: true }; // (🔒 by its id here, whatever its name there)
         const r = await this.takePart(v.id, o.part);
         return { text: `“${r.part.name}” taken from variant “${this.varName(v)}” (as it is in its newest version) into the project on screen — kept as a named version.` };
       },
