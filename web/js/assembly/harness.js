@@ -1794,7 +1794,8 @@ export class HarnessTool {
   }
 
   /** The Suggested table while a harness is edited or chosen -> shown? */
-  suggest(vp, show) {
+  suggest(vp, showAny) {
+    const show = (v, title, items, ...r) => showAny(v, title, items.map((x) => (x.section !== undefined || x.group ? x : { ...x, group: 'cable' })), ...r); // (every row: about the cable — one category)
     const h = this.get(this.edit || this.sel);
     if (this.clips.at && (this.clips.at.h !== h?.id || this.clips.at.i !== this.pt)) this.clips.close(); // (📎 its list: for the point chosen only)
     if (!h) return false;

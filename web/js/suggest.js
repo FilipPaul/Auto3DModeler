@@ -187,6 +187,13 @@ document.addEventListener('keydown', (e) => {
   if (leftDock.sgState().closed) openSuggest(); else closeSuggest();
 });
 /** ⋯ Show all opened: every table shows everything until ▴ Fewer (for this session). */
+// The categories a table's rows may be in (a row's `group`; the assembly's: assembly/sggroups.js), in no fixed order:
+// the one holding the most relevant row first. The kind of thing a row acts on colours its icon (as the trees' icons).
+const GROUPS = { joint: 'Joints', part: 'Part', asm: 'Assembly', cable: 'Cabling', fast: 'Fasteners', motion: 'Motion', insert: 'Insert parts', other: 'Other' };
+const KIND = { joint: ' k-joint', part: ' k-part', asm: ' k-asm' };
+/** The icon of a row: its HTML (it.ico — a part's drawn icon, as in the trees) or its glyph, coloured by its kind. */
+const iconHtml = (it) => `<span class="vs-i${KIND[it.kind || it.group] || ''}">${it.ico || it.icon || '•'}</span>`;
+
 const showingAll = () => { try { return sessionStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
 const setShowingAll = (on) => { try { if (on) sessionStorage.setItem(ALL_KEY, '1'); else sessionStorage.removeItem(ALL_KEY); } catch { /* private window */ } };
 
@@ -213,7 +220,29 @@ function pickRows(items, all) {
     if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
     rows.push({ ...it, i });
   });
-  return { rows, total: acts.length + pinned.length, over, ranked: [...pinned, ...[...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i)] };
+  return { rows: grouped(rows), total: acts.length + pinned.length, over, ranked: [...pinned, ...[...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i)] };
+}
+
+/** The rows shown under their categories when they are in two or more (rows with a `group`): each category's rows
+ *  by relevance under a small header, the category with the most relevant row first; the sections then go (what they
+ *  named goes into their rows' tooltips). One category (or none): the rows as they are. */
+function grouped(rows) {
+  const acts = rows.filter((it) => it.section === undefined), g = (it) => it.group || 'other';
+  if (!acts.some((it) => it.group) || new Set(acts.map(g)).size < 2) return rows;
+  // (a row's rank: its own — a row always in sight with none stays after the ranked row listed before it; else its place)
+  const own = new Map(), by = new Map();
+  let sec = null, before = -Infinity;
+  for (const it of rows) if (it.section === undefined) own.set(it.i, Number.isFinite(it.rank) ? (before = it.rank) : it.always ? before + 1e-6 * (1 + it.i) : it.i);
+  const rk = (it) => own.get(it.i);
+  for (const it of rows) {
+    if (it.section !== undefined) { sec = it.section; continue; }
+    if (!by.has(g(it))) by.set(g(it), []);
+    by.get(g(it)).push(sec ? { ...it, title: it.title ? `${sec} — ${it.title}` : sec } : it);
+  }
+  // (a category's place: its most relevant row's rank — a row always in sight with no rank of its own does not lead)
+  const lead = (list) => Math.min(...list.map((it) => (it.always && !Number.isFinite(it.rank) ? Infinity : rk(it)))), first = (list) => Math.min(...list.map((it) => it.i));
+  const lists = [...by].map(([k, list]) => [k, list.sort((a, b) => rk(a) - rk(b) || a.i - b.i)]).sort((a, b) => lead(a[1]) - lead(b[1]) || first(a[1]) - first(b[1]));
+  return lists.flatMap(([k, list]) => [{ section: t(GROUPS[k] || 'Other'), grp: k }, ...list]);
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
@@ -243,10 +272,10 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   const keep = box.contains(document.activeElement) && document.activeElement.dataset.sg; // (drawn again: the row in the keyboard's hand stays there)
   box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(topLabel())}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}<button class="vs-menu lw-menu" title="${esc(t('Layout: dock it, float it over the view, its opacities, ↺ Default layout'))}">⋯</button><button class="vs-x" title="${esc(t('Close the suggestions — 💡 in the view\'s bottom-left corner opens them again (Space)'))}">✕</button></div>
     ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${Number.isFinite(suggestLimit()) ? suggestLimit() : ''}"> ${esc(t('suggestions'))}</label>` : ''}
-    <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
-      : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl"><span class="vs-i">${it.icon || '•'}</span> ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
+    <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec${it.grp ? ' vs-grp' : ''}"${it.grp ? ` data-grp="${it.grp}"` : ''}>${esc(it.section)}</div>` // (a heading: what the rows under it act on — or their category)
+      : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl">${iconHtml(it)} ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
         `<button class="chip${c.on ? ' on' : ''}${c.primary ? ' vs-pri' : ''}" data-sgc="${it.i}:${j}" title="${esc(c.title || '')}">${c.on ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div></div>`
-      : `<button data-sg="${it.i}"${it.id ? ` data-sgid="${esc(it.id)}"` : ''} class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}${it.sub ? ' vs-sub' : ''}"${it.sub ? ' aria-haspopup="menu"' : ''} title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.sub ? '<span class="vs-arr">›</span>' : it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
+      : `<button data-sg="${it.i}"${it.id ? ` data-sgid="${esc(it.id)}"` : ''} class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}${it.sub ? ' vs-sub' : ''}"${it.sub ? ' aria-haspopup="menu"' : ''} title="${esc(it.title || '')}">${iconHtml(it)} <span>${esc(it.label)}</span>${it.sub ? '<span class="vs-arr">›</span>' : it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
@@ -317,7 +346,7 @@ export function suggestTables() {
     const secOf = new Map();
     items.forEach((it, i) => { if (it.section !== undefined) sec = it.section; else secOf.set(i, sec); });
     return { box, title, hint, refs, docked: box.classList.contains('docked'), menu: box.classList.contains('sg-menu'), closed: isClosed(box),
-      rows: ranked.map((i, k) => ({ i, icon: items[i].icon || '', label: items[i].label, title: items[i].title || '', section: secOf.get(i) || undefined, rank_pos: k + 1, shown: on.has(i) })) };
+      rows: ranked.map((i, k) => ({ i, icon: items[i].icon || '', label: items[i].label, title: items[i].title || '', section: secOf.get(i) || undefined, ...(items[i].group ? { group: items[i].group } : {}), rank_pos: k + 1, shown: on.has(i) })) };
   });
 }
 
@@ -383,7 +412,7 @@ export function suggestMenu(at, title, items, opts = {}) {
   box.sg = { title, hint: '', refs: '', items, ranked: items.map((it, i) => (it.section === undefined ? i : -1)).filter((i) => i >= 0), shown: items.map((_, i) => i) };
   box.innerHTML = `${title ? `<div class="vs-head"><b title="${esc(title)}">${esc(title)}</b></div>` : ''}<div class="vs-list">${items.map((it, i) => (it.section !== undefined
     ? `<div class="vs-sec">${esc(it.section)}</div>`
-    : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;
+    : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}">${iconHtml(it)} <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;
   let shown = null; // (the choice previewed now: its preview taken back when the menu closes)
   const off = (e) => { if (!box.contains(e.target) && !box.row?.contains(e.target)) box.close(); }; // (its row: its own click closes it)
   const escKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); box.close(true); } }; // (the menu itself in hand: not the app's Esc)

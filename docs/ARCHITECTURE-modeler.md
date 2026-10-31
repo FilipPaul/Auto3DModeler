@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The Suggested table in categories; icons coloured by what they are about (2026-10-31)** (the owner: "the
+  suggestion table structured into categories — joints, part operations, cabling …; opening assemblies with a green
+  icon, opening and manipulating a part purple, joints blue"; then: the icons the same as the trees' for that kind of
+  object). suggest.js: a row may have a `group`; when the rows shown are in two or more, each category gets a small
+  muted header (Vazby, Díl, Sestava, Kabeláž, Spojovací materiál, Pohyb, Vložit díly, Ostatní), the one holding the
+  most relevant row first, its rows by rank; the top-N limit and ⋯ Ukázat vše as before (Show all: still grouped);
+  the sections (This face, the part's name) go then, their text into their rows' tooltips; one category (or none —
+  the 3D model's, the sketch's tables): as before. A row's icon: `ico` (HTML) or its glyph, with k-part / k-asm /
+  k-joint by its category — a tint of the kind's colour behind it (emoji keep their colours), the colours the trees'
+  (:root --k-part #a371f7 = .ico-model, --k-asm #7ee787 = .ico-assembly, --k-joint #58a6ff). assembly/sggroups.js:
+  the assembly's showSuggest (assembly.js imports it) — each row's category from its icon (JOINT_TYPES' icons, 🔗 ◎ ▤:
+  Vazby; ◆ ✎ ✏ 📌 ↻ ⤵ 🏷 👁 🔒: Díl; ◇ 🧱: Sestava; 🔌 📎 ➰ ⛓: Kabeláž; 🔩; ⚙ ⇤⇥: Pohyb; ＋ 📚 📂: Vložit díly), set
+  where the icon means two things (✕ Take it out, ⧉ Copy its coordinates / Make it its own part, a gear pair ⚙ /
+  belt ⛓, Moving sub-assembly ⚙, ＋ New part on this face, a library part's companions → Spojovací materiál);
+  placedRows: a placed sub-assembly's own rows (fix, rename, hide, take out …) under Sestava, green; the harness's
+  tables all Kabeláž. One icon per kind of object everywhere: ◆ / ◇ rows (Choose ‹…›, Select the whole part, Only …,
+  Open its part) draw the trees' icon of that part (partIcon: a 3D model's block, a quick part's layers, a library
+  part's, an assembly's two blocks), as do ＋ Insert part ▾'s items and the part panel's buttons — Open its part
+  purple / green (k-part / k-asm, no longer the blue primary), Open ‹sub›, Choose the whole ‹sub› green — and an
+  inner part's heading. The AI's suggestTables rows carry their `group`. tools/e2e_suggest_groups.py (new);
+  e2e_nested_select reads a drawn icon as ◆ / ◇ by its kind.
 - **The assembly's parts list as compact as the project tree (2026-10-31)** (the owner: "make the assembly menu more
   compact, like the project's"). styles.css only, plus 👁 moved: rows one line, 24 px (were 35; the project tree's
   25), 12.5 px names of normal weight, ellipsis; 12 px a level (was 16), the guide line under the parent's ▾, a small

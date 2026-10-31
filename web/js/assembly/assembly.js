@@ -43,7 +43,8 @@ import { busy, painted } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
 import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
-import { showSuggest, showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
+import { showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
+import { showSuggest, placedRows } from './sggroups.js'; // (the Suggested table with its rows in categories)
 import { floatBox } from '../floatbox.js';
 import { MeasureTool, snapWins } from '../measure.js';
 import { freeMotions, motionMatrix, clampLim, travelOf } from './dof.js';
@@ -584,7 +585,7 @@ export class Assembly {
       ...this.faceSketchItems(q, a),
       { section: `${this.partName(a.part)} ${a.id}` },
       ...this.chooseItems(q, a), // (◆ the part under the mouse / ◇ its sub-assembly: when it is inside one)
-      ...(this.innerFace(a, q.face.name) ? [] : [{ icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } }]),
+      ...(this.innerFace(a, q.face.name) ? [] : [{ icon: '◆', ico: this.partIcon(a.part), label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } }]),
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
   }
@@ -597,7 +598,7 @@ export class Assembly {
     if (!deep) return [];
     const near = deep.key.split('/').slice(0, -1).join('/'), now = this.selKeys();
     const ways = [[deep.key, deep.part, '◆'], ...(near !== a.id ? [[near, this.placedAt(near)?.it.part, '◇']] : []), [a.id, a.part, '◇']];
-    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, label: t2('Choose {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
+    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, ico: this.partIcon(pid), label: t2('Choose {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
       title: t(icon === '◆' ? 'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)' : 'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)'),
       run: (e) => {
         const more = e?.ctrlKey || e?.metaKey;
@@ -622,7 +623,7 @@ export class Assembly {
         title: t(this.editable(pid) ? 'Its part opens here, the rest of the assembly see-through around it, with a sketch on this face'
           : 'Its part opens here with a sketch on this face — it is unlocked for this assembly first (🔒 in its panel locks it again)'),
         run: () => { if (!this.editable(pid)) this.toggleEditable(pid); this.facePicks = []; this.editInPlace(key, face, { sketch: true }); } },
-      ...(solid && this.hooks.addModelPart ? [{ icon: '＋', label: t('New part with a sketch on this face'), rank: 1.5,
+      ...(solid && this.hooks.addModelPart ? [{ icon: '＋', group: 'part', label: t('New part with a sketch on this face'), rank: 1.5,
         title: t('A new 3D model part designed here, around this one: placed where it is, this part in it see-through, its first sketch on this face'),
         run: () => this.newPartOn(a, q.face.name, solid) }] : []),
     ];
@@ -690,7 +691,7 @@ export class Assembly {
       const moves = o.type === 'rack'
         ? can(cyl, 'turn', cyl.face.axis.d) && can(flat, 'move', new THREE.Vector3().crossVectors(cyl.face.axis.d, flat.face.normal).normalize())
         : fp.every((q) => can(q, 'turn', q.face.axis.d));
-      return { icon: ct.icon, label: `${t(ct.name)} · ${ratioText(o)}`, rank: (moves ? -1 : 6) + o.rank, title: t(ct.hint), run: () => { this.couple(fp[0], fp[1], o.type); done(); } };
+      return { icon: ct.icon, group: 'joint', label: `${t(ct.name)} · ${ratioText(o)}`, rank: (moves ? -1 : 6) + o.rank, title: t(ct.hint), run: () => { this.couple(fp[0], fp[1], o.type); done(); } };
     });
   }
 
@@ -918,7 +919,7 @@ export class Assembly {
           title: t('Fixed together, as they are now: it goes with the other part and has no motion of its own'), run: () => this.fixTogether(a.id, b.id) }]),
         { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
-        { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
+        { icon: '◆', ico: this.partIcon(a.part), label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
         ...displayItems(this, [a.id, b.id]), // (👁 both hidden, see-through, isolated …)
         ...lockItems([a.part, b.part], 8), // (🔒 for the AI)
       ]);
@@ -935,7 +936,7 @@ export class Assembly {
           this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, inst: a.id });
         } },
         ...[this.harnessTool.fromHere({ inst: a.id, point: p }, 1)].filter(Boolean),
-        { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
+        { icon: '⧉', group: 'other', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
         { section: name(a) }] : []),
       ...this.innerEditItems(a), // (a part inside it chosen in the list: ✎ that part edited here)
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
@@ -949,9 +950,9 @@ export class Assembly {
     showSuggest(vp, t2('{n} parts chosen', { n: keys.length }), [ // (parts inside sub-assemblies among them: not their whole sub-assemblies taken out or hidden)
       ...(ids.length < 2 || keys.filter((k) => k.includes('/')).length > 1 ? [] : [{ icon: '🔗', label: t2('Fix together ({n} parts)', { n: ids.length }), rank: 0, title: t('One rigid group, as they are now: they move as one body with the part they are on (mechanisms, dragging) — one row in the joints, ✕ there dissolves it'),
         run: () => { try { const inner = this.selKeys().filter((k) => k.includes('/')), r = this.fixGroup(ids, { to: inner.length === 1 ? inner[0] : null }); this.hooks.toast(t2('{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).', { name: r.group.name, n: r.parts.length + 1, base: this.partName(this.inst(r.base).part) }), 'ok', 5000); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); } } }]),
-      ...(deep ? [] : [{ icon: '✕', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) }]),
-      { icon: '◆', label: `${t('Only')} ${this.partName(first.part)} ${keys[0]}`, rank: 9, run: () => this.select([keys[0]]) },
-      ...(deep && new Set(keys.map((k) => this.placedAt(k).it.part)).size === 1 && this.hooks.openPart ? [{ icon: '◆', label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(first.part) }] : []), // (copies of one part)
+      ...(deep ? [] : [{ icon: '✕', group: 'part', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) }]),
+      { icon: '◆', ico: this.partIcon(first.part), label: `${t('Only')} ${this.partName(first.part)} ${keys[0]}`, rank: 9, run: () => this.select([keys[0]]) },
+      ...(deep && new Set(keys.map((k) => this.placedAt(k).it.part)).size === 1 && this.hooks.openPart ? [{ icon: '◆', ico: this.partIcon(first.part), label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(first.part) }] : []), // (copies of one part)
       ...displayItems(this, deep ? [] : ids), // (👁 all of them hidden, see-through, isolated … — the placed parts: a part inside a sub-assembly is shown with it)
       ...lockItems(keysParts(this.selKeys())), // (🔒 the AI may add joints to them, not change them)
     ].map((x) => (x.sub ? x : { ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Ctrl+click adds or takes out a part'), refs);
@@ -1003,16 +1004,16 @@ export class Assembly {
     const flex = this.kindOf(a.part) === 'assembly' && this.flexOf(a).size > 0; // (its parts can move inside it)
     let pins = [], on = null;
     try { pins = pinFits(this, a.id); on = restOn(this, a.id); } catch { /* (a body not there yet) */ }
-    return [ // (ranked — lower first: what it most likely needs next — a pin into a hole, put down, drive it; then join, open, fix)
+    return placedRows(this.kindOf(a.part), [ // (ranked — lower first: what it most likely needs next — a pin into a hole, put down, drive it; then join, open, fix)
       ...pins.map((f, k) => this.pinItem(f, k ? 2 : 0)),
       ...(on ? [this.restItem(on, 1)] : []),
-      ...(a.fastener ? [] : this.hooks.pairItems?.(a) || []), // (🔗 a library part's companions: a screw's nut and washers, a probe's receptacle)
+      ...(a.fastener ? [] : this.hooks.pairItems?.(a) || []).map((x) => ({ group: 'fast', ...x })), // (🔗 a library part's companions: a screw's nut and washers, a probe's receptacle)
       ...(inMech ? [{ icon: '⚙', label: t('Drive the mechanism'), rank: 0, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
       ...this.limitItems(a),
-      ...(flex ? [a.rigid ? { icon: '⚙', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
+      ...(flex ? [a.rigid ? { icon: '⚙', group: 'asm', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
         : { icon: '🧱', label: t('Make it rigid'), rank: 9.5, title: t('It moves as one body, its parts stay where they are in it'), run: () => this.setRigid(a.id, true) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), rank: 3, title: t('Click a face of it, then a face of the other part — the joints that fit the two'), run: () => this.startJoint('touch', a.id) },
-      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), rank: 4, ...(model && this.hooks.editInPlace ? {} : { always: true }), // (no ✎ Edit here: this one in sight)
+      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', ico: this.partIcon(a.part), label: t('Open its part'), rank: 4, ...(model && this.hooks.editInPlace ? {} : { always: true }), // (no ✎ Edit here: this one in sight)
         title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       ...(free ? [{ icon: '↻', label: t('Turn it 90°'), rank: 5, title: t('About the up axis (Z), through its middle — or slide ↻ in the panel'), run: () => this.turn('z') },
         { icon: '⤵', label: t('Lay it on its side'), rank: 11, title: t('Turn it 90° about X, through its middle'), run: () => this.turn('x') }] : []),
@@ -1024,10 +1025,10 @@ export class Assembly {
       { icon: '🏷', label: t('Rename'), rank: 8, title: t('Rename its part (its tab too)'), run: () => this.renameSel(a.id) },
       ...(this.hooks.openSheet && !a.fastener ? [{ icon: '📄', label: t(this.kindOf(a.part) === 'assembly' ? 'Drawing of the assembly' : 'Drawing of the part'), rank: 6.5,
         title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
-      ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
-      { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
+      ...(this.hooks.duplicatePart ? [{ icon: '⧉', group: 'part', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
+      { icon: '✕', group: 'part', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
       ...displayItems(this, [a.id]), // (👁 Hide / show…: always in sight, its choices in a list beside it)
-    ];
+    ]);
   }
 
   /** ⇤⇥ A chosen part's limits in the Suggested table: its motion's min / max fields (switched on, focused); once it
@@ -1049,7 +1050,7 @@ export class Assembly {
       { icon: '⇤⇥', label: t('Limits of its motion…'), rank: 2.5, title: `${what} — ${t(lim ? 'Its min and max: type them in the part panel' : 'How far it may go each way: min and max around where it is, then type them')}`, run: fields },
       ...(lim ? [{ icon: '⇤', label: t('Min here'), rank: 2.6, title: `${what} — ${t('Min where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'min') },
         { icon: '⇥', label: t('Max here'), rank: 2.7, title: `${what} — ${t('Max where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'max') }] : []),
-      ...['min', 'max'].filter((k) => Number.isFinite(lim?.[k])).map((k, j) => ({ icon: '✕', label: t(k === 'min' ? 'Clear min' : 'Clear max'), rank: 2.8 + j / 10,
+      ...['min', 'max'].filter((k) => Number.isFinite(lim?.[k])).map((k, j) => ({ icon: '✕', group: 'motion', label: t(k === 'min' ? 'Clear min' : 'Clear max'), rank: 2.8 + j / 10,
         title: `${what} — ${t(k === 'min' ? 'Take the min off: it goes freely that way' : 'Take the max off: it goes freely that way')}`, run: () => this.clearEnd(a.id, mo, k) })),
     ];
   }
@@ -1245,8 +1246,8 @@ export class Assembly {
     const parts = this.modelParts(), jt = this.bolt ? 'fastener' : this.mode !== 'idle' ? this.jointType : null, jOn = jt && JOINT_TYPES[jt];
     // one row: ＋ Insert ▾ · 🔗 Joint ▾ (its types in a menu — the faces' suggestions make most joints) · the tools · ↶ ↷
     bar.innerHTML = `
-      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
-        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
+      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model, a quick part (drawing, picture, import) or another assembly (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
+        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${this.partIcon(p.id)} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
           ${this.hooks.openLibrary || this.hooks.importFile ? '<div class="menu-sep"></div>' : ''}${this.hooks.openLibrary ? `<button data-a="fromLib" title="${esc(t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'))}">📚 ${esc(t('From the library…'))}</button>` : ''}
           ${this.hooks.importFile ? '<button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
       <div class="menu as-jmenu">${btn('joints', jOn ? `${jOn.icon} ${esc(t(jOn.name))} ▾` : '🔗 Joint ▾', 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch). Quicker: click a face, Ctrl+click the other one — the joints that fit them are suggested', `tool ${jOn ? 'on' : ''}`)}
@@ -1815,7 +1816,7 @@ export class Assembly {
       // the panel: what it is and how it stands (the actions: the Suggested table) — its look and editing folded
       box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2>
         <p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
-        <div class="row-actions wrap as-pacts">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}${it.fixed || !(this.doc.mates || []).some((m) => m.move === it.id) ? `<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix"title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button>` : ''}<button class="btn small danger" data-a="del" title="${esc(t('Take it out'))} (Delete)">✕ ${esc(t('Take it out'))}</button></div>
+        <div class="row-actions wrap as-pacts">${this.hooks.openPart ? `<button class="btn small ${this.kindOf(it.part) === 'assembly' ? 'k-asm' : 'k-part'}" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.partIcon(it.part)} ${esc(t('Open its part'))}</button>` : ''}${it.fixed || !(this.doc.mates || []).some((m) => m.move === it.id) ? `<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix"title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button>` : ''}<button class="btn small danger" data-a="del" title="${esc(t('Take it out'))} (Delete)">✕ ${esc(t('Take it out'))}</button></div>
         ${missHere ? this.mech.missingHtml() : ''}
         ${this.rolledHtml(it.part)}
         ${this.flexHtml(it)}
@@ -1907,12 +1908,12 @@ export class Assembly {
     let inner = ids.length === 1 ? this.innerMotions(it) : null;
     if (inner) inner = { ...inner, parts: inner.parts.filter((q) => q.id === ids[0]) };
     if (inner && !inner.parts.length) inner = null;
-    box.innerHTML = `<h2>${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(name)}</span></h2>
+    box.innerHTML = `<h2>${this.partIcon(node.part)} <span data-no-i18n>${esc(name)}</span></h2>
       <p class="hint">${esc(t2('{id} inside {sub} ({top}) — a part of {sub}: it moves with it, and it is changed in its own tab.', { id: path, sub, top: it.id }))}</p>
       ${inner ? this.innerHtml(it, inner) : `<p class="hint">${esc(t2('{sub} holds it in place — only {sub} itself is moved here.', { sub }))}</p>`}
-      <div class="row-actions wrap">${this.hooks.openPart ? `<button class="btn small primary" data-a="openInner" title="${esc(t('Change it in its own tab (the assembly follows)'))}">${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>
-        <button class="btn small" data-a="openSub">◇ ${esc(t2('Open {sub}', { sub }))}</button>` : ''}
-        <button class="btn small" data-a="wholeSub">${esc(t2('Choose the whole {sub}', { sub }))}</button></div>
+      <div class="row-actions wrap">${this.hooks.openPart ? `<button class="btn small ${this.kindOf(node.part) === 'assembly' ? 'k-asm' : 'k-part'}" data-a="openInner" title="${esc(t('Change it in its own tab (the assembly follows)'))}">${this.partIcon(node.part)} ${esc(t('Open its part'))}</button>
+        <button class="btn small k-asm" data-a="openSub">${this.partIcon(it.part)} ${esc(t2('Open {sub}', { sub }))}</button>` : ''}
+        <button class="btn small k-asm" data-a="wholeSub">${this.partIcon(it.part)} ${esc(t2('Choose the whole {sub}', { sub }))}</button></div>
       ${this.editHtml(node)}`;
     lockPanel(box, node.part); // (🔒 Locked for the AI: its part)
     if (inner) this.bindInner(box, it, inner);

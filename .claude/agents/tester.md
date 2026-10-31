@@ -219,6 +219,11 @@ Never report "works" without having run it; report failures with their output.
    list Ctrl / Shift / Ctrl+Shift rows, a plain click still the whole sub-assembly) and 🔍 find in the list ("PIN"
    with its sub-assemblies, accents ignored, Esc) + a part clicked in the view: its row unfolded, marked, scrolled to
    (a filter hiding it cleared; with Ctrl too) + ◆ Choose ‹part› / ◇ Choose ‹sub-assembly› rows of a clicked face.
+   `tools/e2e_suggest_groups.py <url> <dir>` covers the Suggested table in categories (Czech, the 150-part demo):
+   showSuggest's rules on a bare box (one category: no header; several: the most relevant row's first, ranked inside,
+   top 8 + ⋯, sections into tooltips, Show all still grouped), the whole assembly's table, a part's (◆ Open its part:
+   the trees' part icon on purple, 🔗 joints blue, the panel's button the same) and a sub-assembly's (its rows under
+   Sestava, green, the assembly icon) and the parts list's rows no taller than the project tree's.
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
