@@ -45,6 +45,7 @@ import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNo
 import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
 import { showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { showSuggest, placedRows } from './sggroups.js'; // (the Suggested table with its rows in categories)
+import { findInTree, bindFind } from '../treesearch.js'; // (🔍 the list's find: the project tree's too)
 import { floatBox } from '../floatbox.js';
 import { MeasureTool, snapWins } from '../measure.js';
 import { freeMotions, motionMatrix, clampLim, travelOf } from './dof.js';
@@ -74,7 +75,6 @@ import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, coupling
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
-const plainText = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim(); // (🔍 "zakladni" finds "Základní")
 const SMART_LATER = 5000; // (placed parts' faces over this: the whole assembly's suggestions worked out after the frame — smartSoon)
 const BIG_OPEN = 30; // (an assembly of more placed parts opens with the loading card: building and drawing them takes a while)
 const WARM = 3; // (assemblies of the project kept drawn while another is on screen: their meshes ready for the way back)
@@ -1344,14 +1344,7 @@ export class Assembly {
     const list = this.$('.as-list'), find = this.$('.as-find'), found = this.findRows(), open = found ? new Set([...this.openPaths(), ...found.open]) : this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
     find.hidden = !this.doc.instances.length;
-    if (!find.__bound) { // 🔍 typed: the rows filtered a moment later (not on every key); Esc / ✕: all of them again
-      find.__bound = true;
-      find.addEventListener('input', () => { clearTimeout(this.findTimer); this.findTimer = setTimeout(() => { this.query = find.value; this.renderList(); }, 150); });
-      find.addEventListener('keydown', (e) => {
-        e.stopPropagation(); // (not the assembly's keys: Delete, H …)
-        if (e.key === 'Escape') { find.value = ''; clearTimeout(this.findTimer); this.query = ''; this.renderList(); find.blur(); }
-      });
-    }
+    bindFind(find, (q) => { this.query = q; this.renderList(); }); // 🔍 typed: the rows filtered a moment later (not on every key); Esc / ✕: all of them again
     list.classList.toggle('exploding', this.explode > 0);
     if (!list.__lights) { // (the mouse over a row: its part's lines lit in the view — inside a sub-assembly: its placement's)
       list.__lights = true;
@@ -1478,23 +1471,9 @@ export class Assembly {
    *  "Základní" —, or the row's id): {hits, shown: the hits and the sub-assemblies they are in, open: those folded
    *  open for them} — or null (nothing typed). */
   findRows() {
-    const q = plainText(this.query);
-    if (!q) return null;
-    const hits = new Set(), shown = new Set(), open = new Set(), names = new Map();
-    const has = (pid, key) => {
-      if (!names.has(pid)) names.set(pid, plainText(this.partName(pid)));
-      return names.get(pid).includes(q) || key.toLowerCase() === q;
-    };
-    const walk = (key, pid, kids) => { // -> whether it or a part in it is a hit
-      let any = false;
-      for (const n of kids || []) any = walk(n.path, n.part, n.children) || any;
-      if (any) open.add(key);
-      if (has(pid, key)) hits.add(key);
-      if (any || hits.has(key)) shown.add(key);
-      return any || hits.has(key);
-    };
-    for (const it of this.doc.instances) walk(it.id, it.part, this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null);
-    return { hits, shown, open };
+    if (!String(this.query || '').trim()) return null;
+    const node = (key, pid, kids) => ({ key, name: () => this.partName(pid), also: key, kids: () => (kids || []).map((n) => node(n.path, n.part, n.children)) });
+    return findInTree(this.query, this.doc.instances.map((it) => node(it.id, it.part, this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null)));
   }
 
   /** A part clicked in the view (key: "I3", or "I3/I2/I1" — the part under the mouse inside a sub-assembly): its row in

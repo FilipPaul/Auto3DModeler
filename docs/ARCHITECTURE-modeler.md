@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **☰ The project tree folds and finds (2026-10-31)** (the owner: "the project tree should be expandable / collapsible
+  and have the same search as the assembly menu"). parts.js renderTree: each row knows its key (the path of part ids
+  from its top row) and its parent's; a row with rows under it (an assembly's parts, a part's drawing sheets) gets
+  ▸ / ▾ before its icon (a leaf the same empty room — only when the tree has any), a click folds it — remembered per
+  project in localStorage a3d.projFold, not in the file; the name's click still opens the part. 🔍 the same find as
+  the assembly's list, now web/js/treesearch.js for both (plainText: no case, no accents — "zakladni" finds
+  "Základní deska"; findInTree: the hits, the rows they are in, those opened for them while it is typed only;
+  bindFind: 150 ms after the last key, Esc / ✕ clears): the rows found lit, the others hidden, "No part has that in
+  its name." when none. The field sits in the tree's header — docked: the widget's ☰ Projekt header, the popup: its
+  own — so the tree keeps its height. The fast path stays: the rows drawn again only when the visible rows (with
+  their fold and hit) change; a tab switch only lights its row. No Sbalit vše / Rozbalit vše (not needed so far).
+  Assembly.findRows / its field use treesearch.js. tools/e2e_project_tree.py now checks (fold, remembered, 🔍
+  "zakladni" through a folded sub-assembly, a click on the found row opens it, Esc).
 - **The Suggested table in categories; icons coloured by what they are about (2026-10-31)** (the owner: "the
   suggestion table structured into categories — joints, part operations, cabling …; opening assemblies with a green
   icon, opening and manipulating a part purple, joints blue"; then: the icons the same as the trees' for that kind of

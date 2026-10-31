@@ -2540,6 +2540,10 @@ const CS = {
   'Find a part…': 'Hledat díl…','No part has that in its name.': 'Žádný díl to nemá v názvu.',
   'Only the rows whose name has this in it (and the sub-assemblies they are in) — Esc clears it':
     'Jen řádky, které to mají v názvu (a podsestavy, ve kterých jsou) — Esc hledání zruší',
+  // ☰ the project tree: ▸ / ▾ and 🔍 (parts.js)
+  'Only the rows whose name has this in it (and the assemblies they are in) — Esc clears it':
+    'Jen řádky, které to mají v názvu (a sestavy, ve kterých jsou) — Esc hledání zruší',
+  'Hide what is in it': 'Skrýt, co je v něm', 'Show what is in it': 'Ukázat, co je v něm',
   // 🔗 a rigid group of many parts
   'Fix together ({n} parts)': 'Spojit pevně ({n} dílů)', '{name} ({n} parts)': '{name} ({n} dílů)', 'fixed together on': 'pevně spojeno na',
   'Choose its parts': 'Vybrat jeho díly', 'Dissolve the group: its parts stay where they are, each free again': 'Zrušit skupinu: díly zůstanou, kde jsou, každý zase volný',

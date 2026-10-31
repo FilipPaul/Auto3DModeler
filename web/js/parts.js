@@ -6,6 +6,7 @@ import { params } from './params.js';
 import { loadParams } from './paramsui.js';
 import { aiSettings } from './aisettings.js';
 import { aiHolds, lockBtn, lockItems } from './ailock.js';
+import { findInTree, bindFind, plainText } from './treesearch.js';
 
 // A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
 // becomes a part; click a tab to switch, double-click to rename, ✕ to close the tab (the part stays in the project:
@@ -556,7 +557,7 @@ export class Project {
       document.querySelector('main.layout')?.appendChild(this.tree);
       try { this.treeOpen = this.treeOpen ?? localStorage.getItem('a3d.tree') === '1'; } catch { this.treeOpen = false; }
       // a double-click on a row: its name to edit (the part opens with the first click)
-      this.tree.addEventListener('dblclick', (e) => { const r = e.target.closest('.pt-row'); if (r && !e.target.closest('.pt-win, .pt-del, .ai-lock, .pt-more')) this.renameInTree(r.dataset.part); });
+      this.tree.addEventListener('dblclick', (e) => { const r = e.target.closest('.pt-row'); if (r && !e.target.closest('.pt-win, .pt-del, .ai-lock, .pt-more, .tr-tw')) this.renameInTree(r.dataset.part); });
       this.tree.addEventListener('mousedown', (e) => { if (e.shiftKey && e.target.closest('.pt-row')) e.preventDefault(); }); // (Shift+click: rows, not the page's text)
       // the header dragged: into the left column (docked) or onto the view (floating) — leftdock.js
       this.tree.addEventListener('pointerdown', (e) => { const h = e.target.closest('.tr-head'); if (h) leftDock.dragStart('project', e, h); });
@@ -589,29 +590,42 @@ export class Project {
         sheets.get(d.source).push(p);
       }
     }
-    const rows = [];
-    const add = (p, depth, qty, path) => {
-      rows.push({ p, depth, qty });
-      for (const s of sheets.get(p.id) || []) rows.push({ p: s, depth: depth + 1 });
+    const rows = []; // (key: the row's path of part ids from its top row; up: its parent row's key; kids: rows under it)
+    const add = (p, depth, qty, path, up = '') => {
+      const key = up ? `${up}/${p.id}` : p.id, row = { p, depth, qty, key, up, kids: 0 };
+      rows.push(row);
+      for (const s of sheets.get(p.id) || []) { rows.push({ p: s, depth: depth + 1, key: `${key}/${s.id}`, up: key, kids: 0 }); row.kids++; }
       if (path.has(p.id)) return;
-      for (const [id, n] of kids.get(p.id) || []) add(byId.get(id), depth + 1, n, new Set([...path, p.id]));
+      for (const [id, n] of kids.get(p.id) || []) { row.kids++; add(byId.get(id), depth + 1, n, new Set([...path, p.id]), key); }
     };
     const top = this.parts.filter((p) => !used.has(p.id) && !(p.kind === 'sheet' && byId.has(data.get(p.id)?.source)));
     for (const p of [...top.filter((q) => q.kind === 'assembly'), ...top.filter((q) => q.kind !== 'assembly')]) add(p, 0, 1, new Set());
+    // ▸ / ▾: a row with rows under it folds (remembered per project); 🔍: only the rows found and the ones they are in,
+    // those open for them (while it is typed)
+    const found = this.treeFind(rows), folded = this.folded(), hide = new Set(), vis = [], anyKids = rows.some((r) => r.kids);
+    for (const r of rows) {
+      if ((r.up && hide.has(r.up)) || (found && !found.shown.has(r.key))) { hide.add(r.key); continue; }
+      r.open = !!r.kids && (found ? found.open.has(r.key) : !folded.has(r.key));
+      r.hit = !!found?.hits.has(r.key);
+      vis.push(r);
+      if (r.kids && !r.open) hide.add(r.key);
+    }
+    this.findField(popup);
     // the same rows as drawn (only another part on screen — a tab switch): its row lit, the list kept (a big imported
     // assembly's tree has a thousand rows: drawn again on every switch, before the switch's own work)
-    const sig = [popup, this.lastDeleted?.p.id, this.parts.length > 1, [...(this.picked || [])].join(), ...rows.map(({ p, depth, qty }) => `${p.id}:${depth}:${qty || ''}:${p.kind}:${p.closed ? 1 : ''}:${p.name}:${lockBtn(p.id)}:${this.libraryPart(p) ? 1 : 0}`)].join('|');
+    const sig = [popup, this.lastDeleted?.p.id, this.parts.length > 1, [...(this.picked || [])].join(), anyKids, ...vis.map(({ p, depth, qty, kids: n, open, hit }) => `${p.id}:${depth}:${qty || ''}:${p.kind}:${p.closed ? 1 : ''}:${p.name}:${lockBtn(p.id)}:${this.libraryPart(p) ? 1 : 0}:${n ? (open ? 'o' : 'c') : ''}${hit ? 'h' : ''}`)].join('|');
     const list0 = box.querySelector('.tr-list');
-    if (list0 && sig === this.treeSig && rows.length === this.treeRows?.length && rows.every((r, k) => r.p === this.treeRows[k].p)) {
+    if (list0 && sig === this.treeSig && vis.length === this.treeRows?.length && vis.every((r, k) => r.p === this.treeRows[k].p)) {
       for (const row of list0.children) row.classList.toggle('on', row.dataset.part === this.active && !this.none);
       return;
     }
     this.treeSig = sig;
-    this.treeRows = rows;
+    this.treeRows = vis;
     const undo = this.lastDeleted ? `<button class="btn small tr-undo" title="${t('Bring back the part deleted last')}">↶ ${t('Undo')}: <span data-no-i18n></span></button>` : '';
     box.innerHTML = popup ? `<div class="tr-head" title="${t('Drag the header into the left panel to dock it there, or onto the view to float it')}"><b>☰ ${t('Project')}</b>${undo}<button class="mini tr-pin" title="${t('Dock it in the left panel — always in sight, in every workspace (or drag its header there)')}">📌</button><button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
       <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`
       : `${undo ? `<div class="tr-undo-row">${undo}</div>` : ''}<div class="tr-list"></div>`;
+    this.findField(popup); // (the popup's header drawn again: 🔍 back in it)
     box.querySelector('.tr-x')?.addEventListener('click', () => this.toggleTree(false));
     box.querySelector('.tr-pin')?.addEventListener('click', () => { leftDock.dock('project'); this.render(); });
     const ub = box.querySelector('.tr-undo');
@@ -626,14 +640,16 @@ export class Project {
       bar.querySelector('[data-x]').addEventListener('click', () => { this.picked.clear(); this.renderTree(); });
       list.before(bar);
     }
-    for (const { p, depth, qty } of rows) {
+    for (const { p, depth, qty, key, kids: n, open, hit } of vis) {
       const row = document.createElement('div');
-      row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}${this.picked?.has(p.id) ? ' picked' : ''}`;
+      row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}${this.picked?.has(p.id) ? ' picked' : ''}${hit ? ' tr-hit' : ''}`;
       row.dataset.part = p.id;
+      row.dataset.key = key;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab) — double-click: rename it' : 'Show it — double-click: rename it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${lockBtn(p.id)}<button class="mini pt-more" data-ailock-menu="${this.picked?.has(p.id) ? [...this.picked].join(',') : p.id}" title="${t('More: lock it for the AI …')}">⋯</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
+      row.innerHTML = `${anyKids ? (n ? `<button class="tr-tw" title="${t(open ? 'Hide what is in it' : 'Show what is in it')}">${open ? '▾' : '▸'}</button>` : '<span class="tr-tw"></span>') : ''}<button class="pt-open" title="${t(p.closed ? 'Open it (a tab) — double-click: rename it' : 'Show it — double-click: rename it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${lockBtn(p.id)}<button class="mini pt-more" data-ailock-menu="${this.picked?.has(p.id) ? [...this.picked].join(',') : p.id}" title="${t('More: lock it for the AI …')}">⋯</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
-      row.querySelector('.pt-open').addEventListener('click', (e) => this.clickRow(p.id, e, rows));
+      row.querySelector('.pt-open').addEventListener('click', (e) => this.clickRow(p.id, e, vis));
+      row.querySelector('button.tr-tw')?.addEventListener('click', (e) => { e.stopPropagation(); this.toggleFold(key); });
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
       const del = row.querySelector('.pt-del');
       if (del) armDelete(del, () => this.remove(p.id, false)); // (a second click deletes; ↶ undoes it)
@@ -645,7 +661,59 @@ export class Project {
       row.addEventListener('mouseleave', () => this.hidePreview());
       list.appendChild(row);
     }
+    if (found && !vis.length) list.innerHTML = `<p class="hint as-nohit">${t('No part has that in its name.')}</p>`;
     if (!popup) leftDock.fitContent('project', 26 + 16 + (box.querySelector('.tr-undo-row')?.offsetHeight || 0) + (list.offsetHeight || rows.length * 26)); // (docked: as tall as its rows — head, padding, the list)
+  }
+
+  /** 🔍 The rows the find field leaves (treesearch.js): null — nothing typed. */
+  treeFind(rows) {
+    if (!plainText(this.treeQuery)) return null;
+    const nodes = new Map(), roots = [];
+    for (const r of rows) {
+      const n = { key: r.key, name: r.p.name || '', kids: [] };
+      nodes.set(r.key, n);
+      (r.up ? nodes.get(r.up)?.kids : roots)?.push(n);
+    }
+    return findInTree(this.treeQuery, roots);
+  }
+
+  /** 🔍 The find field in the tree's header — docked: the widget's header (☰ Project), the popup: its own — so the
+   *  tree keeps its height. Made once, put back after the popup's header is drawn again (its focus kept). */
+  findField(popup) {
+    let inp = this.findEl;
+    if (!inp) {
+      inp = this.findEl = document.createElement('input');
+      inp.type = 'search';
+      inp.className = 'tr-find';
+      for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick']) inp.addEventListener(ev, (e) => e.stopPropagation()); // (not a drag of the header)
+      bindFind(inp, (q) => { this.treeQuery = q; this.renderTree(); });
+    }
+    inp.placeholder = t('Find a part…');
+    inp.title = t('Only the rows whose name has this in it (and the assemblies they are in) — Esc clears it');
+    const head = popup ? this.tree.querySelector('.tr-head') : leftDock.widgets?.project?.querySelector(':scope > .lw-head');
+    if (!head || inp.parentElement === head) return;
+    const had = document.activeElement === inp, at = inp.selectionStart;
+    head.querySelector(':scope > b')?.after(inp);
+    if (had) { inp.focus(); inp.setSelectionRange(at, at); }
+  }
+
+  /** The rows folded in this project's tree (localStorage a3d.projFold: {project id: [row keys]}). */
+  folded() {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('a3d.projFold') || '{}') || {}; } catch { all = {}; }
+    return new Set(all[this.hooks.projectId?.() || ''] || []);
+  }
+
+  /** ▸ / ▾ on a row: the rows under it hidden / shown (remembered). */
+  toggleFold(key) {
+    const f = this.folded(), id = this.hooks.projectId?.() || '';
+    if (f.has(key)) f.delete(key); else f.add(key);
+    try {
+      const all = JSON.parse(localStorage.getItem('a3d.projFold') || '{}') || {};
+      if (f.size) all[id] = [...f]; else delete all[id];
+      localStorage.setItem('a3d.projFold', JSON.stringify(all));
+    } catch { /* private window */ }
+    this.renderTree();
   }
 
   /** A double-click on a row in the tree: its name in a field (Enter keeps it, Esc not), once the part is open. */
