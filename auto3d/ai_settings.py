@@ -3,7 +3,9 @@ the design rules and modes) — chosen in the chat's ✨ panel (web/js/aisetting
 
 The AI gets them as one short line before a user message (`settings_line`, under ~100 tokens), sent only when it
 changed since the last message of the conversation. Tags in a message (#uc, #cnc …) change them for that one message
-(`parse_tags`): they are taken out of the text the AI sees. 🌐 Search the internet is also kept for the server
+(`parse_tags`): they are taken out of the text the AI sees. 📌 This file only ("Limit the AI to the file open now")
+is kept under its old key `lean` (from ⚡ Lean mode: older project files and defaults keep working); the line says
+`omezení=soubor`. 🌐 Search the internet is also kept for the server
 (`save_internet`: <data>/ai/settings.json, read when the chat's Claude Code starts — auto3d.fetchcad.internet_on).
 """
 from __future__ import annotations
@@ -105,9 +107,9 @@ def rules(s: dict) -> list[str]:
 def settings_line(settings, tags=()) -> str:
     """The settings (and a message's tags) as the line the AI gets, e.g.
     [Nastavení: profil=automatizace; výroba=CNC; ptát=klíčové; odpovědi=stručně; zásady=standard-parts,machined-part,
-    easy-assembly,design-review; režimy=-; internet=ano]"""
+    easy-assembly,design-review; režimy=-; internet=ano] (📌 on: "; omezení=soubor" at its end)"""
     s = apply_tags(clean(settings), tags)
-    modes = [m for k, m in (("teach", "teach-me"), ("bugs", "bug-hunter"), ("lean", "lean")) if s[k]]
+    modes = [m for k, m in (("teach", "teach-me"), ("bugs", "bug-hunter")) if s[k]]
     parts = [f"profil={WORDS['profile'][s['profile']]}",
              f"výroba={','.join(WORDS['make'][m] for m in s['make']) or '-'}",
              f"ptát={WORDS['ask'][s['ask']]}",
@@ -115,11 +117,13 @@ def settings_line(settings, tags=()) -> str:
              f"zásady={','.join(rules(s)) or '-'}",
              f"režimy={','.join(modes) or '-'}",
              f"internet={'ano' if s['internet'] else 'ne'}"]
+    if s["lean"]:
+        parts.append("omezení=soubor")  # (📌 only the tools of the file on screen)
     return f"[Nastavení: {'; '.join(parts)}]"
 
 
 def lean(settings, tags=()) -> bool:
-    """⚡ Lean mode on for this message (the settings or #rychle)."""
+    """📌 This file only on for this message (the settings or #rychle)."""
     return apply_tags(clean(settings), tags)["lean"]
 
 
@@ -127,7 +131,7 @@ WORKSPACES = ("quick", "model", "assembly", "sheet", "drawing")
 
 
 def tool_group(workspace) -> str:
-    """The workspace on screen -> its tool group (agent_tools.TOOL_GROUPS) for ⚡ Lean mode; another (the start
+    """The workspace on screen -> its tool group (agent_tools.TOOL_GROUPS) for 📌 This file only; another (the start
     screen): only the general tools."""
     return workspace if workspace in WORKSPACES else "general"
 

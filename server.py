@@ -2247,7 +2247,7 @@ def api_chat_send():
         chat = _chat(_client())
         if isinstance(body.get("project"), dict):  # (the project on the page: a new conversation is about it)
             chat.project = {"id": str(body["project"].get("id") or ""), "name": str(body["project"].get("name") or "")}
-        # ✨ the project's AI settings and the workspace on screen (⚡ Lean mode), when the page sends them
+        # ✨ the project's AI settings and the workspace on screen (📌 This file only), when the page sends them
         extra = {"settings": body["settings"], "workspace": str(body.get("workspace") or "")} if isinstance(body.get("settings"), dict) else {}
         if extra:  # (🌐 for the chat's start: the next process searches the internet or not)
             ai_settings.save_internet(DATA, ai_settings.clean(extra["settings"])["internet"])

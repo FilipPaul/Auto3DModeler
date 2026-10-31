@@ -1010,7 +1010,7 @@ BROWSER_TOOLS = {t["name"] for t in TOOLS if t["where"] == "browser"}
 LOCAL_TOOLS = {t["name"] for t in TOOLS if t["where"] == "local"}  # answered by the MCP server itself (guides)
 
 
-# ⚡ Lean mode (✨ AI settings): the chat's Claude gets only the tools of the workspace on screen (+ the general ones)
+# 📌 This file only (✨ AI settings, "Limit the AI to the file open now"): the chat's Claude gets only the tools of the workspace on screen (+ the general ones)
 TOOL_GROUPS = {
     "general": ["get_screenshot", "list_parts", "open_part", "new_model", "new_assembly", "open_file", "undo", "export", "fetch_cad",
                 "get_parameters", "set_parameter", "save_version", "ask_user", "gui_state", "gui_action", "gui_highlight",
@@ -1034,7 +1034,7 @@ TOOL_GROUPS = {
 
 def mcp_tool_list(group: str | None = None):
     """The tools as MCP describes them (without our routing fields; the server's own, hidden ones left out). group: a
-    workspace's (TOOL_GROUPS, ⚡ Lean mode) — only its tools and the general ones; None / unknown: all."""
+    workspace's (TOOL_GROUPS, 📌 This file only) — only its tools and the general ones; None / unknown: all."""
     keep = set(TOOL_GROUPS["general"]) | set(TOOL_GROUPS[group]) if group in TOOL_GROUPS else None
     return [{k: v for k, v in t.items() if k not in ("where", "hidden")} for t in TOOLS
             if not t.get("hidden") and (keep is None or t["name"] in keep)]
@@ -1056,7 +1056,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **The screen**: set_layout (the widgets docked left / right / floating, folded, their heights and rows; the suggestions table closed / opening by itself) and set_view joints (the joint symbols) — only when the user asks; new_project starts an empty project, close_project closes it to the start screen (only when asked; the one on screen is kept).
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-**The user's settings:** a message may start with a line `[Nastavení: …]` (✨ AI settings; sent when they change — they hold until the next line). Honour it: profil (automatizace → + automation-design, tisk → print-functional, dekorace → print-graphics) and výroba answer those brief questions; load the skills listed under zásady (auto3d:<name>; easy-manufacture = simple shapes for the chosen výroba, no skill of its own); design-review in zásady: run it before you say a design is done (not listed: only when asked). ptát=klíčové: ask_user only for key sizes; vše: ask about every open choice; neptat: do not call ask_user (decide, say what you chose) — except for safety. odpovědi: stručně / normálně / vysvětlit (say why). režimy=teach-me / bug-hunter: load that skill and work in that mode; lean: only the workspace's tools are listed — one you need is missing: say so (the user turns ⚡ Lean mode off). internet=ne: do not search the internet.
+**The user's settings:** a message may start with a line `[Nastavení: …]` (✨ AI settings; sent when they change — they hold until the next line). Honour it: profil (automatizace → + automation-design, tisk → print-functional, dekorace → print-graphics) and výroba answer those brief questions; load the skills listed under zásady (auto3d:<name>; easy-manufacture = simple shapes for the chosen výroba, no skill of its own); design-review in zásady: run it before you say a design is done (not listed: only when asked). ptát=klíčové: ask_user only for key sizes; vše: ask about every open choice; neptat: do not call ask_user (decide, say what you chose) — except for safety. odpovědi: stručně / normálně / vysvětlit (say why). režimy=teach-me / bug-hunter: load that skill and work in that mode. omezení=soubor (older lines: režimy=lean): only the tools of the workspace / file on screen are listed — one you need is missing: say so (the user turns 📌 This file only off, under the chat's box or in ✨ Settings). internet=ne: do not search the internet.
 
 **Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user (or the settings line) has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
 

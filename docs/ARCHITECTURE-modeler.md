@@ -13,12 +13,14 @@ Date: 2026-10-25. Written by the architect agent.
   (`ai_settings`, Project.toJSON / loadAll; none → the app's default in localStorage, "Use as default"); the chat's
   # autocomplete and chips. auto3d/ai_settings.py: clean, parse_tags (#uc #chyby #kontrola #rychle #cnc #tisk
   #bez-otazek, Czech letters too), settings_line (≈ 190 chars); ChatSession.send(settings, workspace) prepends it only
-  when it changed (sent_line; reset by a new conversation / a session not resumed). ⚡ Lean mode: agent_tools.TOOL_GROUPS
+  when it changed (sent_line; reset by a new conversation / a session not resumed). 📌 This file only ("Omezit AI na aktuálně otevřený soubor", once ⚡ Lean mode; key `lean` kept,
+  the line says `omezení=soubor`; a 📌 chip beside 📎 toggles it, the tags' row under the box puts #tags in / out):
+  agent_tools.TOOL_GROUPS
   (general + quick / model / assembly / sheet / drawing), mcp_server `--group`; another group → the process restarts
   unseen (_restart, `--resume`); 🌐 internet: the server writes <data>/ai/settings.json {"internet"} (read by
   fetchcad.internet_on at the chat's start), a change restarts the process the same way. Schemas (chars / 4): all 114 tools ≈ 29.0k tokens; model 44 ≈ 12.1k (−16.9k),
   assembly 54 ≈ 15.1k (−13.9k), sheet ≈ 7.7k, drawing ≈ 5.7k, quick ≈ 7.4k, start screen ≈ 4.8k. SYSTEM_PROMPT routes
-  the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter / lean).
+  the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter, omezení=soubor — the old režimy=lean too).
   Tests: test_ai_settings (line, tags, groups, the chat's line / restart, the project file), tools/e2e_ai_settings.py.
 - **▣ New material joined onto an imported STEP (fix, 2026-10-31)** (the owner designs around bought parts: "sketch on
   its face and extrude a matching part"). nist_ctc_01 and nist_stc_06 failed every joined extrude, even a plain circle

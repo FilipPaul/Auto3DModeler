@@ -9,7 +9,7 @@ import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
 import { recorder } from './recorder.js';
 import { pageBuild } from './stale.js';
-import { aiSettings, settingsPanel, TAGS } from './aisettings.js';
+import { aiSettings, settingsPanel, TAGS, tagsShown } from './aisettings.js';
 import { guarded } from './ailock.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -169,10 +169,13 @@ const tn = (text, n) => t(text).replace('{n}', n);
 const COPY_TIP = 'Copy the recording as text — paste it (Ctrl+V) into a chat with a developer or another AI';
 const session = { get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { if (v) sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch { /* private window */ } } };
+// "#tag" in a message (also typed with Czech letters, any case — as auto3d/ai_settings.parse_tags takes it)
+const TAG_ALIASES = { uc: 'uč', rychle: 'rychlé', 'bez-otazek': 'bez-otázek' };
+const tagRe = (tag) => new RegExp(`(^|\\s)#(?:${[tag, TAG_ALIASES[tag]].filter(Boolean).join('|')})(?![\\p{L}\\p{N}_-])`, 'giu');
 
 export class ChatPanel {
   /** hooks: project() -> {id, name} (the project on screen: a new conversation is about it), onShow() (the chat in sight),
-   *  workspace() -> the one on screen (⚡ Lean mode: only its tools). */
+   *  workspace() -> the one on screen (📌 This file only: only its tools). */
   constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow, workspace }) {
     this.root = root;
     this.toast = toast;
@@ -222,8 +225,10 @@ export class ChatPanel {
         <div class="ai-rec" hidden data-no-i18n></div>
         <div class="ai-tagmenu" hidden></div>
         <textarea rows="3" placeholder="Message Claude… (Enter = send, Shift+Enter = new line)"></textarea>
+        <div class="ai-tagbar">${TAGS.map((x) => `<button type="button" class="ai-tagchip" data-tag="${x.tag}" title="${escapeHtml(x.tip)}"><span data-no-i18n>#${x.tag}</span></button>`).join('')}</div>
         <div class="ai-send">
           <label class="btn small ai-attach" title="Attach photos or files (text, CSV, code, STEP, STL, DXF, PDF …) — or paste (Ctrl+V) or drop them here. Claude sees photos, reads text files and opens CAD files.">📎 Attachment<input type="file" multiple hidden></label>
+          <button type="button" class="ai-pin"><span>📌 This file only</span></button>
           <span class="ai-grow"></span>
           <button type="submit" class="btn primary small">Send</button><button type="button" class="btn small ai-stop" hidden>Stop</button>
         </div>
@@ -235,7 +240,7 @@ export class ChatPanel {
       if (this.tagKey(e)) return; // (# the tags' list open: its keys)
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
     });
-    ta.addEventListener('input', () => this.renderTags());
+    ta.addEventListener('input', () => { this.renderTags(); this.renderTagbar(); });
     ta.addEventListener('blur', () => setTimeout(() => this.renderTags(false), 150));
     this.$('.ai-form').addEventListener('submit', (e) => { e.preventDefault(); this.send(); });
     // 📎 attachments: chosen, pasted or dropped — photos as thumbnails, other files as chips until sent
@@ -263,6 +268,17 @@ export class ChatPanel {
     this.$('.ai-key').addEventListener('click', () => this.showAccess(true));
     this.settings = settingsPanel(this.$('.ai-settings'), { toast, onClose: () => this.showSettings(false) });
     this.$('.ai-set').addEventListener('click', () => this.showSettings(this.$('.ai-settings').hidden));
+    // the tags under the box (a click puts one in at the cursor, again: out) and 📌 This file only (the panel's setting)
+    for (const b of root.querySelectorAll('.ai-tagchip')) {
+      b.addEventListener('pointerdown', (e) => e.preventDefault()); // (the box keeps the focus and its cursor)
+      b.addEventListener('click', () => this.toggleTag(b.dataset.tag));
+    }
+    this.$('.ai-pin').addEventListener('pointerdown', (e) => e.preventDefault());
+    this.$('.ai-pin').addEventListener('click', () => aiSettings.set({ lean: !aiSettings.get().lean })); // (the next message: Claude restarted unseen, resumed)
+    aiSettings.listen(() => this.renderPin());
+    window.addEventListener('a3d:chat-tags', () => this.renderTagbar());
+    this.renderPin();
+    this.renderTagbar();
     this.updateUndo();
     this.checkStatus();
     this.connect();
@@ -345,6 +361,40 @@ export class ChatPanel {
     ta.setSelectionRange(at, at);
     ta.focus();
     this.renderTags(false);
+    this.renderTagbar();
+  }
+
+  /** A tag's chip under the box: puts "#tag" in at the cursor — or, already in the message, takes it out. */
+  toggleTag(tag) {
+    const ta = this.$('textarea'), re = tagRe(tag), v = ta.value;
+    if (re.test(v)) {
+      ta.value = v.replace(re, '$1').replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+/, '');
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    } else {
+      const at = ta.selectionStart ?? v.length, before = v.slice(0, at), after = v.slice(at);
+      const ins = `${before && !/\s$/.test(before) ? ' ' : ''}#${tag}${/^\s/.test(after) ? '' : ' '}`;
+      ta.value = before + ins + after;
+      ta.setSelectionRange(at + ins.length, at + ins.length);
+    }
+    ta.focus();
+    this.renderTags(false);
+    this.renderTagbar();
+  }
+
+  /** The tags' row: shown or not (✨ Settings), a chip on when its tag is in the message. */
+  renderTagbar() {
+    const bar = this.$('.ai-tagbar'), v = this.$('textarea').value;
+    bar.hidden = !tagsShown();
+    for (const b of bar.querySelectorAll('.ai-tagchip')) b.classList.toggle('on', tagRe(b.dataset.tag).test(v));
+  }
+
+  /** 📌 This file only: on / off, as in ✨ Settings (the same setting, kept with the project). */
+  renderPin() {
+    const on = aiSettings.get().lean, b = this.$('.ai-pin');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+    b.title = on ? 'On: the AI gets only the tools of the file open now (fewer tokens, faster) — click to give it all of them'
+      : 'Off: the AI gets the tools of every workspace — click to limit it to the file open now (fewer tokens, faster)';
   }
 
   /** The tags' list open: ↑ ↓ choose, Enter / Tab put it in, Escape closes -> true when the key was its. */
@@ -626,6 +676,7 @@ export class ChatPanel {
 
 ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // (⏺ the recording with it)
     ta.value = '';
+    this.renderTagbar();
     this.photos = [];
     this.files = [];
     this.renderPhotos();

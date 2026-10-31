@@ -1,5 +1,5 @@
 """✨ AI settings (auto3d/ai_settings.py): the line the AI gets before a message, the #tags of one message, when the
-chat sends the line (only when it changed), ⚡ Lean mode's tool groups (the MCP server lists fewer; another group: the
+chat sends the line (only when it changed), 📌 This file only's tool groups (the MCP server lists fewer; another group: the
 process starts again, its session resumed) and the settings kept in the project file.
 
 Run:  py -m unittest tests.test_ai_settings -v
@@ -58,7 +58,7 @@ class LineTest(unittest.TestCase):
         self.assertIn("výroba=CNC,laser", line)
         self.assertIn("ptát=neptat; odpovědi=vysvětlit", line)
         self.assertIn("zásady=machined-part,easy-manufacture;", line)
-        self.assertIn("režimy=teach-me,bug-hunter,lean; internet=ne]", line)
+        self.assertIn("režimy=teach-me,bug-hunter; internet=ne; omezení=soubor]", line)  # (📌, the old key `lean`)
         # short: well under ~100 tokens (≈ 3 characters a token for Czech words), everything on
         full = settings_line({**s, "make": list(ai_settings.MAKES), "standard": True, "dfa": True, "review": True})
         self.assertLess(len(full), 300, full)
@@ -90,7 +90,7 @@ class TagTest(unittest.TestCase):
         quick = settings_line({"answers": "explain"}, ["rychle"])
         self.assertIn("odpovědi=stručně", quick)
         self.assertNotIn("design-review", quick)
-        self.assertIn("režimy=lean", quick)
+        self.assertIn("režimy=-; internet=ano; omezení=soubor]", quick)
         self.assertIn("ptát=neptat", settings_line({}, ["bez-otazek"]))
         self.assertIn("design-review", settings_line({"review": False}, ["kontrola"]))
         self.assertIn("režimy=bug-hunter", settings_line({}, ["chyby"]))
@@ -107,7 +107,7 @@ class ToolGroupTest(unittest.TestCase):
             self.assertLessEqual(set(names), TOOL_NAMES, g)
             lean = mcp_tool_list(g)
             self.assertLess(len(lean), len(full), g)
-            self.assertLess(size(lean), size(full) * 0.6, g)  # (⚡ saves ≥ 40 % of the schemas)
+            self.assertLess(size(lean), size(full) * 0.6, g)  # (📌 saves ≥ 40 % of the schemas)
             self.assertIn("get_guide", {t["name"] for t in lean})  # (the general ones always)
         self.assertIn("add_feature", {t["name"] for t in mcp_tool_list("model")})
         self.assertNotIn("add_feature", {t["name"] for t in mcp_tool_list("assembly")})

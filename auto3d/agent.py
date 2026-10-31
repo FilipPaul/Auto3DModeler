@@ -11,7 +11,7 @@ through the app's MCP server.
   chat events for the page (Server-Sent Events). Each app window has its own chat (and process, started with its
   first message), whose tool calls act in that window. Its conversation is kept (auto3d/chat_history.py) and can be
   opened again and continued: Claude Code's own session resumed (`--resume`), or a new one told the conversation in short.
-  The ✨ AI settings go with a message as one short line when they changed (auto3d/ai_settings.py); ⚡ Lean mode lists only
+  The ✨ AI settings go with a message as one short line when they changed (auto3d/ai_settings.py); 📌 This file only lists only
   the workspace's tools — another list: the process starts again, its session resumed, unseen.
 
 The app never sees the user's Claude credentials: Claude Code signs in through Anthropic's own flow.
@@ -267,7 +267,7 @@ class ChatSession:
         self.lock = threading.Lock()
         self.stderr_tail: list[str] = []
         self.busy = False
-        self.group = None                  # ⚡ the tool group its process lists (agent_tools.TOOL_GROUPS; None: all)
+        self.group = None                  # 📌 the tool group its process lists (agent_tools.TOOL_GROUPS; None: all)
         self.internet = None               # 🌐 its process may search the internet (the ✨ setting it started with)
         self.sent_line = None              # the ✨ settings line the AI got last (sent again only when it changes)
         self._seq = itertools.count(1)
@@ -394,7 +394,7 @@ class ChatSession:
         sees each photo and is told where it was saved (so it can trace it with trace_picture). files: other
         attachments (chat_attach.attach: [{"name", "size", "path", "text"}]) — their `text` goes into the message.
         settings: the project's ✨ AI settings (their line goes first when it changed; the message's #tags change it for
-        this message); workspace: the one on screen (⚡ Lean mode: only its tools)."""
+        this message); workspace: the one on screen (📌 This file only: only its tools)."""
         photos, files = photos or [], files or []
         text, tags = ai_settings.parse_tags(text)
         group = ai_settings.tool_group(workspace) if (settings is not None or tags) and ai_settings.lean(settings, tags) else None
@@ -404,7 +404,7 @@ class ChatSession:
         self.pending = None
         internet = ai_settings.clean(settings)["internet"] if settings is not None else self.internet
         if self.running() and (group != self.group or None not in (internet, self.internet) and internet != self.internet):
-            self._restart()  # (⚡ another tool list, 🌐 the internet on / off: a new process, the same session)
+            self._restart()  # (📌 another tool list, 🌐 the internet on / off: a new process, the same session)
         self.group, self.internet = group, internet
         prime = "" if self.running() else self.start()
         line = ai_settings.settings_line(settings, tags) if settings is not None or tags else ""
@@ -451,7 +451,7 @@ class ChatSession:
         self.busy = False
 
     def _restart(self):
-        """The process ends unseen (no 'exit' in the chat): the next start resumes its session (⚡ another tool list)."""
+        """The process ends unseen (no 'exit' in the chat): the next start resumes its session (📌 another tool list)."""
         p, self.proc = self.proc, None  # (first: its reader then ends without an event)
         self.pending = self.resumed = None
         if p and p.poll() is None:

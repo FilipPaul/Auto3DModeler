@@ -47,8 +47,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_settings.py <url> <dir> <claude config dir>` covers ✨ Nastavení AI with the stand-in Claude Code (its own
    server as for e2e_chat_send): the panel in Czech, profiles set the toggles, a change → ✎ Vlastní, the meter; the
    settings line reaches Claude with the first message and not with an unchanged second; `#u` + Enter / `#cn` + Tab
-   from the tags' list, chips, the line overridden for that message; ⚡ Úsporný režim: the MCP server lists 44 of 114
-   tools (the process restarted unseen, the session resumed); 🌐 off: no WebSearch; 💾 Save → the .a3d keeps them, reopened; Použít jako
+   from the tags' list, chips, the line overridden for that message; 📌 Omezit AI na aktuálně otevřený soubor: the MCP server lists 44 of 114
+   tools (the process restarted unseen, the session resumed); the tags' row under the box (#cnc in / out, Czech tooltips,
+   hidden from the panel, kept over a reload); the 📌 Jen tento soubor chip flips the same setting (the panel shows it,
+   the tool list shrinks / grows); 🌐 off: no WebSearch; 💾 Save → the .a3d keeps them, reopened; Použít jako
    výchozí → a new project / an older one gets them; no console errors, no native dialogs.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the

@@ -1,5 +1,6 @@
 // ✨ AI settings: how the chat's AI works on this project — the design profile, manufacturing, when it asks, how long it
-// answers, its design rules and modes (⚡ Lean mode: only the workspace's tools). Kept per project (its file:
+// answers, its design rules and modes (📌 This file only: only the workspace's tools — kept under its old key `lean`,
+// once ⚡ Lean mode). Kept per project (its file:
 // `ai_settings`, travels in the .a3d); a new project gets the app's default ("Use as default", localStorage). The server
 // turns them into one short line before a message (auto3d/ai_settings.py, the same names); #tags in a message change
 // them for that message only.
@@ -17,13 +18,27 @@ const MAKES = ['cnc', 'print', 'laser'];
 const CHOICES = { profile: [...Object.keys(PROFILES), 'custom'], ask: ['key', 'all', 'none'], answers: ['short', 'normal', 'explain'] };
 const FLAGS = ['standard', 'dfm', 'dfa', 'review', 'teach', 'bugs', 'internet', 'lean'];
 const KEY = 'a3d.aiSettings'; // (the app's default)
+const TAGS_KEY = 'a3d.chatTags'; // (the tags under the chat's box shown: '0' hidden — the app's, not the project's)
 
-/** The message tags (the chat's # autocomplete): each changes the settings for its message only. */
+/** The message tags (the chat's # autocomplete, the chips under its box): each changes the settings for its message only;
+ *  tip: what it does (the chip's tooltip). */
 export const TAGS = [
-  { tag: 'uc', label: '🎓 Teach me' }, { tag: 'chyby', label: '🐞 Bug hunter' }, { tag: 'kontrola', label: '🔍 Design review' },
-  { tag: 'rychle', label: '⚡ Quick: lean, no review, brief' }, { tag: 'cnc', label: 'CNC machining' }, { tag: 'tisk', label: '3D print' },
-  { tag: 'bez-otazek', label: 'Don\'t ask, decide' },
+  { tag: 'uc', label: '🎓 Teach me', tip: 'This message: the AI shows you where to click and explains — you do the steps' },
+  { tag: 'chyby', label: '🐞 Bug hunter', tip: 'This message: the AI works through the GUI only and reports every problem it finds' },
+  { tag: 'kontrola', label: '🔍 Design review', tip: 'This message: the AI checks the design against the rules before it says it is done' },
+  { tag: 'rychle', label: '⚡ Quick: this file only, no review, brief', tip: 'This message: only the tools of the file open now, no design review, a brief answer' },
+  { tag: 'cnc', label: 'CNC machining', tip: 'This message: design it for CNC machining' },
+  { tag: 'tisk', label: '3D print', tip: 'This message: design it for 3D printing' },
+  { tag: 'bez-otazek', label: 'Don\'t ask, decide', tip: 'This message: the AI asks nothing — it decides and says what it chose' },
 ];
+
+/** The tags under the chat's box shown (the panel's "Show the tags under the chat"; kept in this browser). */
+export function tagsShown() { try { return localStorage.getItem(TAGS_KEY) !== '0'; } catch { return true; } }
+
+export function showTags(on) {
+  try { localStorage.setItem(TAGS_KEY, on ? '1' : '0'); } catch { /* private window: not kept */ }
+  window.dispatchEvent(new Event('a3d:chat-tags'));
+}
 
 /** Anything (a project file's, the stored default) -> complete, valid settings. */
 export function cleanSettings(v) {
@@ -101,7 +116,7 @@ const TOGGLES = [
   ['teach', '🎓 Teach me', '+10–25k', 'The AI shows you where to click and explains — you do the steps'],
   ['bugs', '🐞 Bug hunter', '+15–40k', 'The AI works through the GUI only and reports every problem it finds in the app'],
   ['internet', '🌐 Search the internet for parts', '', 'The AI may look up bought parts and their 3D models on the internet'],
-  ['lean', '⚡ Lean mode', '−12–18k', 'The AI gets only the tools of the workspace on screen — fewer tokens, faster'],
+  ['lean', '📌 Limit the AI to the file open now', '−12–18k', 'The AI gets only the tools of the file (workspace) on screen — fewer tokens, faster; the same as 📌 This file only under the chat'],
 ];
 
 /** The ✨ AI settings panel in `box` (the chat's): every change applies at once and is kept with the project. */
@@ -122,13 +137,15 @@ export function settingsPanel(box, { onClose, toast }) {
     <div class="ais-togs">${TOGGLES.map(([k, label, cost, tip]) => `<label class="ais-tog" title="${tip}"><input type="checkbox" data-k="${k}"><span>${label}</span>${cost ? `<span class="ais-cost">${cost}</span>` : ''}</label>`).join('')}</div>
     <div class="ais-meter"><div class="ais-bar"><i></i></div><span class="ais-est" data-no-i18n></span><span class="ais-speed" data-no-i18n></span></div>
     <div class="ais-tip">Tags in a message change it for that message: #uc #chyby #kontrola #rychle #cnc #tisk #bez-otazek</div>
+    <label class="ais-tog ais-ui" title="A thin row of the tags under the box to write in — a click puts one in"><input type="checkbox" class="ais-tagbar"><span>Show the tags under the chat</span></label>
     <div class="ais-acts"><button type="button" class="btn small ais-default" title="New projects start with these settings">Use as default</button><span class="ais-isdef">The app's default</span>
       <span class="ai-grow"></span><button type="button" class="btn small primary ais-done">Done</button></div>`;
   const update = (s) => {
     for (const g of box.querySelectorAll('.ais-seg')) {
       for (const b of g.querySelectorAll('button')) b.classList.toggle('on', g.dataset.k === 'make' ? s.make.includes(b.dataset.v) : s[g.dataset.k] === b.dataset.v);
     }
-    for (const c of box.querySelectorAll('.ais-tog input')) c.checked = !!s[c.dataset.k];
+    for (const c of box.querySelectorAll('.ais-tog input[data-k]')) c.checked = !!s[c.dataset.k];
+    box.querySelector('.ais-tagbar').checked = tagsShown();
     const e = estimate(s);
     box.querySelector('.ais-bar i').style.width = `${Math.min(100, ((e.lo + e.hi) / 2 / 90) * 100)}%`;
     box.querySelector('.ais-est').textContent = t('≈ {lo}–{hi}k tokens per task').replace('{lo}', e.lo).replace('{hi}', e.hi);
@@ -148,7 +165,8 @@ export function settingsPanel(box, { onClose, toast }) {
       aiSettings.set({ make: make.includes(v) ? make.filter((m) => m !== v) : [...make, v] });
     });
   }
-  for (const c of box.querySelectorAll('.ais-tog input')) c.addEventListener('change', () => aiSettings.set({ [c.dataset.k]: c.checked }));
+  for (const c of box.querySelectorAll('.ais-tog input[data-k]')) c.addEventListener('change', () => aiSettings.set({ [c.dataset.k]: c.checked }));
+  box.querySelector('.ais-tagbar').addEventListener('change', (e) => showTags(e.target.checked));
   box.querySelector('.ais-default').addEventListener('click', () => { aiSettings.saveDefault(); toast?.(t('New projects start with these AI settings.'), 'ok'); });
   box.querySelector('.ais-x').addEventListener('click', () => onClose());
   box.querySelector('.ais-done').addEventListener('click', () => onClose());

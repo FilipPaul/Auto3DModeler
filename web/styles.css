@@ -757,6 +757,17 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .ai-tagopt:hover, .ai-tagopt.on { background: var(--panel-2); }
 .ai-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .ai-chip { font-size: 11px; padding: 0 6px; border-radius: 999px; background: #2f5a8f; color: #dbe9ff; }
+/* the tags under the box: one thin, muted row (a click puts one in / takes it out); 📌 This file only beside 📎 */
+.ai-tagbar { display: flex; gap: 3px; height: 18px; margin-top: -3px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; opacity: .55; transition: opacity .15s; }
+.ai-tagbar::-webkit-scrollbar { display: none; }
+.ai-tagbar:hover, .ai-tagbar:focus-within { opacity: 1; }
+.ai-tagbar[hidden] { display: none; }
+.ai-tagchip { flex: none; height: 18px; line-height: 16px; font-size: 10.5px; padding: 0 6px; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+.ai-tagchip:hover { color: var(--text); background: var(--panel-2); }
+.ai-tagchip.on { color: #dbe9ff; background: #2f5a8f; }
+.ai-pin { height: 22px; font-size: 11px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.ai-pin:hover { color: var(--text); background: var(--panel-2); }
+.ai-pin.on { color: var(--text); border-color: var(--accent); background: #1f3a5f88; }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
 .ai-drawer { width: min(var(--chat-w, 440px), 100vw); }

@@ -1523,14 +1523,19 @@ once and is saved with the project (it travels in the `.a3d`).
   only · everything · don't ask, decide), **Answers** (brief · normal · with explanation).
 - **Behaviour**, each with what it costs: 📦 Standard parts, 🏭 Easy manufacture, 🔩 Easy assembly, 🔍 Design review
   (+3–6k tokens), 🎓 Teach me (+10–25k), 🐞 Bug hunter (+15–40k), 🌐 Search the internet for parts (on; off: Claude
-  Code starts again without web search, kept for the server in `data/ai/settings.json`), ⚡ Lean mode
-  (−12–18k: Claude gets only the tools of the workspace on screen — e.g. 44 of 114 in a 3D model; switching the
-  workspace or the mode restarts Claude Code unseen, its session resumed). A meter shows the tokens per task and the speed.
+  Code starts again without web search, kept for the server in `data/ai/settings.json`), 📌 Limit the AI to the file open now
+  (*Omezit AI na aktuálně otevřený soubor*, −12–18k: Claude gets only the tools of the file / workspace on screen — e.g.
+  44 of 114 in a 3D model; switching the workspace or turning it on / off restarts Claude Code unseen, its session
+  resumed; once called ⚡ Lean mode — older projects keep it). A meter shows the tokens per task and the speed.
 - **Use as default**: new projects (and older ones without settings) start with these.
-Claude gets them as one short line before your message (`[Nastavení: profil=…; výroba=…; …]`), only when they changed.
+Claude gets them as one short line before your message (`[Nastavení: profil=…; výroba=…; …]`, with `; omezení=soubor`
+at its end while 📌 is on), only when they changed. **📌 This file only** (*Jen tento soubor*) beside 📎 under the chat's box
+turns the same limit on and off with one click (highlighted while on).
 **Tags** in a message change them for that message only: `#uc` (teach me), `#chyby` (bug hunter), `#kontrola` (review),
-`#rychle` (lean, no review, brief), `#cnc`, `#tisk`, `#bez-otazek` — typing `#` lists them; they are taken out of the
-text and shown as chips on your message.
+`#rychle` (this file only, no review, brief), `#cnc`, `#tisk`, `#bez-otazek` — typing `#` lists them, and a thin muted row
+of them sits under the box: a click puts the tag in at the cursor, a second click takes it out (the chip is lit while
+it is in; its tooltip says what it does; **Show the tags under the chat** in ✨ Settings hides the row). They are taken
+out of the text and shown as chips on your message.
 
 **🕘 History** (in the chat's top bar): after each AI turn that changed something, the server keeps the whole project
 (every part — 3D models, assemblies, drawings) in `data/history/` next to `server.py`, with the message that made

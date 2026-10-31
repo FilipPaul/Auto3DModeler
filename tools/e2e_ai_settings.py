@@ -8,9 +8,13 @@ no sign-in; its session files under <claude config dir> hold the whole text it g
    no line;
 3. "#u" typed -> the tags' list (#uc) -> Enter puts it in; "#cn" + Tab -> #cnc: sent, the bubble shows the text without
    them and the chips #uc #cnc, Claude's line has režimy=teach-me and výroba=CNC;
-4. ⚡ Úsporný režim: Claude's MCP server lists fewer tools (the stand-in asks it: "TOOLS?") — its process started again
-   unseen (no "stopped" note), the session resumed; 🌐 off: started again without WebSearch, the line says internet=ne;
-5. 💾 Save (the Save dialog stubbed) -> the .a3d has ai_settings; reload, open it -> the same settings;
+4. 📌 Omezit AI na aktuálně otevřený soubor: Claude's MCP server lists fewer tools (the stand-in asks it: "TOOLS?") —
+   its process started again unseen (no "stopped" note), the session resumed, the line says omezení=soubor; 🌐 off:
+   started again without WebSearch, the line says internet=ne; the tags' row under the box (thin, Czech tooltips): a click
+   puts #cnc in at the cursor, again takes it out; the 📌 Jen tento soubor chip beside 📎 flips the same setting (the
+   panel shows it, the tool list grows / shrinks); "Zobrazit tagy pod chatem" off hides the row;
+5. 💾 Save (the Save dialog stubbed) -> the .a3d has ai_settings; reload, open it -> the same settings (📌 on, the
+   tags' row still hidden; shown again);
 6. 🎨 Dekorace + Použít jako výchozí -> a reload (a new project) starts with them; the saved project keeps its own; an
    older project without settings gets the default;
 no console errors, no native dialogs (confirm / alert / prompt unused).
@@ -114,7 +118,7 @@ def click_seg(k, v):
 
 
 def toggles():
-    return js(f"return Object.fromEntries([...document.querySelectorAll('{PANEL} .ais-tog input')].map(c => [c.dataset.k, c.checked]))")
+    return js(f"return Object.fromEntries([...document.querySelectorAll('{PANEL} .ais-tog input[data-k]')].map(c => [c.dataset.k, c.checked]))")
 
 
 def toggle(k):
@@ -164,7 +168,8 @@ try:
           tg == {"standard": True, "dfm": True, "dfa": True, "review": True, "teach": False, "bugs": False, "internet": True, "lean": False}, tg)
     labels = js(f"return [...document.querySelectorAll('{PANEL} .ais-tog')].map(l => l.textContent.trim())")
     check("the toggles in Czech with their cost", labels[:4] == ["📦 Standardizace dílů+0", "🏭 Jednoduchá výroba+0", "🔩 Snadná montáž+0", "🔍 Kontrola návrhu+3–6 tis."]
-          and "⚡ Úsporný režim−12–18 tis." in labels and "🌐 Hledat díly na internetu" in labels, labels)
+          and "📌 Omezit AI na aktuálně otevřený soubor−12–18 tis." in labels and "🌐 Hledat díly na internetu" in labels, labels)
+    check("the old name is gone", "Úsporný" not in js(f"return document.querySelector('{PANEL}').textContent"))
     click_seg("profile", "deco")
     tg = toggles()
     check("🎨 Dekorace: 3D tisk, the rules off", on_of("make") == ["3D tisk"] and not any(tg[k] for k in ("standard", "dfm", "dfa", "review")), (on_of("make"), tg))
@@ -220,32 +225,89 @@ try:
     check("a tag typed whole + Enter: sent at once (#kontrola changes nothing here: no line)", sent() == "hrany" and js(
         "return [...[...document.querySelectorAll('#aiDrawer .ai-msg.user')].pop().querySelectorAll('.ai-chip')].map(c => c.textContent)") == ["#kontrola"], sent())
 
-    print("4. ⚡ Úsporný režim: fewer tools")
+    print("4. 📌 Omezit AI na aktuálně otevřený soubor: fewer tools")
     r = say("TOOLS? kolik")
     full = int(re.search(r"tools: (\d+)", r).group(1)) if "tools:" in r else 0
     check(f"all the tools without it ({full})", full > 100, r)
     panel(True)
     toggle("lean")
-    check("⚡ on: the estimate drops", "−12–18" in js(f"return document.querySelector('{PANEL}').textContent"))
+    check("📌 on: the estimate drops", "−12–18" in js(f"return document.querySelector('{PANEL}').textContent"))
     panel(False)
     notes = js("return document.querySelectorAll('#aiDrawer .ai-msg.note').length")
     r = say("TOOLS? a teď")
     lean = int(re.search(r"tools: (\d+)", r).group(1)) if "tools:" in r else 0
-    check(f"⚡ the 3D model's tools only: {full} -> {lean}", 0 < lean < full * 0.6, r)
+    check(f"📌 the 3D model's tools only: {full} -> {lean}", 0 < lean < full * 0.6, r)
     check("the session went on (resumed: its message #7)", r.startswith("Echo #7:") and "resumed: " in r and "resumed: no" not in r, r)
     check("unseen: no 'stopped' note", js("return document.querySelectorAll('#aiDrawer .ai-msg.note').length") == notes)
-    check("the line says režimy=lean", "režimy=lean" in sent(), sent())
+    check("the line says omezení=soubor (not režimy=lean)", "omezení=soubor]" in sent() and "režimy=-" in sent(), sent())
+    check("📌 Jen tento soubor under the box: on", js("return document.querySelector('#aiDrawer .ai-pin').classList.contains('on')"))
     check("🌐 on: Claude may search the web", r.endswith("web: yes"), r)
     panel(True)
     toggle("internet")
     panel(False)
     r = say("TOOLS? bez internetu")
     check("🌐 off: started again without web search, the session resumed", r.endswith("web: no") and "resumed: no" not in r, r)
-    check("the line says internet=ne", "internet=ne]" in sent(), sent())
+    check("the line says internet=ne", "internet=ne;" in sent(), sent())
     panel(True)
     toggle("internet")
     panel(False)
     d.save_screenshot(str(OUT / "ai-settings-chat.png"))
+
+    print("4b. the tags' row under the box; the 📌 quick toggle; hiding the row")
+    geo = js("const q = (s) => document.querySelector('#aiDrawer ' + s).getBoundingClientRect(); const a = q('textarea'), b = q('.ai-tagbar'), c = q('.ai-send');"
+             "return [a.bottom, b.top, b.bottom, b.height, c.top]")
+    check(f"the row under the box, thin ({geo[3]:.0f} px), above the buttons", geo[1] >= geo[0] - 1 and geo[3] <= 20 and geo[2] <= geo[4] + 1, geo)
+    chips = js("return [...document.querySelectorAll('#aiDrawer .ai-tagchip')].map(b => [b.textContent, b.title])")
+    check("the chips #uc #chyby #kontrola #rychle #cnc #tisk #bez-otazek", [c[0] for c in chips] == ["#uc", "#chyby", "#kontrola", "#rychle", "#cnc", "#tisk", "#bez-otazek"], chips)
+    check("their tooltips in Czech", all(c[1].startswith("Pro tuto zprávu: ") for c in chips) and "navrhnout pro CNC obrábění" in chips[4][1], chips)
+    ta = d.find_element(By.CSS_SELECTOR, "#aiDrawer textarea")
+    ta.send_keys("díra Ø5")
+    ta.send_keys(Keys.HOME)
+    cnc = d.find_element(By.CSS_SELECTOR, "#aiDrawer .ai-tagchip[data-tag=cnc]")
+    cnc.click()
+    v = ta.get_attribute("value")
+    check("a click puts #cnc in at the cursor", v == "#cnc díra Ø5", v)
+    check("its chip lit, the box keeps the focus", "on" in cnc.get_attribute("class") and js("return document.activeElement.tagName") == "TEXTAREA")
+    cnc.click()
+    v = ta.get_attribute("value")
+    check("a second click takes it out", v == "díra Ø5" and "on" not in cnc.get_attribute("class"), v)
+    ta.send_keys(Keys.END)
+    cnc.click()
+    check("at the end: '… #cnc '", ta.get_attribute("value") == "díra Ø5 #cnc ", ta.get_attribute("value"))
+    js("const t = document.querySelector('#aiDrawer textarea'); t.value = ''; t.dispatchEvent(new Event('input'))")
+    check("cleared: no chip lit", not js("return document.querySelectorAll('#aiDrawer .ai-tagchip.on').length"))
+    pin = d.find_element(By.CSS_SELECTOR, "#aiDrawer .ai-pin")
+    check("📌 Jen tento soubor (Czech tooltip: Zapnuto)", pin.text == "📌 Jen tento soubor" and pin.get_attribute("title").startswith("Zapnuto: "), (pin.text, pin.get_attribute("title")))
+    pin.click()
+    time.sleep(0.2)
+    check("📌 off: unlit, the tooltip Vypnuto", "on" not in pin.get_attribute("class") and pin.get_attribute("title").startswith("Vypnuto: "), pin.get_attribute("title"))
+    panel(True)
+    check("the panel shows it off", toggles()["lean"] is False, toggles())
+    panel(False)
+    r = say("TOOLS? zase vše")
+    n = int(re.search(r"tools: (\d+)", r).group(1)) if "tools:" in r else 0
+    check(f"📌 off: all the tools again ({n})", n == full and "resumed: no" not in r, r)
+    check("the line without omezení", "omezení" not in sent() and sent().startswith("[Nastavení:"), sent())
+    pin.click()
+    time.sleep(0.2)
+    panel(True)
+    check("📌 on again: the panel shows it", toggles()["lean"] is True, toggles())
+    panel(False)
+    r = say("TOOLS? zase jen soubor")
+    n = int(re.search(r"tools: (\d+)", r).group(1)) if "tools:" in r else 0
+    check(f"📌 on: the file's tools only ({n})", n == lean and "resumed: no" not in r, r)
+    panel(True)
+    tb = d.find_element(By.CSS_SELECTOR, f"{PANEL} .ais-tagbar")
+    lab = js(f"return document.querySelector('{PANEL} .ais-ui').textContent.trim()")
+    check("the panel: 'Zobrazit tagy pod chatem' on", lab == "Zobrazit tagy pod chatem" and tb.is_selected(), lab)
+    tb.click()
+    time.sleep(0.15)
+    panel(False)
+    check("off: the row hidden, the box and 📌 stay", js("return document.querySelector('#aiDrawer .ai-tagbar').hidden && !!document.querySelector('#aiDrawer .ai-pin').offsetParent"))
+    ta.send_keys("#ko")
+    check("the # list still works", wait("return document.querySelector('#aiDrawer .ai-tagmenu').textContent.includes('#kontrola')", 3))
+    js("const t = document.querySelector('#aiDrawer textarea'); t.value = ''; t.dispatchEvent(new Event('input'))")
+    d.save_screenshot(str(OUT / "ai-settings-tagbar.png"))
 
     print("5. 💾 Save -> the .a3d keeps them; reload + open -> the same")
     js(STUB)
@@ -265,10 +327,13 @@ try:
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 1 && window.__app.state.workspace === 'model'", 30)
     time.sleep(0.8)
     s1 = d.execute_async_script(get)
-    check("opened: its settings (Funkční tisk, ⚡)", s1["profile"] == "print" and s1["lean"] and s1["make"] == ["print"], s1)
+    check("opened: its settings (Funkční tisk, 📌)", s1["profile"] == "print" and s1["lean"] and s1["make"] == ["print"], s1)
     chat_open()
     panel(True)
     check("the panel shows them", on_of("profile") == ["🖨 Funkční tisk"] and toggles()["lean"], (on_of("profile"), toggles()))
+    check("after the reload: 📌 on, the tags' row still hidden", js("return document.querySelector('#aiDrawer .ai-pin').classList.contains('on') && document.querySelector('#aiDrawer .ai-tagbar').hidden"))
+    d.find_element(By.CSS_SELECTOR, f"{PANEL} .ais-tagbar").click()
+    check("shown again from the panel", js("return !document.querySelector('#aiDrawer .ai-tagbar').hidden"))
 
     print("6. Použít jako výchozí -> a new project starts with them")
     click_seg("profile", "deco")
@@ -292,7 +357,7 @@ try:
     time.sleep(2.5)
     s4 = d.execute_async_script(get)
     check("an older project without them: the default (Dekorace)", s4["profile"] == "deco", s4)
-    js("localStorage.removeItem('a3d.aiSettings')")
+    js("localStorage.removeItem('a3d.aiSettings'); localStorage.removeItem('a3d.chatTags')")
 
     errors = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     check("no console errors", not errors, errors)

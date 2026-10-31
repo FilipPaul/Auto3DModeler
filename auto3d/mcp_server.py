@@ -7,7 +7,7 @@ Started by Claude Code from the app's chat (see auto3d/agent.py), or by hand fro
 It speaks MCP's JSON-RPC over stdin / stdout (one message per line) and forwards every tool call to the
 running app (POST /api/agent/call), which applies it to the part open in the browser. The app's chat adds
 `--client <id>`: the calls act in the window of that chat only (without it: in the window in use); `--group <workspace>`
-(⚡ Lean mode): only that workspace's tools are listed (agent_tools.TOOL_GROUPS).
+(📌 This file only): only that workspace's tools are listed (agent_tools.TOOL_GROUPS).
 Standard library only.
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ CALL_TIMEOUT = 180  # seconds: building a part with many objects or tracing a bi
 OLDER_SERVER = ("Unknown tool {tool}: this app server is older than the tool list (the code moved on since it started) "
                 "— tell the user to restart the app (close it and start it again), then call the tool again.")
 CLIENT = None  # --client: the app window whose chat started this server (its calls go there only)
-GROUP = None   # --group: list only this workspace's tools (⚡ Lean mode; None: all)
+GROUP = None   # --group: list only this workspace's tools (📌 This file only; None: all)
 
 
 def _unreachable(url: str, why) -> dict:

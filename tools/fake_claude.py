@@ -9,7 +9,7 @@ resume); `--resume <id>` of a session that is not there fails as Claude Code doe
 A message with "SLOW" in it is answered slowly: a piece of text every 0.5 s for a minute first (to press Stop in).
 The ✨ settings line before a message ("[Nastavení: …]") is left out of the echo (the session file has the whole text). A
 message with "TOOLS?" in it: the app's MCP server (as --mcp-config starts it) is asked for its tools, the echo ends with
-" | tools: <count> | web: <yes / no>" (⚡ Lean mode lists fewer; 🌐 off: no WebSearch).
+" | tools: <count> | web: <yes / no>" (📌 This file only lists fewer; 🌐 off: no WebSearch).
 """
 import json
 import os
