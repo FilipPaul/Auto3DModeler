@@ -5,6 +5,10 @@ description: Use for any real design — a device, a mechanism, a housing or bra
 
 # Design like a mechanical engineer
 
+Also load: design-principles (intent, datums, order), standard-parts (few kinds of bought parts),
+materials-and-strength (loads, mixed materials, joints); machined-part / print-functional for the made parts;
+design-review before hand-over.
+
 ## 1. Understand, then decide the concept
 - What must it do, carry, hold, move? The key sizes and the parts it must fit (the user's photo, a drawing, a model)?
   Ask only for what you cannot sensibly choose (e.g. the size of the thing it holds); otherwise choose and say so.

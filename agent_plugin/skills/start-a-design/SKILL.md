@@ -31,10 +31,14 @@ does it hold?" with the usual sizes as options).
 
 | Brief | Skills |
 |---|---|
-| Automation / machine | mechanical-design, automation-design, fits-and-tolerances (+ print-functional if a part is printed) |
-| Functional print | mechanical-design, print-functional (+ fits-and-tolerances for bearings, pins, shafts) |
+| Automation / machine | design-principles, standard-parts, machined-part, mechanical-design, automation-design, fits-and-tolerances (+ print-functional for printed parts) |
+| ICT / FCT test fixture | the automation row + ict-fixture |
+| Functional print | design-principles, standard-parts, mechanical-design, print-functional (+ fits-and-tolerances for bearings, pins, shafts) |
 | Graphic / decorative | print-graphics (if printed); model-a-part for the modelling |
-| Always | model-a-part to build it, assemble-parts for several parts, print-prep before printing |
+| Load-carrying or joining parts, mixed materials | + materials-and-strength |
+| Always | model-a-part to build it, assemble-parts for several parts, print-prep before printing, production-drawing for made parts; **design-review before you say it is done** |
+
+A test fixture (ICT / FCT, bed of nails, probes on a PCB) counts as automation — do not ask question 1 then.
 
 Say the brief back in one line ("A printed functional bracket, easy to edit — I'll …") and keep to it for the whole
 chat. When something later is again a real choice (two sensible ways, a size, a standard part), ask with

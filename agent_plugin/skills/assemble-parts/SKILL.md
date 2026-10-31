@@ -5,6 +5,9 @@ description: Use when the user wants several parts put together — an assembly,
 
 # Put 3D model parts together
 
+Before adding bought parts: standard-parts (reuse what the BOM has). Joints between different materials and load
+paths: materials-and-strength. Test fixtures: ict-fixture. Before hand-over: design-review.
+
 Only 3D model parts go into an assembly (quick parts do not). Build each made part first (skill model-a-part);
 **bought parts come from the library**: `library_add {item, size, length, to: "assembly"}` (find them with
 `library_search {query}`) — screws, nuts, inserts, bearings, standoffs, cylinders, sensors, motors, with their part numbers.

@@ -75,7 +75,8 @@ def handle(msg: dict, url: str):
                   "serverInfo": SERVER_INFO,
                   "instructions": "Tools to inspect and change the parts open in Auto3DModeler: quick parts (drawings, pictures, imports) "
                                   "and 3D models (sketches -> extrude / revolve / hole / fillet / chamfer / shell). Before a task, read the "
-                                  "matching guide with get_guide (model-a-part, change-a-model, from-picture, print-prep, assemble-parts). Pick faces "
+                                  "matching guide with get_guide (model-a-part, change-a-model, from-picture, print-prep, assemble-parts; for a "
+                                  "real design design-principles and standard-parts; design-review before hand-over). Pick faces "
                                   "and edges with find_refs."}
     elif method == "ping":
         result = {}

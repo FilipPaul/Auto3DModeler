@@ -1614,6 +1614,8 @@ can open them.
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D
   view) with a short tip, the rest of the screen dimmed a little. Nothing is blocked — you click the control itself;
   the tip goes when you click it, press **Esc** or ✕, and Claude waits for your click before it shows the next step.
+  **"Teach me"** (or **/teachMe**) works the same for a whole design: Claude plans the steps, says why each one, checks
+  your result after each click, praises or corrects, and goes faster or slower as you do — it does not do the work.
 - **Messages point at the control they name**: when a message asks you to use a control — *"Nejprve nakreslete skicu
   (✏ Skica)"*, *"klikněte nejdřív na ⌖ Přesunout kliknutím"*, a row of the suggestions — that control gets the same
   pulsing ring for a few seconds (no dimming) and is brought into view: a folded widget unfolds, a floating one comes to
@@ -1647,7 +1649,9 @@ can open them.
   Recording does not slow the app down: orbiting, clicking, typing and dragging feel the same with it on (well under
   a millisecond per event; the log is saved in small pieces when the browser is idle, the screenshots are taken in
   the background).
-- **/uiTester and /suggest** in the AI chat: **/uiTester** makes Claude the app's tester — it designs a few test parts
+- **/uiTester (/bugHunter) and /suggest** in the AI chat: **/uiTester** makes Claude the app's bug hunter — it does
+  your task (words after the command) through the GUI only, like a person, and uses its model tools only to check
+  the result; with no task it designs a few test parts
   (sketch, extrude, hole, pattern, fillet; an assembly with joints; a drawing sheet), checks for every feature that
   its button exists, is reachable, does what the tool does and is in Czech, writes a report for each problem and ends
   with a summary table (words after it narrow it: "/uiTester only the sheet"). **/suggest** — it proposes new
@@ -1660,9 +1664,13 @@ can open them.
   It joins the parts so they move as in reality (`get_assembly` says what can still move, or `fully_held`) and checks
   `check_collisions`.
 - **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/). The workflows are model-a-part,
-  change-a-model, from-picture, print-prep and assemble-parts. Design know-how sits in **mechanical-design** (bought
-  parts first, fits for bearings / inserts / screws, printable walls, joints and collisions, the BOM) and
-  **automation-design** (cylinder force and stroke, sensor mounting and range, motor mounts, panel holes). They are loaded as a Claude Code plugin for the chat
+  change-a-model, from-picture, print-prep, assemble-parts and production-drawing. Claude designs like an experienced
+  mechanical engineer: **design-principles** (datums, step order, parameters, names — a part easy to change),
+  **standard-parts** (as few kinds of bought parts as possible; it reports their count at hand-over),
+  **machined-part** (CNC rules, stock sizes, materials, finishes), **materials-and-strength** (mixed printed / metal /
+  POM / FR4 parts, joints, a quick bending check), **ict-fixture** (ICT / FCT test fixtures: probe plate, carrier,
+  pressure pins, guide pins), **mechanical-design**, **automation-design** — and **design-review** before it says a
+  design is done (function, strength, ergonomics, economy, safety as one table, fixes offered). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
 - Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader), only this MCP

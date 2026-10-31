@@ -224,12 +224,15 @@ class Relay:
 # a chat message starting with one of these runs the app's skill for it (the chat shows what the user typed; Claude
 # gets the instruction, and the rest of the message as what the user added)
 COMMANDS = {
-    "uitester": ("ui-tester", "Test the app's GUI now: load the skill auto3d:ui-tester (or get_guide topic \"ui-tester\") and follow "
-                              "it — design the test parts, check each feature's GUI path, report each problem once, end with the "
-                              "summary table."),
+    "uitester": ("bug-hunter", "Test the app's GUI now: load the skill auto3d:bug-hunter (or get_guide topic \"bug-hunter\") and follow "
+                               "it — do the task (or its test designs) through the GUI only, verify with the read tools, report each "
+                               "problem once, end with the summary table."),
     "suggest": ("suggest-features", "Suggest new features for the app: load the skill auto3d:suggest-features (or get_guide topic "
                                     "\"suggest-features\") and follow it — propose them, file the ones I agree to."),
+    "teachme": ("teach-me", "Teach me: load the skill auto3d:teach-me (or get_guide topic \"teach-me\") and guide me step by step "
+                            "through the app's controls — I do the clicking, you show where, say why and check."),
 }
+COMMANDS["bughunter"] = COMMANDS["uitester"]  # /bugHunter: the same mode under its own name
 
 
 def expand_command(text: str) -> str:

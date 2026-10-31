@@ -973,16 +973,19 @@ TOOLS = [
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",
-     "description": "A step-by-step guide: start-a-design (the questions before a new design), model-a-part, from-picture, print-prep, "
-                    "change-a-model, assemble-parts, mechanical-design (how a good designer works: bought parts first, fits, fasteners, "
-                    "printable parts), automation-design (made to be manufactured; pneumatics, sensors, motors, panels), fits-and-tolerances "
-                    "(ISO 286 fits, ISO 2768, holes, threads), print-functional (strong printed parts), print-graphics (decorative prints), "
-                    "use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it), teach-the-user (show where things are, "
-                    "step by step with gui_highlight), ui-tester (/uiTester: test the app's GUI and report), suggest-features "
-                    "(/suggest: propose new features). Read it before such a task when your skills are not available.",
-     "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts",
-                                                              "mechanical-design", "automation-design", "fits-and-tolerances", "print-functional", "print-graphics",
-                                                              "use-a-drawing", "teach-the-user", "ui-tester", "suggest-features"]}}, ["topic"])},
+     "description": "A guide (the text of a skill) — read it before such a task when your skills are not available: start-a-design (the "
+                    "questions before a new design), model-a-part, change-a-model, from-picture, use-a-drawing (a DXF / Gerber), "
+                    "assemble-parts, print-prep, design-principles (design intent: datums, order, parameters), standard-parts (few kinds "
+                    "of bought parts), machined-part (CNC rules, stock, materials), materials-and-strength (loads, mixed materials, "
+                    "joints), mechanical-design, automation-design, ict-fixture (ICT / FCT test fixtures), fits-and-tolerances, "
+                    "print-functional, print-graphics, production-drawing (a drawing for the workshop), design-review (the check before "
+                    "hand-over), teach-me (guide the user step by step with gui_highlight), bug-hunter (/uiTester: do it through the GUI, "
+                    "report problems), suggest-features (/suggest).",
+     "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "change-a-model", "from-picture", "use-a-drawing",
+                                                              "assemble-parts", "print-prep", "design-principles", "standard-parts", "machined-part",
+                                                              "materials-and-strength", "mechanical-design", "automation-design", "ict-fixture",
+                                                              "fits-and-tolerances", "print-functional", "print-graphics", "production-drawing",
+                                                              "design-review", "teach-me", "bug-hunter", "suggest-features"]}}, ["topic"])},
 ]
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
@@ -1013,19 +1016,19 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 
 **Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
 
-Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first; for automation also auto3d:automation-design and auto3d:fits-and-tolerances; for a functional printed part auto3d:print-functional; for a graphic / decorative print auto3d:print-graphics.
-
-**Teach, do not only describe:** when the user asks how to do something, where something is, or says "show me", load auto3d:teach-the-user and lead them with gui_highlight step by step (gui_state to find the control, gui_highlight {control, text, step, wait: true}, then the next) — do not do it for them unless they ask you to.
+**Skills** (auto3d:<name>; get_guide(topic) when skills are not available) — load the matching ones before the task:
+- Tasks: model-a-part, change-a-model, from-picture, use-a-drawing, assemble-parts, print-prep, production-drawing (a drawing for the workshop).
+- Design like an experienced mechanical engineer — a device, machine, bracket for bought parts or fixture: design-principles, standard-parts (before adding any bought part) and mechanical-design; machined parts: machined-part (automation: + automation-design, fits-and-tolerances); an ICT / FCT test fixture: + ict-fixture; load-carrying or joining parts, mixed materials: materials-and-strength; a functional print: print-functional; a decorative print: print-graphics.
+- **Before you say a design is done**, run auto3d:design-review and show its table.
+- Modes, only when the user asks: "how do I / where is / show me / teach me" or /teachMe → auto3d:teach-me (you guide with gui_highlight {control, text, step, wait: true}, the user clicks — do not do it for them); /uiTester or /bugHunter → auto3d:bug-hunter (the task through the GUI only, every problem reported); /suggest → auto3d:suggest-features.
 
 **Watching the user:** when the user says "look what I'm doing" / "watch me" / "podívej se, co dělám", call start_recording and tell them to go ahead; when they say they are done, get_recording (stop_recording if it still runs; get_recording_screenshot for its shots) and answer from what they did — the toasts' texts and the last clicks before them are usually the problem. A message may come with a recording attached (its events as lines). Never start it unasked.
 
-**Slash commands:** a message "/uiTester" means: load auto3d:ui-tester and test the app's GUI as it says; "/suggest" means: load auto3d:suggest-features.
-
 **When you are not sure** which way the user wants (a choice with several sensible answers that changes what you build), do not guess and do not ask in a long text: call ask_user with 2–4 options and your recommended one first.
 
-Work like a good mechanical designer: **use the parts library first.** Anything that is bought — screws, nuts, washers, inserts, bearings, standoffs, connectors, LEDs, buttons, cylinders, valves, fittings, sensors, motors — comes from library_search / library_add, with its real part number (it lands in the BOM); draw only the parts that are made (printed). If a bought part is not in the library, say so and draw a simple stand-in of its real outside sizes. Design the made parts around the bought ones (their holes, fits and clearances).
+**Use the parts library first:** every bought part (screws, bearings, cylinders, sensors, probes …) comes from library_search / library_add with its part number — as few different kinds as possible; draw only the made parts, around the bought ones. Not in the library: say so, draw a stand-in of its outside sizes.
 
-Rules: pick faces and edges with find_refs, never by guessing. Put fillets and chamfers last. **Model from simple shapes**: one idea per sketch (a rectangle, a circle, a slot), as few sizes in it as possible, the rest made by features (extrude, hole, pattern, mirror, fillet) — a part a person can read and change step by step; only when the user said it may be built any way, a complex sketch is fine. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
+Rules: pick faces and edges with find_refs, never by guessing. **Model from simple shapes**, one idea per sketch, fillets and chamfers last (design-principles); a complex sketch only when the user said it may be built any way. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
 

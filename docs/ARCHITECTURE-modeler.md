@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
+  fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
+  mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design
+  to standard lengths, count the kinds at hand-over), machined-part (stock, cutter radii, drills / threads, set-ups,
+  ISO 2768-m, edge note, materials, anodising), materials-and-strength (neighbours' materials, a property table,
+  joints in mixed materials, δ = F·L³ / 3EI), ict-fixture (probe series per grid, the plate stack, heights and
+  working stroke, guide pins, press; library_pair, axis_distance), design-review (function / strength / ergonomics /
+  economy / safety table, fixes by ask_user), production-drawing (minimum views, Section A–A via the sheet's
+  suggestion, check → complete, functional tolerances only, title-block note). teach-the-user became teach-me (a
+  guided lesson: plan, why, wait, check, praise / correct, pace) and ui-tester became bug-hunter (the task through the
+  GUI only, model tools only to verify); /uiTester still works, /bugHunter and /teachMe are new. SYSTEM_PROMPT's skill
+  routing rewritten (11 808 → 11 464 chars): modes only when asked, design-review before "done". Not done: modes /
+  skills switched by settings or tags (waits for the owner's review). Tests: test_agent (routing, sizes, commands).
+
 - **Czech names from a Solid Edge STEP read right (fix, 2026-10-30)** (the owner's "Sestava ICT M1556.stp": "HLAVNÍ
   PROFIL LEVÝ" showed as "HLAVN‹PROFIL LEV", "vzpěry 1" as "vzp뱹 1"). The file holds raw 8-bit strings (its header:
   "strings as raw bytes, not using required /X/ escapes") and both kinds in one file: PRODUCT names in Windows-1250,

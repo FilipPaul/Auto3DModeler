@@ -143,7 +143,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "fits-and-tolerances", "from-picture", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "start-a-design", "suggest-features", "teach-the-user", "ui-tester", "use-a-drawing"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "bug-hunter", "change-a-model", "design-principles", "design-review", "fits-and-tolerances", "from-picture", "ict-fixture", "machined-part", "materials-and-strength", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "production-drawing", "standard-parts", "start-a-design", "suggest-features", "teach-me", "use-a-drawing"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -156,7 +156,9 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
         for name in ("start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design",
-                     "fits-and-tolerances", "print-functional", "print-graphics", "use-a-drawing", "teach-the-user", "ui-tester", "suggest-features"):
+                     "fits-and-tolerances", "print-functional", "print-graphics", "use-a-drawing", "teach-me", "bug-hunter", "suggest-features",
+                     "design-principles", "standard-parts", "machined-part", "materials-and-strength", "ict-fixture", "design-review",
+                     "production-drawing"):
             text = (PLUGIN_DIR / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---\nname: " + name), name)
         # every tool a skill tells the AI to use exists
@@ -165,6 +167,28 @@ class TestMcpServer(unittest.TestCase):
         for f in (PLUGIN_DIR / "skills").glob("*/SKILL.md"):
             for used in set(re.findall(r"`([a-z_]+) \{", f.read_text(encoding="utf-8"))):
                 self.assertIn(used, names, f"{f.parent.name} uses {used}")
+
+    def test_design_skills_are_routed(self):
+        """The engineering skills (design intent, few bought kinds, machining, materials, fixtures, review, drawings) are
+        loaded from start-a-design and the system prompt; each stays tight (≤ 150 lines) with a 'Use when' description."""
+        from auto3d.agent_tools import SYSTEM_PROMPT
+        from auto3d.guides import guides
+        g = guides()
+        new = ("design-principles", "standard-parts", "machined-part", "materials-and-strength", "ict-fixture", "design-review",
+               "production-drawing", "teach-me", "bug-hunter")
+        for name in new:
+            self.assertIn(name, SYSTEM_PROMPT, name)
+            self.assertLessEqual(len(g[name]["text"].splitlines()), 150, name)
+            self.assertTrue(g[name]["description"].startswith("Use "), name)
+        for name in new[:7]:
+            self.assertIn(name, g["start-a-design"]["text"], name)
+        self.assertIn("library_pair", g["ict-fixture"]["text"])
+        self.assertIn("axis_distance", g["ict-fixture"]["text"])
+        self.assertIn("get_bom", g["standard-parts"]["text"])
+        self.assertIn("ask_user", g["design-review"]["text"])
+        self.assertIn("complete: true", g["production-drawing"]["text"])
+        self.assertIn("δ = F · L³ / (3 · E · I)", g["materials-and-strength"]["text"])
+        self.assertNotIn("ui-tester", " ".join(g))  # merged into bug-hunter, teach-the-user into teach-me
 
     def test_report_problem(self):
         """The AI's report of something that did not behave as expected: a dated Markdown file in RealSWReports."""
@@ -336,15 +360,18 @@ class TestMcpServer(unittest.TestCase):
             self.assertLess(similarity(a, b), SIMILAR, (a, b))
 
     def test_slash_commands(self):
-        """/uiTester and /suggest in the chat: Claude gets the instruction to load its skill (any case, words after it kept)."""
+        """/uiTester (/bugHunter), /teachMe and /suggest in the chat: Claude gets the instruction to load its skill (any case,
+        words after it kept)."""
         from auto3d.agent import COMMANDS, ChatSession, expand_command
         from auto3d.guides import guides
         for name, (skill, _) in COMMANDS.items():
             self.assertIn(skill, guides(), name)
-        self.assertIn("auto3d:ui-tester", expand_command("/uiTester"))
-        self.assertIn("auto3d:ui-tester", expand_command("  /UITESTER  "))
+        self.assertIn("auto3d:bug-hunter", expand_command("/uiTester"))
+        self.assertIn("auto3d:bug-hunter", expand_command("  /UITESTER  "))
+        self.assertIn("auto3d:bug-hunter", expand_command("/bugHunter"))
+        self.assertIn("auto3d:teach-me", expand_command("/teachMe"))
         r = expand_command("/ui-tester only the drawing sheet")
-        self.assertIn("auto3d:ui-tester", r)
+        self.assertIn("auto3d:bug-hunter", r)
         self.assertTrue(r.endswith("The user adds: only the drawing sheet"))
         self.assertIn("auto3d:suggest-features", expand_command("/suggest"))
         for plain in ("make a /uiTester", "/unknown thing", "hello", "/uitesterx"):
@@ -355,7 +382,7 @@ class TestMcpServer(unittest.TestCase):
         chat.proc = type("P", (), {"poll": lambda self: None, "stdin": type("S", (), {"write": lambda self, b: sent.append(b), "flush": lambda self: None})()})()
         chat.send("/uiTester")
         self.assertEqual(chat.history[-1]["text"], "/uiTester")
-        self.assertIn("auto3d:ui-tester", json.loads(sent[0])["message"]["content"][-1]["text"])
+        self.assertIn("auto3d:bug-hunter", json.loads(sent[0])["message"]["content"][-1]["text"])
 
     def test_version_route(self):
         import server
@@ -406,7 +433,8 @@ class TestMcpServer(unittest.TestCase):
         topics = next(t for t in TOOLS if t["name"] == "get_guide")["inputSchema"]["properties"]["topic"]["enum"]
         self.assertEqual(sorted(topics), sorted(guides()))  # every skill is a guide topic
         from auto3d.agent_tools import SYSTEM_PROMPT
-        for words in ("gui_highlight", "auto3d:teach-the-user", "/uiTester", "auto3d:ui-tester", "auto3d:suggest-features", "list_reports"):
+        for words in ("gui_highlight", "auto3d:teach-me", "/uiTester", "/bugHunter", "auto3d:bug-hunter", "auto3d:suggest-features", "list_reports",
+                      "auto3d:design-review"):
             self.assertIn(words, SYSTEM_PROMPT)
         self.assertNotIn("trace_picture", BROWSER_TOOLS)
 
@@ -427,10 +455,10 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("suggestions table", SYSTEM_PROMPT)
         self.assertIn('gui_action {suggest:', SYSTEM_PROMPT)
         g = {k: v["text"] for k, v in guides().items()}
-        for topic in ("ui-tester", "teach-the-user", "model-a-part", "assemble-parts"):
+        for topic in ("bug-hunter", "teach-me", "model-a-part", "assemble-parts"):
             self.assertIn("suggest", g[topic], topic)
-        self.assertIn("gui_state {where: \"suggest\"}", g["ui-tester"])
-        self.assertIn("rank_pos", g["ui-tester"])
+        self.assertIn("gui_state {where: \"suggest\"}", g["bug-hunter"])
+        self.assertIn("rank_pos", g["bug-hunter"])
 
     def test_gui_action_aims_through_the_picture_and_holds_keys(self):
         """gui_action / gui_highlight `at` are pixels of get_screenshot's picture (the AI reads them off it; the page
