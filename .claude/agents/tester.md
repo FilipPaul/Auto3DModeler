@@ -646,6 +646,9 @@ Never report "works" without having run it; report failures with their output.
    a right-click ends it — no pick waiting, its row stays, the tool on; a right-drag moves the camera and keeps the tool;
    a right-click with nothing picked closes it; contextmenu cancelled, no app menu; the hint's "Pravé tlačítko"; the same
    in an assembly and a 📐 drawing's Measure; no console errors). Exits 1.
+   `tools/e2e_measure_colours.py <url> <dir>` covers 📏 Measure's colours (five rows: distance, angle, area, length, Ø ->
+   four different colours, icon = value, L = Ø; ΔX ΔY ΔZ three colours, not the muted tail; the view's labels and lines
+   in their row's colour; screenshot measure_colours.png; no console errors). Exits 1.
    `tools/e2e_origin_hover.py <url> <dir>` covers ⊕ the origin lit like a snap point, real mouse, Czech (a sketch's ⟋
    Line near 0, 0: the marker and "Počátek", the line starts at exactly [0, 0]; the 3D model, no tool on: "Počátek",
    its X arrow "Osa X", Rohy off: not caught; 📏 origin -> a corner 30.332 with "Počátek" in the row; a hole spot snaps
