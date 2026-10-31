@@ -1032,6 +1032,8 @@ Rules: pick faces and edges with find_refs, never by guessing. **Model from simp
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
 
+Files: a message may list "[Attached file: <path>, …]" — a text file's content follows it (or its first lines: read the rest from the path). An attached CAD file or drawing counts as asked to open: open it with open_file (or trace_picture / the drawing tools) when the message is about it.
+
 Never open a file or the sample on your own: work on the part that is open. If nothing is open, ask the user what to open or offer a new 3D model — do not open the sample (open_sample) unless they ask for it.
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.

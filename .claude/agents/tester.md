@@ -63,6 +63,11 @@ Never report "works" without having run it; report failures with their output.
    several parts in one project (tabs, switching keeps edits + undo, rename, Save v3 → reopen, old v2 files; ✕ closes
    the tab only, ☰ Parts reopens it, the closed state is saved, ✕ in ☰ deletes).
    `tools/e2e_chat_photos.py <url> <dir>` covers photos in the AI chat (📎, drop, thumbnails, ✕, the sent request).
+   `tools/e2e_chat_attach.py <url> <dir> <claude config dir>` covers 📎 Příloha with the stand-in Claude Code (its own
+   server: `AUTO3D_CLAUDE=<absolute path>/tools/fake_claude.py CLAUDE_CONFIG_DIR=<scratch>/claude`): a UTF-8 and a
+   cp1250 .txt, a 200 kB .log, a .step through the picker; a .csv pasted, a .json + .md dropped; an .exe refused
+   in-app; chips with ✕; the message the stand-in got (both texts right, the log's path + first 200 lines, the STEP's
+   path); the sent bubble's chips, also after a reload; Czech (📎 Příloha, the refusal); no dialogs, no console errors.
    `tools/e2e_model_basic.py <url> <dir>` covers the 3D model workspace with real clicks: New 3D model -> draw a
    rectangle -> type its width -> Finish -> Extrude preview -> OK -> sketch on the top face -> circle -> Cut through
    all, exact volumes, Ctrl+Z / Ctrl+Y, editing the first extrude (the hole follows its face), STL export, switching
