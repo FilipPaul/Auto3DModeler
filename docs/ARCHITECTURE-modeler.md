@@ -39,6 +39,21 @@ Date: 2026-10-25. Written by the architect agent.
   33–115 ms. tools/e2e_ict_switch.py: top → sub → top → sub → top timed, the card within 100 ms of the click on any
   step over 300 ms, budgets (the first visit < 1.5 s, every return < 0.5 s), no console errors; without the owner's
   file (CI) the 150-part demo exported as a STEP assembly and opened the same way.
+- **The ICT file's first open measured; its picture no longer builds every part again (2026-10-31)** (a real Edge
+  window, Czech; ms from the file picked; a fresh A3D_DATA, then the saved .a3d after a server restart, the part cache
+  on disk warm). Cold: upload + /api/model/import (the STEP read whole to ask "an assembly?") 11.3 s → the question;
+  /api/model/import/assembly 26.5 s (read_step_tree 8.6 s — the file read a second time —, per part bbox, volume and
+  its own STEP written; one kernel process); 254 /api/model/rebuild 42.0 → 53.1 s (kernel 35 s in 3 processes: each
+  part's STEP read again ~15 s CPU, tessellation ~11 s); first frame 52.7 s; long tasks 6.4 s in the page (4.0 s at
+  37.9 s while the parts are added to the project, 1.4 s merging the sub-assemblies); the first collision check
+  120 s — the kernel call's 120 s timeout, no answer. Reopened: 254 rebuilds from the part cache 0.4 → 4.1 s (kernel
+  8.2 s), first frame 4.1 s, the collision check 111.6 s. Fixed here, cheap and clearly wasteful: the project's picture
+  (autosave's, the .a3d's: app.js thumb) built every placed part again on the server (bodyOf) — 254 more rebuilds,
+  12 MB more, competing with the assembly's own; now builtBody takes the body the assembly drew from the same steps
+  (503 → 255 rebuilds, the burst 16.3 → 11.0 s). e2e_ict_switch: projectThumb asks the server for no part.
+  Next (not done): pass the shapes from the import to the parts (no second STEP read: filecache), the question from
+  the structure only, bbox / volume once, the collision check of a big assembly (quick boxes first, in the background,
+  no timeout), parts streamed to the view as they come.
 - **Choosing in a big imported STEP assembly under 100 ms (2026-10-31)** (the owner, the same ICT file in Czech:
   choosing anything — a part or a face in the view, a row of the list — took an enormous time). Measured (real window,
   Czech, from the press to the painted frame; tools/e2e_ict_switch.py): in the top assembly a part 251 / 207 ms, another

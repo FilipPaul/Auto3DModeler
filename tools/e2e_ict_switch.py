@@ -247,6 +247,11 @@ try:
     check(f"the first visit of the sub-assembly under {BUDGET['first_visit_ms']} ms", steps[1]["ms"] < BUDGET["first_visit_ms"], steps[1]["ms"])
     for k in (2, 3, 4):
         check(f"step {k} (back, warm) under {BUDGET['warm_ms']} ms", steps[k]["ms"] < BUDGET["warm_ms"], steps[k]["ms"])
+    # the project's picture (autosave draws one; the .a3d file holds one) from the bodies on screen: none built again
+    pic = b.run("""const f = window.fetch; let n = 0;
+      window.fetch = (u, o) => { if (/\\/api\\/model\\/rebuild/.test(String(u))) n++; return f(u, o); };
+      try { const url = await window.__app.projectThumb([333, 222], 60000); return { url: !!url, n }; } finally { window.fetch = f; }""")
+    check("the project's picture drawn from the assembly's bodies: no part built again for it", pic["url"] and pic["n"] == 0, pic)
     # choosing in it (the owner: selecting anything in the ICT assembly took an enormous time)
     b.run("const I = await import('/js/i18n.js'); I.setLang('cs');")
     ui = {"top": clicks("the top assembly")}
