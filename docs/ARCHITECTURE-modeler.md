@@ -21,7 +21,9 @@ Date: 2026-10-25. Written by the architect agent.
   copy), one undo step, the toast "Vazba uložena do podsestavy ‹název›". Undo: the top's History captures `subs`
   (the documents of the sub-assemblies changed from here: `subTouched`; `noteSub` puts their old state into the steps
   before), restore writes them back; back from a tab where one changed (`subsMoved`): the steps go. Faces of parts in
-  two placed sub-assemblies, or with a placed part: the top's joint on the merged faces, as before. A sub-assembly's
+  two placed sub-assemblies, or with a placed part: the top's joint on the merged faces, as before. The AI:
+  snap_faces takes nested keys ("I3/I1" + its own face name): both in one sub-assembly — its engine's snap_faces;
+  else the top's joint on "I1/<face>"; get_assembly lists `parts_inside` per sub-assembly (40 at most). A sub-assembly's
   panel says how many joints it keeps (read only here). No per-click cost on big assemblies: innerFace walks the key's
   levels only; the engine copies one sub-assembly's document when two faces are picked. tools/e2e_nested_join.py.
 - **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking

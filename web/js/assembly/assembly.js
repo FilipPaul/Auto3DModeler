@@ -4994,6 +4994,22 @@ export class Assembly {
     } catch { return {}; }
   }
 
+  /** For the AI: a placed sub-assembly's parts, however deep, by their keys -> {parts_inside: ["I3/I1 Bushing", "I3/I2/I1
+   *  Plate" …] (the first 40; parts_inside_more: how many more)} or {} — snap_faces takes them (two in one sub-assembly:
+   *  its own joint). */
+  insideOf(it) {
+    if (this.kindOf(it.part) !== 'assembly') return {};
+    const out = [], walk = (x, key, depth) => {
+      for (const i of this.innerList(x)) {
+        const k = `${key}/${i.id}`;
+        out.push(`${k} ${this.partName(i.part)}`);
+        if (this.kindOf(i.part) === 'assembly' && depth < 8) walk(i, k, depth + 1);
+      }
+    };
+    walk(it, it.id, 0);
+    return out.length ? { parts_inside: out.slice(0, 40), ...(out.length > 40 ? { parts_inside_more: out.length - 40 } : {}) } : {};
+  }
+
   /** For the AI: how a sub-assembly's parts can move inside it -> {inner: [{part: "I3/I2", name, free, at}]} or {}. */
   innerOf(it) {
     let r = null;
@@ -5028,7 +5044,7 @@ export class Assembly {
         const mg = b?.sub ? b.mass_g : this.massOf(it.part); // (as the ⊕ centre of mass weighs it)
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, ...(Number.isFinite(mg) ? { mass_g: +mg.toFixed(2) } : {}),
-          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it), ...(it.rigid && this.kindOf(it.part) === 'assembly' ? { rigid: true } : {}), ...lockInfo(it.part) };
+          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it), ...this.insideOf(it), ...(it.rigid && this.kindOf(it.part) === 'assembly' ? { rigid: true } : {}), ...lockInfo(it.part) };
       }),
       ...(() => { const mp = this.massProps(); return mp.cog ? { mass_g: mp.mass_g, cog_mm: mp.cog, ...(mp.unknown ? { parts_without_mass: mp.unknown } : {}) } : {}; })(),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
@@ -5095,9 +5111,27 @@ export class Assembly {
         await this.insert(p.id);
         return { text: JSON.stringify(this.summary()) };
       },
-      snap_faces: async ({ move, onto, type = 'touch', gap, distance, value, lock_rotation, name }) => {
+      snap_faces: async (args) => {
+        let { move, onto } = args;
+        const { type = 'touch', gap, distance, value, lock_rotation, name } = args;
         need();
         await settle();
+        const [a, b] = [move, onto].map((s) => String(s?.part || '').split('/'));
+        if (a.length > 1 || b.length > 1) { // a part inside a placed sub-assembly ("I3/I1/I2"): both in one — the joint is that sub-assembly's
+          let c = 0;
+          while (c < a.length - 1 && c < b.length - 1 && a[c] === b[c]) c++;
+          const key = a.slice(0, c).join('/'), at = c ? this.placedAt(key) : null;
+          if (at && this.kindOf(at.it.part) === 'assembly' && !this.owner) {
+            const eng = this.subEngine(at.it.part, key), had = new Set(eng.doc.mates.map((m) => m.id));
+            await eng.handlers().snap_faces({ ...args, move: { ...move, part: a.slice(c).join('/') }, onto: { ...onto, part: b.slice(c).join('/') } });
+            if (eng.refused) throw new Error(eng.refused);
+            await eng.done;
+            const nj = eng.doc.mates.find((m) => !had.has(m.id)) || eng.doc.mates.at(-1);
+            return { text: `${nj?.id || ''} saved in the sub-assembly ${this.partName(at.it.part)} (${key}): ${nj?.move} ${nj?.face} → ${nj?.onto} ${nj?.ontoFace} — every copy of it follows (its joints: open_part it). ${JSON.stringify(this.summary())}` };
+          }
+          const top = (s, k) => (k.length > 1 ? { ...s, part: k[0], ...(s.face ? { face: [...k.slice(1), s.face].join('/') } : {}) } : s); // (else: this assembly's joint on the faces of its placed sub-assemblies)
+          [move, onto] = [top(move, a), top(onto, b)];
+        }
         if (COUPLING_TYPES[type]) { // ⚙ a coupling: one part's turn tied to the other's (value: the ratio)
           const c = addCoupling(this, { inst: move.part, face: this.worldFace(move.part, move.face) }, { inst: onto.part, face: this.worldFace(onto.part, onto.face) }, type, value ?? null);
           if (name) c.name = String(name).trim();

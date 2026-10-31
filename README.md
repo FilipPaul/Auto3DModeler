@@ -1088,7 +1088,8 @@ part's rolled-up `total`.
   sub-assembly to see or change the joint (its panel here says how many it keeps). Parts in two different
   sub-assemblies, or one with a placed part: the joint is this assembly's and moves the whole sub-assembly (📌 fixed
   and which side moves: as always). Ctrl+Z takes it back. A sub-assembly can be 🔒 locked for this (its panel, 🎨 *Look
-  and editing*: *Joints inside it: locked here*) — then nothing is joined inside it and the app says so.
+  and editing*: *Joints inside it: locked here*) — then nothing is joined inside it and the app says so. The AI does
+  the same with `snap_faces` and nested keys (`"I3/I1/I2"`, listed by get_assembly's `parts_inside`).
   **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
   with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
   the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click

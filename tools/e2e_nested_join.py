@@ -2,7 +2,8 @@
 "Mid" (with a bushing) placed twice in "Top" (with a base) -> in the view: a click on the bushing's hole rim, Ctrl+click
 on the pin's rim (two parts of Mid, one of them two levels deep): both faces picked, both parts chosen, ◎ Concentric
 offered -> clicked: the joint is Mid's own (its document, not Top's), the pin's axis on the hole's in both copies of
-Mid, the toast says where it went -> Ctrl+Z: Mid as it was -> 🔒 Mid locked for changes from here: the same picks join nothing, said -> two
+Mid, the toast says where it went -> Ctrl+Z: Mid as it was -> the AI's snap_faces with nested keys ("I3/I1",
+"I3/I2/I2"): Mid's joint again -> 🔒 Mid locked for changes from here: the same picks join nothing, said -> two
 bushings in the two copies of Mid: the joint is Top's (one whole copy moves), the axes on one line -> Mid's panel: its
 🔓 / 🔒 and how many joints it keeps.
 
@@ -180,6 +181,17 @@ try:
     time.sleep(0.8)
     check(f"Ctrl+Z: Mid as it was {mid_mates()}, the pin off the axis again in both copies", not on_axis(coaxial("I2", HOLE, "I2", PIN)) and not on_axis(coaxial("I3", HOLE, "I3", PIN)))
 
+    # the AI: snap_faces with nested keys -> Mid's joint
+    r = call("snap_faces", type="axis", move={"part": "I3/I1", "face": "F3:hole:0"}, onto={"part": "I3/I2/I2", "face": "F2:side:c1"})
+    time.sleep(0.5)
+    check(f"snap_faces I3/I1 ↔ I3/I2/I2: {r[:110]!r}", "saved in the sub-assembly Mid" in r and len(mid_mates()) == 1)
+    check(f"…both copies on the axis {coaxial('I2', HOLE, 'I2', PIN)} {coaxial('I3', HOLE, 'I3', PIN)}", on_axis(coaxial("I2", HOLE, "I2", PIN)) and on_axis(coaxial("I3", HOLE, "I3", PIN)))
+    g = call("get_assembly")
+    check(f"get_assembly lists the parts inside: {'I2/I2/I2 Pin' in g}", "I2/I2/I2 Pin" in g and "parts_inside" in g)
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    wait(f"return ({P}.parts.find(p => p.name === 'Mid').data.mates || []).length === 0", 20)
+    time.sleep(0.5)
+
     # 🔒 Mid locked for changes from here: nothing joined, said
     mid = js(f"return {P}.parts.find(p => p.name === 'Mid').id")
     js(f"{A}.toggleSubLock(arguments[0])", mid)
@@ -206,11 +218,7 @@ try:
     check(f"…the two holes on one axis {coaxial('I2', HOLE, 'I3', HOLE)}", on_axis(coaxial("I2", HOLE, "I3", HOLE)))
 
     # Mid's panel: 🔓 joints inside from here, how many it keeps
-    fresh_picks()
-    click("I2", HOLE)
-    click("I2", PIN, ctrl=True)
-    run_row("◎ Concentric")
-    wait(f"return ({P}.parts.find(p => p.name === 'Mid').data.mates || []).length === 1", 20)
+    call("snap_faces", type="axis", move={"part": "I2/I1", "face": "F3:hole:0"}, onto={"part": "I2/I2/I2", "face": "F2:side:c1"})
     fresh_picks()
     js(f"{A}.select(['I2'])")
     time.sleep(0.4)

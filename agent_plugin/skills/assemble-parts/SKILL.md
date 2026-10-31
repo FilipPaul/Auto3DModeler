@@ -85,6 +85,12 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    mechanisms (a crank loop, gears) are in get_assembly `mechanisms` too (`inside: "I3"`, parts "I3/I2"):
    `drive_mechanism {mechanism: "I3", to}` drives the first inside it; the parts here joined to its parts follow and
    a loop through both levels is solved together. `place_part {part: "I3", rigid: true}` = 🧱 one body, no inner motion.
+   **Joining parts inside sub-assemblies from the top**: get_assembly lists each sub-assembly's `parts_inside` by key
+   ("I3/I1 Bushing", "I3/I2/I2 Pin"); `snap_faces {move: {part: "I3/I1", face: "F3:hole:0"}, onto: {part: "I3/I2/I2",
+   face: "F2:side:c1"}, type: "axis"}` (each face named in its own part) — two parts inside one sub-assembly: the joint
+   is that sub-assembly's own (the answer says "saved in the sub-assembly …"; every copy of it follows; open_part it to
+   edit_joint / remove_joint); parts of two sub-assemblies, or with a placed part: this assembly's joint, the whole
+   sub-assembly moves. Locked for changes from the top by the user (its panel): refused, say so.
    A closed loop (a crank – rod – slider: the rod joined to the crank's pin and to the slider's pin) is solved as one
    mechanism: get_assembly `loops` gives its parts, `free_motions` (1 for a crank-slider) and the motions that
    `drive` it — move_free the crank (or the slider), set_travel 0 … 360 + check_travel it: the rest follows. Place
