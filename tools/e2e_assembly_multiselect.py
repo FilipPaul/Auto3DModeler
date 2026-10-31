@@ -191,6 +191,7 @@ try:
     time.sleep(0.4)
     same_set("Esc clears it", [])
     js(f"{A}.select(['I3', 'I4', 'I5'])")
+    js("const l = document.querySelector('#asmLeft'); l.scrollTop = l.scrollHeight")  # (the view's click above scrolled its row into sight: the space under the rows at the bottom)
     lst = d.find_element(By.CSS_SELECTOR, "#leftCol .as-list")
     h = lst.size["height"]
     under = js("const r = arguments[0].getBoundingClientRect(); const e = document.elementFromPoint(r.left + 40, r.bottom + 12); return e ? e.className + ' ' + e.tagName : null", lst)

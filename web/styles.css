@@ -1092,6 +1092,10 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 /* the parts list's row: its buttons (🔒 ⋯ 🏷 ⧉ ✕ 💥) over its right end on a fade of the row (as the step tree's) —
    its name and middle stay a click that chooses the part; a 🔒 locked / 💥 kept in place shows there without the mouse */
 .as-list .mt-item { position: relative; }
+.mt-head .as-find { flex: 0 1 150px; min-width: 70px; margin-left: auto; padding: 2px 6px; font-size: 12px; align-self: center; }
+.as-find[hidden] { display: none; }
+.as-list .mt-item.as-hit .mt-name { color: var(--accent); font-weight: 600; }
+.as-list .mt-item.as-here { box-shadow: inset 2px 0 0 var(--accent); background: var(--panel-2); }
 .as-right { position: absolute; right: 4px; top: 1px; bottom: 1px; display: flex; align-items: center; gap: 2px; padding-left: 8px; border-radius: 4px; }
 .as-right .mini { padding: 0 4px; line-height: 16px; }
 .as-right .ai-lock:not(.on) { display: none; }

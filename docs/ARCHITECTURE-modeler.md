@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔍 Find a part in the assembly's list; the clicked part's row in sight (2026-10-31)** (the owner: a search in
+  the panel that lists the parts, and a part clicked in the view scrolled to and lit in the list). The field sits in
+  the list's header (no row of its own: the list keeps its height); input is debounced 150 ms, `findRows()` walks the
+  placed parts and their instanceTree once (names compared without case and accents, `plainText`) -> {hits, shown:
+  hits + the sub-assemblies they are in, open: those folded open for them, not saved}; renderList skips the rest,
+  marks hits (as-hit); the query is part of listKey, so a choice alone still only re-lights the kept rows. The
+  pointerup calls `reveal(key)` with the part under the mouse (innerFace, any depth): its sub-assemblies saved open,
+  a filter that hides it cleared (the click says which part is wanted — less surprising than a row missing), the
+  row marked (as-here) and scrolled into sight in its nearest scrolling box only, only as far as needed (no
+  scrollIntoView: it moved the panels around it). The project tree (parts.js) has no field: its rows are project
+  parts that open tabs, not placed parts. tools/e2e_nested_select.py (find + reveal at two depths),
+  e2e_assembly_multiselect clicks beside the rows after scrolling the list down (the view's click now scrolls it).
 - **Several parts inside sub-assemblies chosen at once (2026-10-31)** (the owner: Ctrl+select of two parts of one
   sub-assembly from the top assembly did not work). Cause: a click in the view hits the sub-assembly's merged body,
   so Ctrl+click chose its placement ("I2") — on the one already chosen only "another face of it". Now the pointerup

@@ -73,6 +73,7 @@ import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, coupling
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const plainText = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim(); // (🔍 "zakladni" finds "Základní")
 const SMART_LATER = 5000; // (placed parts' faces over this: the whole assembly's suggestions worked out after the frame — smartSoon)
 const BIG_OPEN = 30; // (an assembly of more placed parts opens with the loading card: building and drawing them takes a while)
 const WARM = 3; // (assemblies of the project kept drawn while another is on screen: their meshes ready for the way back)
@@ -485,7 +486,7 @@ export class Assembly {
 
   build() {
     const { left, viewport, right } = this.els;
-    left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span></div><div class="as-vis" hidden></div><div class="as-list"></div>
+    left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span><input type="search" class="as-find" placeholder="Find a part…" title="Only the rows whose name has this in it (and the sub-assemblies they are in) — Esc clears it" hidden></div><div class="as-vis" hidden></div><div class="as-list"></div>
       <div class="mt-start as-start" hidden><p><b>Put parts together</b></p><ol><li><b>＋ A part</b> — click it in Suggested (bottom left) or use ＋ Insert part</li>
       <li><b>◎ Where it goes</b> — the part just put in suggests it: into a hole, onto a pin, on the base (or click a face, Ctrl+click another)</li>
       <li><b>⚙ Mechanism</b> — shows by itself once the joints let the parts move</li></ol></div>`;
@@ -1320,8 +1321,17 @@ export class Assembly {
   }
 
   renderList() {
-    const list = this.$('.as-list'), open = this.openPaths();
+    const list = this.$('.as-list'), find = this.$('.as-find'), found = this.findRows(), open = found ? new Set([...this.openPaths(), ...found.open]) : this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
+    find.hidden = !this.doc.instances.length;
+    if (!find.__bound) { // 🔍 typed: the rows filtered a moment later (not on every key); Esc / ✕: all of them again
+      find.__bound = true;
+      find.addEventListener('input', () => { clearTimeout(this.findTimer); this.findTimer = setTimeout(() => { this.query = find.value; this.renderList(); }, 150); });
+      find.addEventListener('keydown', (e) => {
+        e.stopPropagation(); // (not the assembly's keys: Delete, H …)
+        if (e.key === 'Escape') { find.value = ''; clearTimeout(this.findTimer); this.query = ''; this.renderList(); find.blur(); }
+      });
+    }
     list.classList.toggle('exploding', this.explode > 0);
     if (!list.__lights) { // (the mouse over a row: its part's lines lit in the view — inside a sub-assembly: its placement's)
       list.__lights = true;
@@ -1337,16 +1347,17 @@ export class Assembly {
       });
     }
     // a part chosen changes only which rows are lit: the rows are kept (500 placed parts: made anew, 25 ms and a layout)
-    const key = this.doc.harnesses?.length ? null : this.listKey(open); // (🔌 a harness's row shows its length: always anew)
+    const key = this.doc.harnesses?.length ? null : this.listKey(open) + (found ? `|${this.query}` : ''); // (🔌 a harness's row shows its length: always anew)
     if (key && key === this.listWas && list.isConnected && list.childElementCount) { this.litRows(list); displayNote(this, this.$('.as-vis')); return; }
     this.listWas = key;
     this.view.lightLines(null); // (the row under the mouse goes: its lines too — the next move lights the new one)
     list.innerHTML = '';
     for (const it of this.doc.instances) {
+      if (found && !found.shown.has(it.id)) continue; // (🔍 not it, nothing in it)
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       const shown = this.doc.display?.[it.id];
-      row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`; // (lit: litRows)
+      row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}${found?.hits.has(it.id) ? ' as-hit' : ''}`; // (lit: litRows)
       row.dataset.inst = it.id;
       // (👁 first: in one place whether the hover's buttons show or not; the others over the row's right end: its name
       // and its middle stay a click that chooses the part)
@@ -1375,8 +1386,9 @@ export class Assembly {
         return null;
       });
       list.appendChild(row);
-      if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
+      if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open, found);
     }
+    if (found && !list.childElementCount) list.innerHTML = `<p class="hint as-nohit">${esc(t('No part has that in its name.'))}</p>`;
     this.litRows(list);
     this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
     displayNote(this, this.$('.as-vis')); // (👁 "2 hidden · Show all")
@@ -1396,6 +1408,7 @@ export class Assembly {
       const key = row.dataset.inst || row.dataset.path;
       if (!key) continue;
       row.classList.toggle('on', keys.has(key));
+      row.classList.toggle('as-here', key === this.hereKey && !keys.has(key)); // (the part clicked in the view, inside the sub-assembly chosen)
       if (row.dataset.inst) row.classList.toggle('has-inner', [...keys].some((k) => k.startsWith(`${key}/`)));
     }
   }
@@ -1419,10 +1432,11 @@ export class Assembly {
 
   /** A placed sub-assembly's own parts under its row, indented with a guide line; a sub-assembly in it folds open too.
    *  A click: that part lit in the view, what can be done with it in the panel (its top-level placement chosen). */
-  innerRows(list, top, nodes, depth, open) {
+  innerRows(list, top, nodes, depth, open, found = null) {
     for (const n of nodes) {
+      if (found && !found.shown.has(n.path)) continue;
       const inner = n.path.slice(top.id.length + 1), row = document.createElement('div');
-      row.className = 'mt-item as-inner-row';
+      row.className = `mt-item as-inner-row${found?.hits.has(n.path) ? ' as-hit' : ''}`;
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
       row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span><span class="as-right">${lockBtn(n.part)}<span class="mt-acts"><button class="mini" data-ailock-menu="@${n.path}" title="More: lock it for the AI …">⋯</button></span></span>`;
@@ -1436,7 +1450,54 @@ export class Assembly {
         this.clickRow(n.path, e);
       });
       list.appendChild(row);
-      if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open);
+      if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open, found);
+    }
+  }
+
+  /** 🔍 The rows the find field leaves (its text in the name — no matter the case or the accents: "zakladni" finds
+   *  "Základní" —, or the row's id): {hits, shown: the hits and the sub-assemblies they are in, open: those folded
+   *  open for them} — or null (nothing typed). */
+  findRows() {
+    const q = plainText(this.query);
+    if (!q) return null;
+    const hits = new Set(), shown = new Set(), open = new Set(), names = new Map();
+    const has = (pid, key) => {
+      if (!names.has(pid)) names.set(pid, plainText(this.partName(pid)));
+      return names.get(pid).includes(q) || key.toLowerCase() === q;
+    };
+    const walk = (key, pid, kids) => { // -> whether it or a part in it is a hit
+      let any = false;
+      for (const n of kids || []) any = walk(n.path, n.part, n.children) || any;
+      if (any) open.add(key);
+      if (has(pid, key)) hits.add(key);
+      if (any || hits.has(key)) shown.add(key);
+      return any || hits.has(key);
+    };
+    for (const it of this.doc.instances) walk(it.id, it.part, this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null);
+    return { hits, shown, open };
+  }
+
+  /** A part clicked in the view (key: "I3", or "I3/I2/I1" — the part under the mouse inside a sub-assembly): its row in
+   *  the list in sight — the sub-assemblies it is in folded open, scrolled to only as far as needed, marked. Hidden by
+   *  the 🔍 filter: the filter is cleared (the part clicked is the one wanted). */
+  reveal(key) {
+    this.hereKey = key || null;
+    if (!key) return;
+    const ids = key.split('/'), open = this.openPaths(), up = ids.slice(0, -1).map((_, i) => ids.slice(0, i + 1).join('/'));
+    if (up.some((p) => !open.has(p))) this.saveOpen(new Set([...open, ...up]));
+    const find = this.$('.as-find'), found = this.findRows();
+    if (found && !found.shown.has(key)) { this.query = ''; if (find) find.value = ''; }
+    this.renderList();
+    const row = this.$('.as-list')?.querySelector(`[data-inst="${CSS.escape(key)}"], [data-path="${CSS.escape(key)}"]`);
+    if (!row) return;
+    // (only the nearest box that scrolls it, only as far as needed: not the page, not the panels around it)
+    for (let box = row.parentElement; box && box !== document.body; box = box.parentElement) {
+      const o = getComputedStyle(box).overflowY;
+      if (!/auto|scroll/.test(o) || box.scrollHeight <= box.clientHeight) continue;
+      const a = box.getBoundingClientRect(), b = row.getBoundingClientRect();
+      if (b.top < a.top) box.scrollTop -= a.top - b.top;
+      else if (b.bottom > a.bottom) box.scrollTop += Math.min(b.bottom - a.bottom, b.top - a.top);
+      break;
     }
   }
 
@@ -1448,13 +1509,19 @@ export class Assembly {
   }
 
   toggleOpen(path) {
-    const open = this.openPaths(), id = this.hooks.selfId?.() || '';
+    const open = this.openPaths();
     if (open.has(path)) open.delete(path); else open.add(path);
+    this.saveOpen(open);
+    this.renderList();
+  }
+
+  /** These sub-assemblies' rows folded open in this assembly's list, kept. */
+  saveOpen(open) {
+    const id = this.hooks.selfId?.() || '';
     let all = {};
     try { all = JSON.parse(localStorage.getItem('a3d.asmTree') || '{}') || {}; } catch { all = {}; }
     all[id] = [...open];
     try { localStorage.setItem('a3d.asmTree', JSON.stringify(all)); } catch { /* private window */ }
-    this.renderList();
   }
 
   /** A part inside a placed sub-assembly chosen in the list: its placement chosen, that part (path "I2" or "I2/I1"
@@ -1643,6 +1710,7 @@ export class Assembly {
     this._sel2 = pair ? keys[1] : null;
     this.selInner = keys.length === 1 && keys[0].includes('/') ? { top: this._sel, path: keys[0].slice(this._sel.length + 1) } : null;
     this.picks = keys.length > 1 && !pair ? keys : null;
+    this.hereKey = null; // (the row marked for a click in the view: set again by reveal)
     if (keys.length && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     this.visPreview = null;
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
@@ -4611,12 +4679,13 @@ export class Assembly {
       const had = this.facePicks || [];
       if (more && !pick && had.length && !h) return; // (a Ctrl+click beside the parts: the face picked first stays)
       const deep = h?.face?.name ? this.innerFace(this.inst(h.inst), h.face.name)?.key : null; // (a part inside a sub-assembly: its key, however deep)
-      if (more && deep && this.nestedPick(deep)) { this.facePicks = []; this.drawMarks(); return; }
+      if (more && deep && this.nestedPick(deep)) { this.facePicks = []; this.drawMarks(); this.reveal(deep); return; }
       this.lastDeep = more ? null : deep;
       this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
       const hitId = this.snapPick ? sp.inst : h?.inst || pick?.inst || null;
       this.choose(hitId, more && !(hitId === this.sel && this.selKeys().length === 1)); // (Ctrl on the one chosen part: another face of it)
       if (more && this.picks) this.facePicks = []; // (three parts or more: what fits them all, not a face's joints)
+      if (hitId) this.reveal(deep || hitId); // (its row in the list in sight — the part under the mouse, however deep)
       this.drawMarks();
     });
     window.addEventListener('keydown', (e) => this.key(e));

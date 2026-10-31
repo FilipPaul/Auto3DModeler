@@ -1057,6 +1057,13 @@ part's rolled-up `total`.
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
   Ctrl+click adds that row to what is chosen. The top rows work as before. A row's buttons (🔒 ⋯ 🏷 ⧉ ✕ 💥) show
   on hover over its right end, so a click on its name or middle always chooses the part.
+  **🔍 Find a part** (the field in the list's header, *Hledat díl…*): type part of a name — no matter the case or the
+  accents (*zakladni* finds *Základní deska*) — and only the matching rows stay, with the sub-assemblies they are in
+  folded open; the found names are lit, a click chooses as usual (Ctrl / Shift too); Esc or ✕ shows all rows again.
+  **A part clicked in the view** has its row brought into sight: the sub-assemblies it is in fold open, the list
+  scrolls only as far as needed and the row is marked (the part under the mouse, however deep — the sub-assembly
+  itself stays chosen); with Ctrl, the row of the part just added. If the 🔍 filter hides that row, the filter is
+  cleared.
   **Several parts at once**: a click chooses one, **Ctrl+click** adds or takes out a part (in the list or in the
   view: the same set), **Shift+click** in the list chooses every row from the last one clicked to this one, as the
   list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and

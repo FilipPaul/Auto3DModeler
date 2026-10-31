@@ -3,7 +3,10 @@ in "Mid" (with a spacer) in "Top" (with a base) -> in the view: a click on the p
 on the spacer: the plate and the spacer chosen (2 parts, Mid not as a whole), lit in the view and in the list ->
 Ctrl+click the pin (3), the base (a placed part: 4), the spacer again (out: 3) -> the panel lists them, the suggestions
 have no ✕ Take them out (not Mid as a whole), Delete takes nothing out -> the list: a row, Ctrl+click another row two
-levels deep, Shift+click a range -> a plain click on Mid in the view still chooses it whole.
+levels deep, Shift+click a range -> a plain click on Mid in the view still chooses it whole -> 🔍 find: "PIN" leaves
+the pin and the sub-assemblies it is in, "distancni" finds "Distanční sloupek", a found row chosen, Esc -> a part
+clicked in the view (the list short): its sub-assemblies folded open, its row marked and scrolled into sight; with a
+filter that hides it: the filter cleared; Ctrl+click: the row of the part added in sight.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_nested_select.py http://127.0.0.1:5199 <out dir>
@@ -90,6 +93,24 @@ def lit_rows():
     return js("return [...document.querySelectorAll('#asmLeft .as-list .mt-item.on')].map(r => r.dataset.inst || r.dataset.path)")
 
 
+def all_rows():
+    return js("return [...document.querySelectorAll('#asmLeft .as-list .mt-item')].map(r => r.dataset.inst || r.dataset.path)")
+
+
+def hit_rows():
+    return js("return [...document.querySelectorAll('#asmLeft .as-list .mt-item.as-hit')].map(r => r.dataset.inst || r.dataset.path)")
+
+
+def here_rows():
+    return js("return [...document.querySelectorAll('#asmLeft .as-list .mt-item.as-here')].map(r => r.dataset.inst || r.dataset.path)")
+
+
+def in_sight(key):
+    """The row inside the list's visible part."""
+    return js("""const l = document.querySelector('#asmLeft .as-list'), r = l.querySelector(`[data-path="${arguments[0]}"], [data-inst="${arguments[0]}"]`);
+      if (!r) return false; const a = l.getBoundingClientRect(), b = r.getBoundingClientRect(); return b.top >= a.top - 1 && b.bottom <= a.bottom + 1;""", key)
+
+
 def row(key):
     return d.find_element(By.CSS_SELECTOR, f"#asmLeft .as-list [data-path='{key}'], #asmLeft .as-list [data-inst='{key}']")
 
@@ -101,7 +122,7 @@ try:
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
     call("add_feature", type="extrude", sketch="F1", d=5)
     call("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=8)
-    for name, shape, h in [("Pin", {"circle": {"x": 0, "y": 0, "d": 8}}, 20), ("Spacer", {"rect": {"x": 0, "y": 0, "w": 20, "h": 10}}, 15),
+    for name, shape, h in [("Pin", {"circle": {"x": 0, "y": 0, "d": 8}}, 20), ("Distanční sloupek", {"rect": {"x": 0, "y": 0, "w": 20, "h": 10}}, 15),
                            ("Base", {"rect": {"x": 0, "y": 0, "w": 200, "h": 120}}, 10)]:
         call("new_model", name=name)
         call("add_feature", type="sketch", plane="XY", shapes=[shape])
@@ -112,7 +133,7 @@ try:
     call("insert_part", part="Pin")
     call("snap_faces", type="axis", move={"part": "I2", "face": "F2:side:c1"}, onto={"part": "I1", "face": "F3:hole:0"})
     call("new_assembly", name="Mid")
-    call("insert_part", part="Spacer")
+    call("insert_part", part="Distanční sloupek")
     call("insert_part", part="Inner")
     call("place_part", part="I2", x=40, y=-20, z=15, turn="z")
     call("new_assembly", name="Top")
@@ -173,6 +194,42 @@ try:
     time.sleep(0.3)
     click(PLATE)
     check(f"a plain click on a part of Mid still chooses Mid whole {keys()}", keys() == ["I2"])
+
+    # 🔍 find a part in the list
+    find = d.find_element(By.CSS_SELECTOR, "#asmLeft .as-find")
+    check(f"the find field: {find.get_attribute('placeholder')!r}", find.is_displayed())
+    js(f"{A}.saveOpen(new Set()); {A}.renderList()")  # (all folded: the hits open what they are in)
+    find.send_keys("PIN")
+    time.sleep(0.5)
+    check(f"'PIN': the pin and the sub-assemblies it is in {all_rows()}, hit {hit_rows()}", all_rows() == ["I2", "I2/I2", PIN] and hit_rows() == [PIN])
+    find.clear()
+    find.send_keys("distancni")
+    time.sleep(0.5)
+    check(f"'distancni' (no accents) finds 'Distanční sloupek': {hit_rows()}", hit_rows() == [SPACER])
+    row(SPACER).find_element(By.CSS_SELECTOR, ".mt-name").click()
+    time.sleep(0.3)
+    check(f"a click on the found row chooses it {keys()}", keys() == [SPACER])
+    find.send_keys(Keys.ESCAPE)
+    time.sleep(0.3)
+    check(f"Esc: every row again {all_rows()}", find.get_attribute("value") == "" and all_rows() == ["I1", "I2"])
+
+    # a part clicked in the view: its row in sight, its sub-assemblies folded open
+    js("const l = document.querySelector('#asmLeft .as-list'); l.style.maxHeight = '40px'; l.style.overflow = 'auto'; l.scrollTop = 0;")
+    js(f"{A}.select([])")
+    time.sleep(0.3)
+    click(PIN)
+    check(f"a click on the pin: Mid and Inner folded open {sorted(js(f'return [...{A}.openPaths()]'))}", {"I2", "I2/I2"} <= set(js(f"return [...{A}.openPaths()]")))
+    check(f"…its row marked {here_rows()} and in sight", here_rows() == [PIN] and in_sight(PIN))
+    js("document.querySelector('#asmLeft .as-list').scrollTop = 0")
+    find.send_keys("base")
+    time.sleep(0.5)
+    js(f"{A}.select([])")
+    time.sleep(0.3)
+    click(PLATE)
+    check(f"a click on the plate with 'base' typed: the filter cleared, its row in sight ({find.get_attribute('value')!r})", find.get_attribute("value") == "" and in_sight(PLATE) and here_rows() == [PLATE])
+    js("document.querySelector('#asmLeft .as-list').scrollTop = 0")
+    click(SPACER, ctrl=True)
+    check(f"Ctrl+click the spacer: chosen too {keys()}, its row in sight", sorted(keys()) == sorted([PLATE, SPACER]) and in_sight(SPACER))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)
