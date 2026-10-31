@@ -20,8 +20,10 @@ Read `docs/ARCHITECTURE-modeler.md` (the plan and its Progress section) before s
 - In the same commit: the tests for it, README / `docs/ARCHITECTURE-modeler.md` Progress, the tester's list in
   `.claude/agents/tester.md` when a new e2e test is added.
 - Stage the files by name (`git add <paths>`), not `git add -A`; check `git status` for strays (screenshots,
-  `*.a3d.json`, temp scripts) first. Test output goes to the scratchpad, not the repo. Leave the untracked
-  `RealSWReports/*.md` (the app's AI writes them) alone.
+  `*.a3d.json`, temp scripts) first. Test output goes to the scratchpad, not the repo.
+- `RealSWReports/*.md` (the app's AI writes them) go to the repo too (the owner, 2026-10-31): the main session
+  commits the new ones in a commit of their own ("Add the AI's RealSWReports …") and pushes. Agents leave them
+  alone (not in their commits).
 - Message: a short imperative subject (≤ 72 chars, e.g. "Add ⁂ Pattern feature: repeat steps in a row or
   around an axis"), a blank line, then what changed and how it was verified. End with the attribution line
   the session asks for (today: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`).
