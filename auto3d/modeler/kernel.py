@@ -209,6 +209,10 @@ def _mixed_wire(fr, ring, owners, arcs, splines=None):
                 q = spline_points(splines[o], 4)
                 if sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(q, q[1:] + q[:1])) < 0:
                     edge = TopoDS.Edge(edge.Reversed())
+            else:  # (a curve drawn the other way round than the ring goes: turned, so the wire keeps the ring's way round)
+                p0 = BRep_Tool.Pnt_s(TopExp.FirstVertex_s(edge, True))
+                if p0.Distance(to_3d(fr, *ring[order[i]])) > p0.Distance(to_3d(fr, *ring[(order[j] + 1) % n])):
+                    edge = TopoDS.Edge(edge.Reversed())
             i = j + 1
         elif o in arcs:
             j = i
@@ -272,6 +276,72 @@ def face_loops(face, fr, per=24):
         ex.Next()
     if not out:
         raise KernelError("Its face has no outline to use.")
+    return out
+
+
+def face_edges(face):
+    """⇱ A face's edges, loop by loop (its outer one and its holes), each edge once."""
+    from OCP.TopAbs import TopAbs_WIRE
+    out, ex = [], TopExp_Explorer(TopoDS.Face(face), TopAbs_WIRE)
+    while ex.More():
+        for e in _wire_edges(TopoDS.Wire(ex.Current())):
+            if not any(e.IsSame(u) for u in out):
+                out.append(e)
+        ex.Next()
+    return out
+
+
+def edge_shapes(edges, fr, per=24):
+    """⇱ Edges of the part seen square onto the sketch plane fr -> sketch shapes in its [u, v]: {"t": "line", "a", "b"},
+    {"t": "arc", "c", "a", "b"} (counter-clockwise from a to b), {"t": "circle", "c", "r"} or {"t": "spline", "pts"} (an
+    ellipse, a B-spline or any other curve — `per` points along it; a circle or arc on a plane not parallel to its own
+    too; a closed curve as two halves). Points as [u, v] lists; ends that meet are equal (the vertices are shared)."""
+    o, x, y, n = _v(fr["o"]), _v(fr["x"]), frame_y(fr), _v(fr["n"])
+    uv = lambda q: [float((np.array([q.X(), q.Y(), q.Z()]) - o) @ x), float((np.array([q.X(), q.Y(), q.Z()]) - o) @ y)]  # noqa: E731
+    out = []
+    for e in edges:
+        e = TopoDS.Edge(e)
+        if BRep_Tool.Degenerated_s(e):
+            continue
+        c = BRepAdaptor_Curve(e)
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        v0, v1 = TopExp.FirstVertex_s(e), TopExp.LastVertex_s(e)  # (the vertices: ends shared with the next edge exactly)
+        a, b = (uv(BRep_Tool.Pnt_s(v)) if not v.IsNull() else uv(c.Value(t)) for v, t in ((v0, u0), (v1, u1)))
+        if e.Orientation() == TopAbs_REVERSED:
+            a, b = b, a
+        closed = math.dist(a, b) < 1e-7
+        kind = c.GetType()
+        if kind == GeomAbs_Line:
+            if not closed:
+                out.append({"t": "line", "a": a, "b": b})
+            continue
+        if kind == GeomAbs_Circle:
+            circ = c.Circle()
+            ax = circ.Axis().Direction()
+            up = float(np.array([ax.X(), ax.Y(), ax.Z()]) @ n)
+            if abs(abs(up) - 1) <= 1e-6:  # (parallel to the sketch: a true circle / arc on it)
+                cc = uv(circ.Location())
+                if closed:
+                    out.append({"t": "circle", "c": cc, "r": float(circ.Radius())})
+                    continue
+                # the curve runs counter-clockwise seen along its axis: from its first parameter to its last when the
+                # axis is the sketch's normal, the other way round when it is turned over; the ends: the vertices
+                s = uv(c.Value(u0) if up > 0 else c.Value(u1))
+                s, t = (a, b) if math.dist(s, a) <= math.dist(s, b) else (b, a)
+                out.append({"t": "arc", "c": cc, "a": s, "b": t})
+                continue
+        k = max(per, 8)
+        ts = [u0 + (u1 - u0) * i / k for i in range(k + 1)]
+        pts = [uv(c.Value(t)) for t in ts]
+        pts[0], pts[-1] = (a, b) if math.dist(pts[0], a) <= math.dist(pts[0], b) else (b, a)  # (exactly on the vertices)
+        if all(math.dist(p, pts[0]) < 1e-7 for p in pts):
+            continue  # (seen edge-on: a point)
+        if closed:  # (a closed curve: two halves, so each is a plain curve from one end to the other)
+            h = k // 2
+            out.append({"t": "spline", "pts": pts[:h + 1]})
+            out.append({"t": "spline", "pts": pts[h:]})
+        else:
+            out.append({"t": "spline", "pts": pts})
     return out
 
 

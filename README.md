@@ -186,6 +186,17 @@ whole face out 10 mm, its holes kept; type the distance, slide it, or drag the o
 direction* makes it a cut that deep into the part instead. OK leaves two ordinary steps — a sketch of the face's
 outline and its extrude; the outline follows the face when earlier steps change it. Cancel leaves nothing.
 
+**⇱ Take the face's outline into a sketch** (*Převzít obrys plochy do skici*): click a flat face — of the part, or of an
+imported STEP shown see-through (👁 Reference) or joined to it — and pick it in the suggestions: a new sketch on that face
+whose shapes are the face's outline and holes as lines, arcs, circles and smooth curves. They are held to the face by
+one ⇱ relation: they follow it when earlier steps (or a newer version of the file) move it, a click on its ⇱ symbol
+frees them. Extrude it into a matching part, a pocket or a cover around a bought part. Picked edges offer *⇱ Take the
+edges into a sketch*; inside a sketch, *⇱ From the part* takes a face's outline or an edge with one click (also onto
+another plane, seen square onto it). *✏ Sketch on this face* works on the faces of an imported solid too (👁 Reference
+as well). In an assembly a flat face of a 3D model part offers *✏ Sketch on this face → edit the part here* (its part
+opens in place with the sketch on that face) and, for an imported part, *＋ New part with a sketch on this face* — a new
+part placed where that one is, the file in it see-through, its first sketch on the face.
+
 **𝑥 Parameters — sizes by name**: any number you type for a size — an extrude's distance, a hole's Ø, a fillet's R, a
 pattern's count and spacing, a size label of a sketch (or on the part), an assembly joint's gap or angle — may also be
 an expression of the project's parameters: `L`, `L/2 + 5`, `=D`, `(L - 2*t) / 3` (+ − × ÷, brackets; `mm` / `°` after

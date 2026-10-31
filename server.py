@@ -1357,7 +1357,16 @@ def api_model_limits():
     return jsonify(data)
 
 
-MODEL_FILES = {"stl": ("model/stl", "stl"), "step": ("model/step", "step"), "iges": ("model/iges", "igs"), "pdf": ("application/pdf", "pdf"),
+@app.post("/api/model/sketch/project")
+def api_model_sketch_project():
+    """⇱ {features (the steps before the sketch), sketch, face: {name, fp} | edges: [{a, b, fp}]} -> {sketch: {points,
+    entities, constraints} with the face's outline (or the edges) as lines, arcs, circles and curves held to it, warnings}."""
+    body = request.get_json(force=True)
+    data, err = _model_call("project", {k: body.get(k) for k in ("features", "sketch", "face", "edges")}, timeout=60)
+    return err or jsonify(data)
+
+
+MODEL_FILES = {"stl":("model/stl", "stl"), "step": ("model/step", "step"), "iges": ("model/iges", "igs"), "pdf": ("application/pdf", "pdf"),
                "glb": ("model/gltf-binary", "glb"), "obj": ("model/obj", "obj")}
 
 

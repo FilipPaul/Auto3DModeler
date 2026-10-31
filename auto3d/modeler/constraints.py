@@ -18,6 +18,9 @@ A sketch (in the feature JSON):
                                                                     a ⁂ pattern: each point's copies d apart along line l5
                                                                     (else the sketch's X); "kind": "around", "c": centre
                                                                     point id ("O"): turned evenly over 360°
+                 {"t": "proj", "face": {"name", "fp"} | "edges": [{"a", "b", "fp"}], "ents": [...], "pts": [...]}
+                                                                    ⇱ shapes taken from the part's edges (doc._projections
+                                                                    makes and moves them): their points and radii held
                  {"t": "off", "d": 3, "pairs": [["l1", "l9", 1], ["a1", "a9", -1], ["c1", "c2", 1]], "src": [...], "copies": [...]}
                                                                     a ⧈ linked offset: each copy (line, arc, circle) d from its
                                                                     original on side w (a line: w = 1 left of a -> b; an arc /
@@ -59,7 +62,7 @@ def _num(v, what):
 
 
 # relations the user sets: {t, e, e2} (two shapes) or {t, p, p2 / e} (a point and a point / shape)
-RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir", "pat", "off")
+RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir", "pat", "off", "proj")
 
 
 def _relation(s, k, ents, ids, pts):
@@ -122,6 +125,11 @@ def _relation(s, k, ents, ids, pts):
         return _pattern(s, k, ents, ids, pts, a[1] if kind(a) == "line" else None)
     if t == "off":  # always handled here (an empty tuple when its shapes are gone)
         return _offset(s, k, ents, ids, pts)
+    if t == "proj":  # ⇱ shapes taken from the part's edges: held where they are (doc.py moves them with the part)
+        tags = [s.fix_point(ids[p], *map(float, pts[p])) for p in k.get("pts") or [] if p in ids and p in pts]
+        tags += [s.set_circle_diameter(ents[e][1], 2 * float(ents[e][0]["r"])) for e in k.get("ents") or []
+                 if e in ents and ents[e][0]["t"] == "circle"]
+        return tuple(tags)
     if t == "fix" and k.get("p") in ids:
         at = k.get("at") or pts.get(k["p"])
         return s.fix_point(ids[k["p"]], float(at[0]), float(at[1]))
@@ -370,7 +378,7 @@ def solve(sketch, drag=None, keep=None, detail=False, budget=FREE_CHECK_SECONDS)
                 for a in anchors:
                     soft.add(s.set_p2p_distance(ids[a], ids[q], max(math.dist(*(curve_at.get(x, pts[x]) for x in (a, q))), 1e-9)))
         for k in sketch.get("constraints") or []:
-            tag = _relation(s, k, ents, ids, pts)
+            tag = _relation(s, k, ents, ids, curve_at if k.get("t") == "proj" else pts)  # (⇱ held where they were drawn, not where a drag put them)
             if tag is not None:
                 for tg in (tag if isinstance(tag, tuple) else (tag,)):
                     tags[tg] = k.get("id")

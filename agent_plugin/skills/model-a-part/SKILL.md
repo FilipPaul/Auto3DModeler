@@ -76,6 +76,10 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    - **A whole flat face pulled out or pushed in** (a plate made taller, a side lengthened, a face lowered):
      `add_feature {type: "extrude", face: "<face name>", d: 10}` (`op: "cut"`: that deep into the part) — the app makes
      the sketch of the face's outline (its holes kept, following the face) and the extrude, as ⬆ Extrude this face.
+   - **Build around a bought / imported part** (a STEP as a `solid` step, `op: "ref"` see-through, or `"add"`): its
+     faces are `<step id>:f<n>` (find_refs). `add_feature {type: "sketch", plane: {face: "F1:f12"}, shapes:
+     [{from_face: "F1:f12"}]}` takes that face's outline and holes as sketch lines / arcs / circles held to it (they
+     follow it; `{from_edges: [edge refs]}` for some edges), then extrude it: a matching part, a cover, a pocket.
    - **Measure from a corner or the part's origin** instead of the face's centre: `origin: "corner"` (the face's
      min-u min-v corner, followed when the part changes) or `origin: "world"` (points / shapes in world X / Y / Z: a
      hole at world (30, 10) on a top face is `points: [[30, 10]]`), or `origin: {point: "<point step>"}` — on a hole

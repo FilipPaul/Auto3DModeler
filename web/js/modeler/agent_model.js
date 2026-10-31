@@ -216,8 +216,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   };
   const body = () => m.result?.body;
   const faceOf = (name) => {
-    const b = body();
-    const fs = (b?.faces || []).filter((f) => f.name === name || (f.names || []).includes(name));
+    const b = body(), is = (f) => f.name === name || (f.names || []).includes(name);
+    // (a 👁 reference solid's faces too: a sketch on a bought part's face, its outline taken)
+    const fs = [...(b?.faces || []).filter(is), ...(m.result?.refs || []).flatMap((r) => (r.faces || []).filter(is))];
     if (!fs.length) throw new Error(`No face named “${name}” — use find_refs to get face names.`);
     return fs.sort((a, c) => c.area - a.area)[0];
   };
@@ -336,8 +337,16 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     const base = { id: m.newId(), type, name: spec.name || m.nextName(type, spec.sketch || (['extrude', 'revolve'].includes(type) ? [...m.sketches()].pop()?.id : null)) };
     if (type === 'sketch') {
       const plane = planeOf(spec.origin && spec.plane && typeof spec.plane === 'object' ? { ...spec.plane, origin: spec.origin } : spec.plane);
-      const sk = sketchFromShapes(spec.shapes, spec.lock !== false, axisAtOn(plane));
-      return { ...base, plane, ...(plane.origin === 'world' ? fromWorld(sk, plane.frame) : sk) };
+      const takes = (spec.shapes || []).filter((x) => x?.from_face || x?.from_edges); // (⇱ taken from the part: its edges, held to it)
+      const sk = sketchFromShapes((spec.shapes || []).filter((x) => !takes.includes(x)), spec.lock !== false, axisAtOn(plane));
+      const out = { ...base, plane, ...(plane.origin === 'world' ? fromWorld(sk, plane.frame) : sk) };
+      for (const x of takes) {
+        if (x.from_face) { const g = faceOf(x.from_face); out.constraints.push({ t: 'proj', face: { name: g.name, fp: g.centroid } }); continue; }
+        const es = (Array.isArray(x.from_edges) ? x.from_edges : [x.from_edges]).map((e) => e?.ref || e);
+        if (!es.length || es.some((e) => !e?.a || !e?.b || !e?.fp)) throw new Error('from_edges: edge refs {a, b, fp} from find_refs.');
+        out.constraints.push({ t: 'proj', edges: es });
+      }
+      return out;
     }
     if (type === 'extrude' || type === 'revolve') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -575,6 +584,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           out.locked_sizes = (f.dims || []).filter((d) => !d.free).length;
           const of = (f.entities || []).filter((e) => e.t === 'outline').map((e) => e.face?.name); // (⬆ a face's outline: which face)
           if (of.length) out.outline_of = of;
+          const pj = (f.constraints || []).filter((k) => k.t === 'proj'); // (⇱ shapes taken from the part's faces / edges)
+          if (pj.length) out.taken_from = pj.map((k) => (k.face ? { face: k.face.name, shapes: (k.ents || []).length } : { edges: (k.edges || []).length, shapes: (k.ents || []).length }));
         }
         if (f.expr) out.expressions = f.expr; // (𝑥 numbers set by the project's parameters)
         if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric, ...(f.draft ? { draft: f.draft } : {}) });
@@ -615,8 +626,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     find_refs: async ({ kind = 'face', name, normal, extreme, near, of_face, of_step, between_steps, circular, limit = 12 }) => {
       needModel();
       await settle();
-      const b = body();
-      if (!b) throw new Error('The model has no solid yet.');
+      const b = body(), rfs = (m.result?.refs || []).flatMap((r) => (r.faces || []).map((f) => ({ ...f, refSolid: r.id }))); // (👁 reference solids' faces: ref true)
+      if (!b && !(kind === 'face' && rfs.length)) throw new Error('The model has no solid yet.');
       const namesOf = (f) => (f?.names?.length ? f.names : f?.name ? [f.name] : []);
       const ofStep = (f, id) => namesOf(f).some((n) => n.split(':')[0] === id); // (a face the step made, e.g. F10:side:l2)
       for (const id of [of_step, ...(between_steps || [])].filter(Boolean)) {
@@ -624,7 +635,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       if (between_steps && (!Array.isArray(between_steps) || between_steps.length !== 2)) throw new Error('between_steps: two step ids, e.g. ["F2", "F10"].');
       if (kind === 'face') {
-        let fs = b.faces.filter((f) => f.name);
+        let fs = [...(b?.faces || []), ...rfs].filter((f) => f.name);
         if (name) fs = fs.filter((f) => namesOf(f).some((n) => n.includes(name)));
         if (of_step) fs = fs.filter((f) => ofStep(f, of_step));
         if (normal) { const n = normal.map(Number), L = len(n) || 1; fs = fs.filter((f) => f.normal && dot(f.normal, n) / L > 0.999); }
@@ -636,7 +647,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         }
         if (near) fs.sort((a, c) => len(sub(a.centroid, near)) - len(sub(c.centroid, near)));
         else fs.sort((a, c) => c.area - a.area);
-        return { text: JSON.stringify(fs.slice(0, limit).map((f) => ({ name: f.name, ...(namesOf(f).length > 1 ? { names: namesOf(f) } : {}), type: f.type, normal: f.normal, centroid: f.centroid, area: r3(f.area), radius: f.radius }))) };
+        return { text: JSON.stringify(fs.slice(0, limit).map((f) => ({ name: f.name, ...(namesOf(f).length > 1 ? { names: namesOf(f) } : {}), type: f.type, normal: f.normal, centroid: f.centroid, area: r3(f.area), radius: f.radius, ...(f.refSolid ? { ref: true } : {}) }))) };
       }
       if (kind === 'edge') {
         let es = b.edges.map((e, i) => ({ e, i })).filter(({ e }) => e.faces.length === 2);

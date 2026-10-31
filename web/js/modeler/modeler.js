@@ -219,6 +219,7 @@ export class Modeler {
         ${btn('construction', '┄ Construction', 'Construction (helper) lines and circles: the selected shape becomes one (or back) — nothing selected: new shapes are drawn as construction while it is on. They guide (a revolve axis, a mirror line, dimensions) but are not part of the outline', this.sk.consMode ? 'on' : '')}
         ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
+        ${this.result?.body || this.result?.refs?.length ? btn('project', '⇱ From the part', "Take a face's outline (and its holes) or edges of the part into the sketch: click them — they stay on the part and follow it", t === 'project' ? 'on' : '') : ''}
         ${btn('pattern', '⁂ Pattern', 'Repeat the selected shapes in a row or around a point: select them (⬚ Select, Ctrl+click or a box), then type how many and how far apart — the copies follow the original', t === 'pattern' ? 'on' : '')}
         ${btn('merge', '⛓ Merge', 'Merge many small shapes into few: pick them (click or a box; nothing picked: click them now), then ⛓ Join into one curve, 🧹 Simplify or ◆ One outline', this.sk.merging ? 'on' : '')}
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
@@ -353,7 +354,7 @@ export class Modeler {
     if (a === 'cancelPlane') return this.cancelPlane();
     if (a === 'midPlane') return this.toggleMidPick();
     if (a === 'autodim' && this.sk) return this.sk.autoDimension();
-    if (['rect', 'line', 'slot', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
+    if (['rect', 'line', 'slot', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim', 'project'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
     if (a === 'text' && this.sk) return this.insertText();
     if (a === 'finish') return this.finishSketch();
@@ -991,6 +992,7 @@ export class Modeler {
     return [
       { icon: '◜', label: t(one ? 'Fillet this edge' : 'Fillet these edges'), rank: 0, title: t('Round it off — the radius in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('fillet', refs); } },
       { icon: '◸', label: t(one ? 'Chamfer this edge' : 'Chamfer these edges'), rank: 1, title: t('Bevel it — the size in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('chamfer', refs); } },
+      { icon: '⇱', label: t('Take the edges into a sketch'), rank: 4.5, title: t('A sketch on their flat face with these edges as lines, arcs and circles held to the part'), run: () => { this.dropSuggest(); this.sketchFromEdges(refs); } },
       ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size — 📏 Measure for more'), run: () => this.hooks.toast(sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, 'info', 3000) }] : []),
     ];
   }
@@ -1294,7 +1296,7 @@ export class Modeler {
     const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
     // an edge under the mouse (lit while hovered): ◜ / ◸ it — also on its middle (a snap point there too)
     const ei = (!sp?.snap || sp.snap === 'midpoint') && hoverKinds().edges ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1, eref = ei >= 0 ? this.edgeRef(ei) : null;
-    const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
+    const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY, { refs: true }), fs = h?.face && this.stepFaces(h.face);
     const pick = eref && (more || !sp?.snap) ? { kind: 'edge', ref: eref, point: (sp?.point || h?.point)?.clone() || null }
       : sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
     if (more && pick && this.picks?.length) { this.addPick(pick); return; } // Ctrl+click: one more in the selection
@@ -1311,11 +1313,13 @@ export class Modeler {
    *  suggestions for it — this face, its edges, the part, the step. at: where the click was (the tools that start there). */
   faceTable(h, fs, at) {
     this.selectStep(fs.step.id);
-    const flat = h.face.type === 'plane';
+    const flat = h.face.type === 'plane', ref = !!h.face.refSolid; // (ref: a face of a 👁 reference solid — not of the part)
+    if (ref) return this.refFaceTable(h, fs, at);
     // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
     const sections = [
       [t('On this face'), [
         flat && ['sketch', '✏', t('Sketch on this face'), () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
+        flat && ['project', '⇱', t("Take the face's outline into a sketch"), () => this.sketchFromFace(h.face)],
         flat && this.result?.body && ['faceup', '⬆', t('Extrude this face'), () => this.extrudeFace(h.face)],
         flat && ['hole', '◎', t('Hole here'), () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
         flat && ['decal', 'Aa', t('Text / picture here'), () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
@@ -1343,12 +1347,51 @@ export class Modeler {
     // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
     // a hole's / a boss' face: ⁂ repeat it among the top rows
     const rep = fs.step.type === 'hole' || fs.step.op === 'cut';
-    const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
+    const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, project: 4.5, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, [...(fs.step.type === 'hole' ? this.holeItems(fs.step) : []), // (a Hole step's: its types, sizes, thread first)
       ...sections.flatMap(([title, items]) => [{ section: title },
         ...items.map(([key, icon, label, run, cls, title]) => ({ icon, label, title, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))])], '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
+  }
+
+  /** A face of a 👁 reference solid (an imported part shown see-through, to build around) clicked: a sketch on it, its
+   *  outline taken into a sketch (a cover, a pocket, a matching part), measuring; its step. */
+  refFaceTable(h, fs, at) {
+    const flat = h.face.type === 'plane', plane = flat && { frame: h.face.frame, face: h.face.ref || { name: h.face.name } };
+    const items = [
+      { section: t('On this face') },
+      ...(flat ? [{ icon: '✏', label: t('Sketch on this face'), rank: 0, title: t('A sketch on this face of the reference solid — it follows the face'), run: () => this.enterSketch(plane) },
+        { icon: '⇱', label: t("Take the face's outline into a sketch"), rank: 1, title: t('A sketch on this face with its outline and holes as lines, arcs and circles held to it — extrude it into a matching part, a pocket or a cover'), run: () => this.sketchFromFace(h.face) }] : []),
+      { icon: '📏', label: t('Measure it'), rank: 3, run: () => { if (!this.measuring) this.toggleMeasure(); if (this.measuring) this.clickMeasure(at); } },
+      { section: `${t('Step')} · ${fs.step.name}` },
+      { icon: '✎', label: t('Edit the step'), rank: 4, run: () => this.edit(fs.step.id) },
+      { icon: '🏷', label: t('Rename'), rank: 9, run: () => this.renameStep(fs.step.id) },
+      { icon: fs.step.suppressed ? '●' : '◌', label: t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), rank: 10, run: () => this.toggleOff(fs.step.id) },
+    ];
+    const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${t('reference')}`, items.map((x) => (x.section ? x : { ...x, run: () => { this.dropSuggest(); x.run(); } })), '',
+      `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}” (${t('a see-through reference solid')}), ${t('face')} ${h.face.name}${flat ? ` (${t('flat')})` : ''}`);
+    if (sg) sg.dataset.from = 'face';
+  }
+
+  /** ⇱ Take the face's outline into a sketch: a new sketch on that flat face (of the part or of a 👁 reference solid)
+   *  whose shapes are its outline and holes — lines, arcs, circles, curves held to it (they follow it). */
+  async sketchFromFace(face) {
+    if (face?.type !== 'plane' || !face.frame) { this.toast(t('Pick a flat face — sketches go on flat faces.'), 'warning'); return false; }
+    this.enterSketch({ frame: face.frame, face: face.ref || { name: face.name } });
+    return this.sk.takeFrom({ face: { name: face.name, fp: face.centroid } });
+  }
+
+  /** ⇱ Take the edges into a sketch: a new sketch on the flat face they lie on (the biggest one they all bound, else
+   *  the first one's) with them as lines, arcs and circles held to the part. refs: [{a, b, fp}]. */
+  async sketchFromEdges(refs) {
+    const faces = this.result?.body?.faces || [], named = (n) => faces.find((f) => f.type === 'plane' && (f.name === n || (f.names || []).includes(n)));
+    const biggest = (ns) => ns.map(named).filter(Boolean).sort((p, q) => q.area - p.area)[0];
+    const shared = refs.map((r) => [r.a, r.b]).reduce((a, b) => a.filter((n) => b.includes(n)));
+    const face = biggest(shared) || biggest([refs[0]?.a, refs[0]?.b]);
+    if (!face) { this.toast(t('These edges are on no flat face — open a sketch and take them with ⇱ From the part.'), 'warning', 6000); return false; }
+    this.enterSketch({ frame: face.frame, face: face.ref || { name: face.name } });
+    return this.sk.takeFrom({ edges: refs });
   }
 
   /** A sketch of one open line chosen: what it is for suggested — ⊿ Rib from it first. Others: nothing. */
@@ -4385,8 +4428,8 @@ export class Modeler {
         return;
       }
       // the step under the mouse: all its faces light up, its name at the mouse
-      const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
-      this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
+      const h = this.view.pick(e.clientX, e.clientY, { refs: true }), fs = h?.face && this.stepFaces(h.face);
+      this.view.setHover(h?.face && !h.face.refSolid ? h.face.id : -1, fs?.ids || null); // (a 👁 reference solid's face: its name at the mouse)
       this.hoverMarks(e, fs);
       this.tip(fs ? { x: e.clientX, y: e.clientY, text: `${fs.step.name} — ${this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')}` } : null);
       cv.style.cursor = h?.face ? 'pointer' : '';
@@ -4517,7 +4560,7 @@ export class Modeler {
   }
 
   clickPlane(e) {
-    const h = this.view.pick(e.clientX, e.clientY, { datums: true });
+    const h = this.view.pick(e.clientX, e.clientY, { datums: true, refs: true });
     if (h?.face) {
       if (h.face.type !== 'plane') { this.hooks.toast('Pick a flat face — sketches go on flat faces.', 'warning'); return; }
       if (this.midPick) return this.clickMid(h);
@@ -4590,14 +4633,19 @@ export class Modeler {
       <button class="btn small primary" data-a="ctxBack">◇ ${esc(t('Back to the assembly'))}</button>`;
     bar.querySelector('[data-a=ctxBack]').addEventListener('click', () => this.hooks.backTo?.(ctx.back));
     this.els.viewport.appendChild(bar);
-    if (ctx.face) this.pickFaceNamed(ctx.face); // (✎ from a face picked in the assembly: that face chosen here too)
+    if (ctx.face) this.pickFaceNamed(ctx.face); // (✎ from a face picked in the assembly: that face chosen here too — or a sketch on it: ctx.sketch)
   }
 
   /** A face chosen by its name once the part is built (✎ Edit the part here from a face picked in an assembly): its
    *  suggestions — a sketch on it, a hole — one click away. Not there (renamed, not built in ~15 s): nothing chosen. */
   pickFaceNamed(name, tries = 0) {
-    const f = (this.view.body?.faces || []).find((x) => x.name === name || (x.names || []).includes(name)), fs = f && this.stepFaces(f);
+    const f = (this.view.body?.faces || []).find((x) => x.name === name || (x.names || []).includes(name)) || (this.context?.sketch ? this.view.refFace(name) : null), fs = f && this.stepFaces(f);
     if (!fs) { if (tries < 150 && this.context?.face === name) setTimeout(() => this.pickFaceNamed(name, tries + 1), 100); return; }
+    if (this.context?.sketch && f.type === 'plane') { // (✏ Sketch on this face from the assembly: the sketch open on it)
+      this.context.sketch = false;
+      if (this.mode === 'part' && !this.cmd) this.enterSketch({ frame: f.frame, face: f.ref || { name: f.name } });
+      return;
+    }
     const p = this.view.camera.position.clone().set(...f.centroid), q = p.clone().project(this.view.camera), r = this.view.renderer.domElement.getBoundingClientRect();
     this.picks = [{ kind: 'face', step: fs.step, face: f, point: p }];
     this.faceTable({ face: f, point: p }, fs, { clientX: r.left + (q.x + 1) / 2 * r.width, clientY: r.top + (1 - q.y) / 2 * r.height });
