@@ -191,6 +191,17 @@ Date: 2026-10-25. Written by the architect agent.
   2.8–4.0 s (was 120 s). A project whose every tab was closed (none) leaves the start screen at loadAll's first render,
   not after its first part is built. Left: one 1.3–1.4 s long task while the ICT assembly is merged and drawn (under
   "Kreslím…", the spinner turning on the compositor). tools/e2e_open_recent.py.
+- **The ICT project reopened, measured cold and warm (2026-10-31)** (another job saw ~91 s reopening the saved ICT
+  .a3d). A real Edge window, Czech, the top assembly on screen (1 719 placements of 254 parts, 44 assemblies), from the
+  click to its first frame / the collision check's end: a fresh data folder (no part cache, no file cache — as after any
+  change of auto3d/modeler/*.py: partcache's stamp is the whole modeler's code, filecache's kernel.py + doc.py) 14.8 s
+  to the first frame (255 /api/model/rebuild, 44.6 s in the kernel processes, the longest part 8.0 s), then the
+  collision check 120 s — the kernel call's timeout, no answer, one kernel process busy all along; the same project
+  after a server restart, caches warm: 4.5 s (526 rebuilds from the part cache, 18.9 s kernel), opened again after a
+  reload 4.1 s (the last page's check cancelled at pagehide: 165 ms). Before that cancel a reopen inside those 2 min
+  waited for the check — 120 s here, the likely ~91 s. No regression found in the opening itself (j-ictswitch's 4.1 s
+  warm holds). Still to do (known): the big assembly's collision check (quick boxes first, no timeout), the part cache
+  kept across code changes that do not touch a part's build.
 - **Snap points under the mouse in an assembly, 📏 Measure too — 🪶 simplified parts included (2026-10-31)** (the owner:
   "why don't I see snapping points in assembly?" — in the ICT STEP assembly none, not even in 📏 Measure). Causes: (1) a
   STEP tree over 150 parts + sub-assemblies opens with every part 🪶 simplified (stepfile.js addTree) and a light mesh
