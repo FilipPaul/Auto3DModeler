@@ -8,6 +8,10 @@ description: Use when the user wants several parts put together — an assembly,
 Before adding bought parts: standard-parts (reuse what the BOM has). Joints between different materials and load
 paths: materials-and-strength. Test fixtures: ict-fixture. Easy to put together (self-locating, one direction, tool access): easy-assembly. Before hand-over: design-review.
 
+🔒 Parts and sub-assemblies with `ai_locked` (get_assembly; library parts always) stay as they are: no editing or
+recolouring them, nothing moved, removed or re-joined inside a locked sub-assembly — but inserting them and joints to
+them and into them (snap_faces, fix_together …) are fine: to make a mechanism move, add joints, not change a locked part.
+
 Only 3D model parts go into an assembly (quick parts do not). Build each made part first (skill model-a-part);
 **bought parts come from the library**: `library_add {item, size, length, to: "assembly"}` (find them with
 `library_search {query}`) — screws, nuts, inserts, bearings, standoffs, cylinders, sensors, motors, with their part numbers.

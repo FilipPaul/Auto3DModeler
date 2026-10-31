@@ -916,6 +916,15 @@ Never report "works" without having run it; report failures with their output.
    set = the view's lit parts; no page text selected; "Vybráno dílů: 3" and the suggestions Vyjmout je (3) / Skrýt;
    Ctrl+click in the view adds; H hides / shows them all; Vyjmout je (3) and one undo; Esc and a click beside the rows
    clear; the 500-part demo: each click's handlers < 100 ms, a real Shift+click 56 rows).
+   `tools/e2e_ai_lock.py <url> <dir>` covers 🔒 Locked for the AI (Czech; the AI through /api/agent/call): the project
+   tree's 🔒 (hidden until hover, shown when locked), Ctrl+click two rows -> "Zamknout pro AI (2)", a row's ⋯ unlocks
+   both; Stroj's list Shift+click 3 rows -> "🔒 Zamknout pro AI (3)" (one Ctrl+Z / redo), the icons; list_parts /
+   get_assembly / get_model `ai_locked` (the library screw: reason library, no flag); snap_faces to a locked part and
+   into the locked sub-assembly allowed; set_look / paint_faces / move_free / remove_from_assembly inside it refused;
+   edit_feature / add_feature / set_material / delete_part / rename_part refused with "je zamčený pro AI … vazby
+   přidat lze", the library screw too; set_parameter driving a locked part refused and names it; the user's own edit
+   of a locked part done with the note; the reason chip; save + reload keeps the locks; "🔓 Odemknout pro AI (3)"; no
+   console errors, no native dialogs (exit code 1 on a failure).
    `tools/e2e_assembly_groups.py <url> <dir>` covers 🔗 a rigid group (Czech: five flags and the inner crank of
    "Pohon" chosen with Shift / Ctrl+click -> "Spojit pevně (6 dílů)": nothing moved, one undo step, get_assembly
    `groups` (base I2, the flags; not in `joints`), one row "Klika (6 dílů)"; driven 10° / 45° every flag turns with the

@@ -8,6 +8,7 @@ import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
 import { recorder } from './recorder.js';
 import { pageBuild } from './stale.js';
+import { guarded } from './ailock.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -95,7 +96,8 @@ export function startBridge(handlers, where = null) {
         // (a call that never ends must not stop this loop: the page would stop asking for calls and look closed)
         let late;
         const budget = new Promise((r) => { late = setTimeout(() => r({ text: `${cmd.cmd} took longer than ${CALL_BUDGET_S} s and was given up — the app goes on; check what it changed (get_model / gui_state).`, error: true }), CALL_BUDGET_S * 1000); });
-        result = fn ? await Promise.race([fn(cmd.args || {}), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        // (🔒 a call that would change a part locked for the AI: refused with the reason — ailock.js)
+        result = fn ? await Promise.race([guarded(cmd.cmd, cmd.args || {}, () => fn(cmd.args || {})), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
         clearTimeout(late);
         bridgeStats.calls++;
       } catch (e) {

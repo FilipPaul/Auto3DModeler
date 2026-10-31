@@ -10,6 +10,9 @@ Everything is in mm. x right, y up, z up from the printer bed. The 3D printer be
 Design intent (datums, order, parameters, names, mirror / pattern) is in design-principles; machining rules in
 machined-part; a drawing in production-drawing.
 
+🔒 A part with `ai_locked` (list_parts / get_model; library parts always) is bought, made or approved: do not change it —
+build the new part around it (a copy to edit only when the user asks for one).
+
 ## Simple shapes, easy to edit (the default)
 
 A person must be able to read the steps and change the part. Unless the user said it may be built any way:

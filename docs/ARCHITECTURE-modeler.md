@@ -42,6 +42,21 @@ Date: 2026-10-25. Written by the architect agent.
   Misumi: no direct link found by search (configurator or login). Tests: test_fetchcad (a local web server),
   test_agent (the flags), e2e_agent (fetch_cad into an assembly -> get_bom).
 
+- **🔒 Locked for the AI (2026-10-31)** (the owner: bought, made and approved parts / assemblies the AI must not
+  change). The project's part keeps `ai_lock: {reason?: bought | made | approved}` (saved in the .a3d; project.migrate
+  normalises it); library parts (data.library, not a ✎ library edit) are always locked. web/js/ailock.js: lockOf /
+  setLock (one undo step through History.first, chained after the 𝑥 parameters'), the rows' 🔒 (project tree, assembly
+  list incl. inner rows; ⋯ menu), the project tree's Ctrl / Shift+click and its bar, the suggestions for 2+ chosen,
+  the panel row with reason chips; a gentle toast when the user edits a locked part by hand (never blocked). guard():
+  every AI call through startBridge is checked in the page — a locked part's steps / sketches / material / look /
+  paint / name / delete / rollback / undo, the parameters that drive it (set_parameter, through the parameters using
+  it), a locked assembly on screen (all but adding joints: snap_faces, fix_together, add_missing_joint), inside a
+  locked sub-assembly (place / move_free / remove / limits by "I2/I1"), bolt_parts drilling a locked part — refused
+  with "🔒 <part> je zamčený pro AI (…) — tohle se na něm měnit nesmí; vazby přidat lze." list_parts / get_model /
+  get_assembly (parts, inner parts, the assembly) say ai_locked + reason; no tool unlocks. SYSTEM_PROMPT and the
+  skills model-a-part / change-a-model / assemble-parts one line each. Not covered: gui_action (the AI clicking the
+  GUI as the user would) and restore_version / switch_variant (the whole project) are not checked. Tests:
+  test_project.test_ai_lock, test_agent.test_the_ai_respects_the_lock, tools/e2e_ai_lock.py.
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
   mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design

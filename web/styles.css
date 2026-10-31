@@ -1784,3 +1784,19 @@ details.pr-more summary { cursor: pointer; font-size: 12px; color: var(--muted);
 details.pr-more summary:hover { color: var(--text); }
 details.pr-more[open] summary { margin-bottom: 8px; color: var(--text); }
 #rtab-print .fit { margin-top: 10px; }
+/* 🔒 locked for the AI (ailock.js): the rows' toggle seen when locked, on hover when not; several chosen in the project tree */
+.ai-lock { flex: none; background: none; border: 0; padding: 0 3px; font-size: 11px; cursor: pointer; visibility: hidden; opacity: .45; }
+.ai-lock.on { visibility: visible; opacity: 1; }
+.ai-lock.ai-lib { cursor: default; opacity: .7; }
+.pt-row:hover .ai-lock, .mt-item:hover .ai-lock { visibility: visible; }
+.pt-row .pt-more { flex: none; visibility: hidden; opacity: .5; }
+.pt-row:hover .pt-more { visibility: visible; }
+.pt-row.picked { background: #1c2a3d; box-shadow: inset 2px 0 0 #3b82f6; }
+.tr-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 2px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.tr-picked b { margin-right: auto; }
+.ai-lock-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
+.ai-lock-panel.on .ai-lock-state { color: #f2cc60; }
+.ai-lock-state { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.ai-reasons { display: inline-flex; gap: 4px; }
+.ai-reasons .chip { padding: 2px 9px; font-size: 11px; }
+.ai-reasons .chip.on { border-color: #f2cc60; color: #f2cc60; }
