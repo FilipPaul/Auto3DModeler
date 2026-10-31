@@ -2102,6 +2102,30 @@ def tessellate(body, light=False):
             "cog": _round(centre(shape) or [(bb[i] + bb[i + 3]) / 2 for i in range(3)], 4)}
 
 
+def body_edges(body):
+    """Only the edges of a body, as tessellate gives them ([{pts, faces, mid}], the faces' indices the same as its
+    mesh's face ids) — for a 🪶 simplified part (its mesh came without edges): asked when the mouse is on it, so its
+    snap points (corners, edge middles, centres) and edges can be shown and picked."""
+    shape = body.shape
+    bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
+    size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
+    fm = _face_map(shape)
+    if fm.Extent() > HEAVY_FACES:  # (a big model: the edges that show at its size, as its full mesh has them)
+        return _heavy_edges(shape, fm, _edges_of(shape), size)
+    fm, em, adj = _adjacency(shape)
+    out = []
+    for ei in range(1, em.Extent() + 1):
+        e = TopoDS.Edge(em.FindKey(ei))
+        try:
+            d = GCPnts_TangentialDeflection(BRepAdaptor_Curve(e), 0.2, max(size * 0.001, 0.002))
+            pts = [d.Value(i) for i in range(1, d.NbPoints() + 1)]
+        except Exception:  # noqa: BLE001 — a degenerate edge: nothing to draw
+            continue
+        if len(pts) >= 2:
+            out.append({"pts": [round(v, 5) for p in pts for v in (p.X(), p.Y(), p.Z())], "faces": sorted(adj.get(ei, ())), "mid": _round(_edge_mid(e), 5)})
+    return out
+
+
 def _face_triangles(f):
     """The triangles (n, 3, 3) of a meshed face, wound outward."""
     loc = TopLoc_Location()

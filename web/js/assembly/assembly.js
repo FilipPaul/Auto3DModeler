@@ -347,6 +347,13 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** A placed part's edges (its body's coordinates and face indices) to snap to and pick — the part under the mouse
+   *  (h: pickInst's) by edgeSource too: a 🪶 simplified part's come without its mesh, asked for when it is hovered. */
+  edgesOf(mesh, h) {
+    const b = mesh.userData.body;
+    return this.edgeSource?.(mesh, h?.face && h.inst === mesh.userData.inst ? h.face.id : null) || b.edges || [];
+  }
+
   /** The parts a click, a snap or the mouse can reach: the shown ones (👁 a hidden part is not picked). */
   shown() { return (this.meshes || []).filter((m) => m.visible); }
   /** The shown parts that hide what is behind them (not 👁 see-through). */
@@ -363,7 +370,7 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const kinds = snapKinds(), s = this.withOrigin(snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, kinds, (p) => this.sees(p)), clientX, clientY, px, kinds); // (⊕ the origin too)
+    const kinds = snapKinds(), s = this.withOrigin(snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: this.edgesOf(m, h), matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, kinds, (p) => this.sees(p)), clientX, clientY, px, kinds); // (⊕ the origin too)
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst, ...(s?.r ? { r: s.r } : {}) }; // (r: a ring's radius)
   }
@@ -431,14 +438,14 @@ class AsmView extends ModelView {
    *  solid is there. */
   pickInst(clientX, clientY) {
     const hits = this.ray(clientX, clientY).intersectObjects(this.shown(), false), h = hits.find((x) => !x.object.userData.see) || hits[0];
-    if (!h) return null;
+    if (!h) return (this.lastPick = null);
     const { inst, faceIds, body } = h.object.userData, fid = faceIds[h.faceIndex];
     const f = body.faces[fid]?.id === fid ? body.faces[fid] : body.faces.find((x) => x.id === fid);
-    if (!f) return { inst };
+    if (!f) return (this.lastPick = { inst });
     const m = h.object.matrix, nm = new THREE.Matrix3().getNormalMatrix(m);
     const centroid = new THREE.Vector3(...f.centroid).applyMatrix4(m);
     const normal = f.normal ? new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize() : null;
-    return { inst, face: { ...f, centroid, normal }, point: h.point };
+    return (this.lastPick = { inst, face: { ...f, centroid, normal }, point: h.point }); // (lastPick: the measure's edge pick asks no ray again)
   }
 }
 
@@ -480,6 +487,7 @@ export class Assembly {
     });
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
+    this.view.edgeSource = (mesh, fid) => this.edgesFor(mesh, fid); // (a 🪶 simplified part's edges: asked for when hovered)
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
     this.harnessTool = new HarnessTool(this); // (🔌 cable harnesses: its press on a point comes before the part's drag)
     this.ms = new MeasureTool({ ws: 'assembly', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.doc.measures ||= []) : this.doc.measures),
@@ -606,7 +614,7 @@ export class Assembly {
     if (!deep) return [];
     const near = deep.key.split('/').slice(0, -1).join('/'), now = this.selKeys();
     const ways = [[deep.key, deep.part, '◆'], ...(near !== a.id ? [[near, this.placedAt(near)?.it.part, '◇']] : []), [a.id, a.part, '◇']];
-    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, ico: this.partIcon(pid), label: t2('Choose {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
+    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, ico: this.partIcon(pid), label: t2(icon === '◆' ? 'Choose part: {name}' : 'Choose assembly: {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
       title: t(icon === '◆' ? 'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)' : 'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)'),
       run: (e) => {
         const more = e?.ctrlKey || e?.metaKey;
@@ -981,7 +989,7 @@ export class Assembly {
     const mesh = (this.view.meshes || []).find((m) => m.userData.inst === sp.inst);
     if (!mesh) return [];
     const { body } = mesh.userData, m = mesh.matrix, nm = new THREE.Matrix3().getNormalMatrix(m), out = new Map();
-    for (const e of body.edges || []) {
+    for (const e of this.view.edgesOf(mesh, this.view.lastPick)) { // (a 🪶 simplified part's too, when the mouse brought them)
       const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
       if (!cyl || out.has(cyl.id) || !snapPoints([e], m, { [sp.snap]: true }).some((q) => q.point.distanceTo(sp.point) < 1e-4)) continue;
       out.set(cyl.id, { face: { ...cyl, centroid: new THREE.Vector3(...cyl.centroid).applyMatrix4(m), normal: cyl.normal ? new THREE.Vector3(...cyl.normal).applyMatrix3(nm).normalize() : null },
@@ -2193,8 +2201,8 @@ export class Assembly {
       const h = v.pickInst(e.clientX, e.clientY), it = h?.inst && this.inst(h.inst);
       return it ? { kind: 'part', inst: it.id, id: it.id, at: h.point?.clone(), tip: this.partName(it.part) } : null;
     }
-    const mp = v.measurePoint(e.clientX, e.clientY);
-    const eh = snapWins(v, mp, e) ? null : v.edgeAt(v.shown().map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.solids());
+    const mp = v.measurePoint(e.clientX, e.clientY), h = v.lastPick; // (h: the part under the mouse, measurePoint's — its 🪶 lazy edges too)
+    const eh = snapWins(v, mp, e) ? null : v.edgeAt(v.shown().map((m) => ({ edges: v.edgesOf(m, h), matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.solids());
     if (mp?.snap && !eh) return { kind: 'point', p: mp.point.clone(), snap: mp.snap, inst: mp.inst };
     if (eh) {
       const body = (v.meshes || []).find((m) => m.userData.inst === eh.inst)?.userData.body, names = eh.edge.faces.map((k) => body?.faces[k]?.name || '');
@@ -2501,7 +2509,7 @@ export class Assembly {
       <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-look="clear" value="${pc}"><span class="unit">${pc} %</span></div>
       <p class="hint">${own ? 'Its own look in this assembly.' : data.color || Number.isFinite(data.opacity) ? "As its part (set in the part's panel)." : 'The assembly colours.'}</p>
       ${own ? '<div class="row-actions"><button class="btn small" data-look="reset">↺ As its part</button></div>' : ''}
-      ${this.kindOf(it.part) === 'model' ? `<label class="check as-light" title="${esc(t('Simplified: a coarser mesh and less data — quicker to load and show; its joints still work, its edges cannot be picked. Collisions and drawings use the full part.'))}">
+      ${this.kindOf(it.part) === 'model' ? `<label class="check as-light" title="${esc(t('Simplified: a coarser mesh and less data — quicker to load and show; its joints still work, its edges and snap points come when the mouse is on it. Collisions and drawings use the full part.'))}">
         <input type="checkbox" data-look="light" ${this.bodies[it.part]?.body?.light ? 'checked' : ''}> 🪶 ${esc(t('Simplified'))}${this.doc.light?.[it.part] === undefined && this.bodies[it.part]?.body?.light ? ` <i>${esc(t('(a big part: by itself)'))}</i>` : ''}</label>` : ''}`;
   }
 
@@ -3001,7 +3009,7 @@ export class Assembly {
     // may tidy up: the same body kept)
     const key = JSON.stringify(data.instances || []) + JSON.stringify(place?.inner || null) + made.map((m) => m?.key || '').join('|');
     if (this.bodies[at]?.key === key) return this.bodies[at];
-    const pos = [], ids = [], faces = [], edges = [];
+    const pos = [], ids = [], faces = [], edges = [], bare = []; // (bare: its 🪶 simplified parts' faces — {off, n, pid, m}: their edges asked for when hovered, edgesFor)
     let vol = 0, mass = 0, box = null, off = 0;
     const cog = new THREE.Vector3();
     for (const [k, it] of list.entries()) {
@@ -3023,7 +3031,10 @@ export class Assembly {
         for (let k = 0; k < e.pts.length; k += 3) q.push(...at([e.pts[k], e.pts[k + 1], e.pts[k + 2]]));
         edges.push({ ...e, pts: q, faces: e.faces.map((x) => x + off), mid: at(e.mid) });
       }
-      off += Math.max(0, ...b.faces.map((f) => f.id)) + 1;
+      const n = Math.max(0, ...b.faces.map((f) => f.id)) + 1;
+      if (b.sub) for (const l of b.bare || []) bare.push({ ...l, off: l.off + off, m: new THREE.Matrix4().fromArray(l.m).premultiply(M).toArray() });
+      else if (b.light && !b.edges.length) bare.push({ off, n, pid: it.part, m: [...it.matrix] });
+      off += n;
       vol += b.volume;
       const mi = (b.sub ? b.mass_g : this.massOf(it.part)) ?? (b.volume / 1000) * (MATERIALS[this.hooks.partData(it.part)?.material || 'PLA'] || 1.24);
       mass += mi;
@@ -3033,7 +3044,7 @@ export class Assembly {
     }
     const enc = (arr, T) => { const u = new Uint8Array(new T(arr).buffer); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
     this.bodies[at] = box ? { key, body: { positions: enc(pos, Float32Array), face_ids: enc(ids, Uint32Array), faces, edges, volume: vol, mass_g: mass,
-      ...(mass > 0 ? { cog: cog.multiplyScalar(1 / mass).toArray() } : {}), bbox: [...box.min.toArray(), ...box.max.toArray()], sub: true } } : { key, error: 'This assembly has no parts with a solid yet.' };
+      ...(mass > 0 ? { cog: cog.multiplyScalar(1 / mass).toArray() } : {}), bbox: [...box.min.toArray(), ...box.max.toArray()], sub: true, ...(bare.length ? { bare } : {}) } } : { key, error: 'This assembly has no parts with a solid yet.' };
     return this.bodies[at];
   }
 
@@ -4584,18 +4595,66 @@ export class Assembly {
    *  round face of a circular edge near the mouse (a hole seen from the front: click its circle). */
   /** With no tool on: the edge of the part under the mouse lit (a line or a circle), and the snap points of the face
    *  under it (corners, edge middles, centres, quadrants — by the snap filters) as dots; by the hover filters. */
-  hoverMarks(e, h0) {
+  hoverMarks(e, h0, measure = false) {
     const v = this.view, mesh = h0?.inst ? (v.meshes || []).find((m) => m.userData.inst === h0.inst) : null, hk = hoverKinds();
-    if (!mesh) { v.clearHoverMarks(); return; }
-    const body = mesh.userData.body, src = [{ edges: body.edges, matrix: mesh.matrix, inst: h0.inst }];
-    const eh = hk.edges ? v.edgeAt(src, e.clientX, e.clientY, 7, v.solids()) : null;
-    v.setHoverEdges(eh ? [{ pts: eh.edge.pts, matrix: mesh.matrix }] : [], eh ? `${mesh.uuid}:${eh.i}` : '');
-    const fi = h0.face ? body.faces.findIndex((f) => f.id === h0.face.id) : -1, kinds = snapKinds();
-    if (!hk.points || fi < 0) { v.setHoverSnaps([]); return; }
-    // the dots: what a click there takes (idleSnap) — a small ring's centre and quadrants left out, as there
-    const r = v.renderer.domElement.getBoundingClientRect(), pts = snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds).filter((q) => ringPx(q, v.camera, r) >= RING_PX);
-    const key = `${mesh.uuid}:${fi}|${Object.entries(kinds).map(([k, on]) => (on ? k : '')).join('')}|${pts.length}`;
-    if (key !== v.hoverSnapKey) v.setHoverSnaps(pts, key);
+    if (!mesh) { if (measure) v.setHoverSnaps([]); else v.clearHoverMarks(); return; }
+    const body = mesh.userData.body, edges = v.edgesOf(mesh, h0); // (a 🪶 simplified part's: asked for now, shown when they come — edgesFor)
+    if (!measure) { // (📏 Measure lights its own edge: what a click measures)
+      const eh = hk.edges ? v.edgeAt([{ edges, matrix: mesh.matrix, inst: h0.inst }], e.clientX, e.clientY, 7, v.solids()) : null;
+      v.setHoverEdges(eh ? [{ pts: eh.edge.pts, matrix: mesh.matrix }] : [], eh ? `${mesh.uuid}:${eh.i}` : '');
+    }
+    const fi = h0.face ? (body.faces[h0.face.id]?.id === h0.face.id ? h0.face.id : body.faces.findIndex((f) => f.id === h0.face.id)) : -1, kinds = snapKinds();
+    if ((!hk.points && !measure) || fi < 0) { v.setHoverSnaps([]); return; } // (📏 Measure: its points always — what it catches)
+    // the dots: what a click there takes (idleSnap; 📏 measurePoint) — with no tool on, a small ring's centre and
+    // quadrants left out, as there. The face's edges kept while it stays under the mouse (once a frame, not filtered anew)
+    const fe = this.faceEdges?.edges === edges && this.faceEdges.fi === fi ? this.faceEdges.list : (this.faceEdges = { edges, fi, list: edges.filter((ed) => ed.faces.includes(fi)) }).list;
+    const r = v.renderer.domElement.getBoundingClientRect(), pts = snapPoints(fe, mesh.matrix, kinds).filter((q) => measure || ringPx(q, v.camera, r) >= RING_PX);
+    const key = `${mesh.uuid}:${fi}|${Object.entries(kinds).map(([k, on]) => (on ? k : '')).join('')}|${pts.length}|${edges.length}`;
+    if (key !== v.hoverSnapKey) v.setHoverSnaps(pts, key, true); // (in sight as a click takes them — measurePoint's sees: by the depth, a corner a few mm behind a thin part is no dot)
+  }
+
+  /** The edges of the part under the mouse (mesh, its face fid) when its body came without them — a 🪶 simplified
+   *  part, alone or inside a sub-assembly's merged body (its `bare`): asked of the kernel once per part (partEdges),
+   *  put where the part sits in the body (its faces' indices too) and kept -> the body's edges with all of its parts'
+   *  fetched so far (a corner on a part's outline is taken with the mouse just beside it), or null (none). fid: the face
+   *  under the mouse (its part's asked for: the hover is shown again when they come); null: only what is here. */
+  edgesFor(mesh, fid = null) {
+    const body = mesh.userData.body;
+    if (!body.bare && !(body.light && !body.edges?.length)) return null;
+    this.bareEdges ||= new WeakMap(); // body -> {offs: its parts' offsets fetched, all: the body's edges with theirs}
+    let kept = this.bareEdges.get(body);
+    if (!kept) this.bareEdges.set(body, (kept = { offs: new Set(), all: null }));
+    const part = fid === null ? null : body.sub ? body.bare?.find((l) => fid >= l.off && fid < l.off + l.n)
+      : { off: 0, pid: this.inst(mesh.userData.inst)?.part, m: null };
+    if (!part?.pid || kept.offs.has(part.off)) return kept.all;
+    const raw = this.partEdges(part.pid);
+    if (!raw) return kept.all;
+    const M = part.m ? new THREE.Matrix4().fromArray(part.m) : null, v = new THREE.Vector3();
+    const put = (p, k, out = [], j = 0) => { v.set(p[k], p[k + 1], p[k + 2]); if (M) v.applyMatrix4(M); out[j] = v.x; out[j + 1] = v.y; out[j + 2] = v.z; return out; };
+    const mine = raw.map((ed) => {
+      const pts = new Array(ed.pts.length);
+      for (let k = 0; k < ed.pts.length; k += 3) put(ed.pts, k, pts, k);
+      return { pts, faces: ed.faces.map((x) => x + part.off), mid: put(ed.mid, 0) };
+    });
+    kept.offs.add(part.off);
+    kept.all = [...(kept.all || body.edges || []), ...mine]; // (a new list: what is kept per edge list — its points on the screen — made anew)
+    return kept.all;
+  }
+
+  /** A 🪶 simplified part's edges, from the kernel (/api/model/edges) — asked once per its build, kept -> the edges, or
+   *  null while asked (when they come, the hover is shown again with them). */
+  partEdges(pid) {
+    const b = this.bodies[pid];
+    if (!b?.body) return null;
+    const asked = (this.edgeAsks ||= new Map()), had = asked.get(pid);
+    if (had?.key === b.key) return had.edges;
+    const ask = { key: b.key, edges: null };
+    asked.set(pid, ask);
+    fetch('/api/model/edges', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ part: { features: b.features || this.hooks.partData(pid)?.features || [], threads: this.hooks.partData(pid)?.threads } }) })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((r) => { ask.edges = r?.edges || []; if (asked.get(pid) === ask) this.rehover?.(); }); // (none: not asked again)
+    return null;
   }
 
   /** The snap point a plain click (no tool on) takes, before the face under it: a corner, an edge's middle, a centre, a
@@ -4765,16 +4824,26 @@ export class Assembly {
       this.hoverEv = e; // (the work once a frame: the mouse sends more moves than the screen shows)
       if (!this.hoverRaf) this.hoverRaf = requestAnimationFrame(() => { this.hoverRaf = 0; hoverNow(); });
     });
+    let last = null; // (the last move shown: again when a 🪶 simplified part's edges come — rehover)
+    this.rehover = () => {
+      if (!last || this.hoverEv || down) return;
+      this.hoverEv = last;
+      if (!this.hoverRaf) this.hoverRaf = requestAnimationFrame(() => { this.hoverRaf = 0; hoverNow(); });
+    };
     const hoverNow = () => {
       const e = this.hoverEv;
       this.hoverEv = null;
       if (!e || down) return;
-      if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
+      last = e;
+      if (this.measuring) { // (what a click measures: lit, named — and the snap points of the face under the mouse as dots)
+        this.ms.hover(e);
+        this.hoverMarks(e, this.view.lastPick, true);
+        return;
+      }
       if (this.harnessTool.hoverAt(e)) return; // (🔌 clicking a harness's points: the next one shown)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
-      if (this.mode === 'idle') this.hoverMarks(e, h0);
-      else this.view.clearHoverMarks();
       if (this.mode !== 'idle') {
+        this.view.clearHoverMarks();
         const key = h?.face ? `${h.inst}:${h.face.id}` : '';
         if (key !== this.hoverFaceKey) {
           this.hoverFaceKey = key;
@@ -4787,6 +4856,7 @@ export class Assembly {
       const id = h?.inst || null, cue = dragCue(this, id); // (the chosen part that can move, a part of a mechanism: a drag moves it — the same check as the press)
       const moving = cue ? cue.parts : null;
       if (id !== this.hoverInst || String(moving || '') !== String(this.cueParts || '')) { this.hoverInst = id; this.cueParts = moving; this.draw(); } // (it and the parts that go with it glow)
+      this.hoverMarks(e, h0); // (after the draw: drawing the parts anew clears the hover marks)
       const sp = this.idleSnap(e, h);
       this.view.setSnapMark(sp); // (a corner, an edge's middle, a centre, the origin: it can be picked)
       cv.style.cursor = cue ? cue.cursor : !h ? '' : 'pointer';
@@ -4795,6 +4865,7 @@ export class Assembly {
     };
     cv.addEventListener('pointerleave', () => {
       this.hoverEv = null;
+      last = null;
       this.view.clearHoverMarks();
       if (this.measuring) this.ms.hover(null);
       if (this.dragging) return;

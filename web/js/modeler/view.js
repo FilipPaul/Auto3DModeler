@@ -1010,8 +1010,10 @@ export class ModelView {
     this.hoverEdgeGroup.add(l, dots);
   }
 
-  /** The hovered step's / face's snap points shown as small dots (corners, edge middles, centres): [{point}]. */
-  setHoverSnaps(points = [], key = '') {
+  /** The hovered step's / face's snap points shown as small dots (corners, edge middles, centres): [{point}]. depth:
+   *  the ones hidden behind a surface left out by the GPU (each pulled a hair toward the camera, depth-tested — as an
+   *  assembly's click sees them; a ray per point over a big assembly's parts took tens of ms), else by a ray each. */
+  setHoverSnaps(points = [], key = '', depth = false) {
     if (!this.hoverSnapGroup) { this.hoverSnapGroup = new THREE.Group(); this.scene.add(this.hoverSnapGroup); }
     if (key === (this.hoverSnapKey || '')) return;
     this.hoverSnapKey = key;
@@ -1019,16 +1021,18 @@ export class ModelView {
     this.invalidate();
     // only the points the camera sees (one behind the part is left out; the camera moves only by a drag, which clears these)
     const solids = (this.meshes || (this.mesh ? [this.mesh] : [])).filter((m) => m.visible), cam = this.camera.position, rc = new THREE.Raycaster(), slack = this.size * 0.01;
-    const seen = points.slice(0, 600).map((p) => p.point).filter((p) => {
-      const dist = p.distanceTo(cam);
-      rc.set(cam, p.clone().sub(cam).normalize());
-      const h = rc.intersectObjects(solids, false)[0];
-      return !h || h.distance >= dist - slack;
-    });
-    if (!seen.length) return;
-    const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(seen),
-      new THREE.PointsMaterial({ color: 0x7ee787, size: 6, sizeAttenuation: false, depthTest: false, transparent: true, opacity: 0.85 }));
+    const shown = depth ? points.slice(0, 600).map(({ point: p }) => { const dist = p.distanceTo(cam) || 1; return p.clone().lerp(cam, Math.min(0.5, Math.max(0.02, dist * 1e-3) / dist)); })
+      : points.slice(0, 600).map((p) => p.point).filter((p) => {
+        const dist = p.distanceTo(cam);
+        rc.set(cam, p.clone().sub(cam).normalize());
+        const h = rc.intersectObjects(solids, false)[0];
+        return !h || h.distance >= dist - slack;
+      });
+    if (!shown.length) return;
+    const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(shown),
+      new THREE.PointsMaterial({ color: 0x7ee787, size: 6, sizeAttenuation: false, depthTest: depth, transparent: true, opacity: 0.85, ...(depth && this.clip ? { clippingPlanes: this.clip } : {}) }));
     dots.renderOrder = 13;
+    dots.userData.at = depth ? points.slice(0, 600).map((p) => p.point) : shown; // (the snap points themselves: a dot's place)
     this.hoverSnapGroup.add(dots);
   }
 
