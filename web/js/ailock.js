@@ -14,7 +14,7 @@ import { suggestMenu } from './suggest.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 export const REASONS = ['bought', 'made', 'approved'];
-const REASON_LABEL = { bought: 'bought', made: 'made', approved: 'approved' };
+const REASON_LABEL = { bought: 'bought part', made: 'made part', approved: 'approved design' };
 const WHY_CS = { bought: 'koupený díl', made: 'vyrobený díl', approved: 'schválený návrh', library: 'díl z knihovny' };
 
 let ctx = null; // {state, project, assembly, modeler, toast, refresh()}

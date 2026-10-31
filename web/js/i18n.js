@@ -2405,7 +2405,7 @@ const CS = {
   'Lock it for the AI: the AI may add joints to it, but not change it': 'Zamknout pro AI: AI k němu smí přidat vazby, ale nesmí ho měnit',
   'Library part — always locked for the AI': 'Díl z knihovny — pro AI vždy zamčený',
   'Locked for the AI — click to unlock': 'Zamčeno pro AI — kliknutím odemknete',
-  'Locked for the AI': 'Zamčeno pro AI', 'bought': 'koupený', 'made': 'vyrobený', 'approved': 'schválený',
+  'Locked for the AI': 'Zamčeno pro AI', 'bought part': 'koupený', 'made part': 'vyrobený', 'approved design': 'schválený',
   'Lock for the AI ({n})': 'Zamknout pro AI ({n})', 'Unlock for the AI ({n})': 'Odemknout pro AI ({n})',
   'The AI may add joints to them, but not change them (bought, made or approved parts)': 'AI k nim smí přidat vazby, ale nesmí je měnit (koupené, vyrobené nebo schválené díly)',
   'The AI may change them again': 'AI je smí zase měnit',
