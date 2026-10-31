@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI designs parts that are easy to assemble: easy-assembly skill (2026-10-31)** (DFA, later a setting
+  "🔩 Snadná montáž"). agent_plugin/skills/easy-assembly: Boothroyd's three questions to merge parts, fewer
+  fasteners, dowel pin + slot, shoulders / spigots / pockets, 30–45° lead-ins, poka-yoke or full symmetry, top-down
+  order, tool access (Ø socket + 2 mm, one drive), captive nuts / inserts, one fit per direction, oversize holes on
+  one part, cables and service; checked with get_assembly, check_collisions, move_free / check_travel along the
+  insertion axis, measure, set_view section / explode; reported as Assembly rows in design-review. Routed from
+  start-a-design, SYSTEM_PROMPT, design-review, assemble-parts; get_guide topic. Not done: the settings toggle.
+
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
   mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design
