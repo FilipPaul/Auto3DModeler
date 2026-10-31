@@ -1638,6 +1638,25 @@ class TestLightMesh(unittest.TestCase):
         self.assertEqual(hole["name"], "H1:hole:0")
         self.assertIn("frame", next(f for f in doc.rebuild({**part, "lod": "full"})["body"]["faces"] if f["type"] == "plane"))  # (the full one kept apart)
 
+    def test_edges_on_demand(self):
+        """A 🪶 simplified part's edges asked for alone (the assembly: the part under the mouse — its snap points):
+        the full mesh's edges, their faces' indices those of the light mesh's face ids."""
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 6, "through": True}]}
+        light, full = doc.rebuild({**part, "lod": "light"})["body"], doc.rebuild({**part, "lod": "full"})["body"]
+        edges = doc.edges(part)["edges"]
+        self.assertEqual(len(edges), len(full["edges"]))  # a 40 × 20 × 10 box: 12 edges, + the hole's two rims and its seam
+        self.assertEqual(len(edges), 15)
+        self.assertEqual(sorted(map(tuple, (e["faces"] for e in edges))), sorted(map(tuple, (e["faces"] for e in full["edges"]))))
+        hole = next(i for i, f in enumerate(light["faces"]) if f["name"] == "H1:hole:0")
+        rims = [e for e in edges if hole in e["faces"] and len(e["faces"]) == 2 and e["pts"][:3] == e["pts"][-3:]]
+        self.assertEqual(len(rims), 2)  # (closed: their centres the snap points)
+        for e in rims:  # each a Ø6 circle round the hole's axis (x 20, y 10), at z 0 or 10
+            p = [e["pts"][k:k + 3] for k in range(0, len(e["pts"]), 3)]
+            self.assertTrue(all(abs(math.hypot(x - 20, y - 10) - 3) < 1e-3 for x, y, _ in p))
+            self.assertIn(round(p[0][2], 6), (0, 10))
+        self.assertIs(doc.edges(part)["edges"], edges)  # (asked again: kept)
+
 
 @unittest.skipUnless(OCC, "OCP not installed")
 class TestThreads(unittest.TestCase):

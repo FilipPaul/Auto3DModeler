@@ -250,6 +250,7 @@ export class MeasureTool {
     const v = this.view();
     v.setSnapMark(null);
     v.setHoverEdges([]);
+    v.setHoverSnaps([]); // (the hovered face's snap points: the tool's dots go with it)
     v.setMeasure([]);
     this.render();
   }
@@ -318,7 +319,7 @@ export class MeasureTool {
   /** The mouse over the view while the tool is on: what a click takes — a snap point, an edge lit, its name and size. */
   hover(e) {
     const v = this.view();
-    if (!e) { this.tip(null); v.setSnapMark(null); v.setHoverEdges([]); this.o.hover?.(null); return; }
+    if (!e) { this.tip(null); v.setSnapMark(null); v.setHoverEdges([]); v.setHoverSnaps([]); this.o.hover?.(null); return; }
     const ent = this.o.pick(e, this.mode);
     v.setSnapMark(ent?.kind === 'point' ? { point: V(ent.p), snap: ent.snap, name: ent.name } : null);
     v.setHoverEdges(ent?.kind === 'edge' ? [{ pts: ent.pts, matrix: ent.matrix || null }] : [], ent?.kind === 'edge' ? `ms:${ent.id}` : '');

@@ -875,6 +875,14 @@ def api_model_rebuild():
     return jsonify(res)
 
 
+@app.post("/api/model/edges")
+def api_model_edges():
+    """{part} -> {edges: [{pts, faces, mid}]}: only the built part's edges (its faces' indices as its mesh's face ids) —
+    a 🪶 simplified part's mesh comes without them; the assembly asks for the one under the mouse (its snap points)."""
+    res, err = _model_call("edges", (request.get_json(force=True) or {}).get("part") or {}, timeout=60)
+    return err or jsonify(res)
+
+
 @app.post("/api/drawing/import")
 def api_drawing_import():
     """A DXF / DWG -> the drawing as it is (layers, entities in mm) for the 2D drawing editor."""

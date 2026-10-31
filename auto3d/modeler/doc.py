@@ -1791,6 +1791,22 @@ def body_of(part, threads=True):
     return st
 
 
+_edge_cache: OrderedDict = OrderedDict()  # (features, thread mode) -> the body's edges
+
+
+def edges(part):
+    """Only the edges of the built part (body_of) -> {"edges": [{pts, faces, mid}]} — a 🪶 simplified part's mesh comes
+    without them; the assembly asks for one part's when the mouse is on it (its snap points shown, picked)."""
+    key = _key([*(at_bar(part).get("features") or []), thread_mode(part)])
+    hit = _edge_cache.get(key)
+    if hit is None:
+        hit = _edge_cache[key] = K.body_edges(body_of(part).body)
+        while len(_edge_cache) > 64:
+            _edge_cache.popitem(last=False)
+    _edge_cache.move_to_end(key)
+    return {"edges": hit}
+
+
 def face_colours(st, paint=None):
     """The faces of the built part (body_of) coloured on their own -> [(face, "#rrggbb")]: an imported file's face
     colours, the part's 🎨 paint over them — paint [{name, fp, color}]: the face of that name nearest fp; {feature,

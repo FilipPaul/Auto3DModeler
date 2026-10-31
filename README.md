@@ -1277,9 +1277,16 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   is locked, as its slider reads (*-20 mm*); a flat-face joint may hold its turn too. Locking moves no part (nor any
   part inside a sub-assembly), and one Ctrl+Z takes the lock back. The AI: `lock_motion`.
 - **🪶 Simplified** (a placed part's *Look*): the part is shown with a coarser mesh and less data — quicker to load
-  and to show; its joints still work, its edges cannot be picked; collisions and drawings use the full part. A big
+  and to show; its joints still work; its edges and snap points are fetched for the part under the mouse (a moment
+  after it is first hovered, then kept); collisions and drawings use the full part. A big
   imported part (thousands of faces: an assembled PCB, a maker's STEP) is simplified by itself; untick it for its
-  full data. It counts for every copy of the part in the assembly.
+  full data. It counts for every copy of the part in the assembly. A big STEP assembly (over 150 parts and
+  sub-assemblies) opens with every part simplified.
+- **Snap points under the mouse** (an assembly, as in the 3D modeler): with no tool on, the face under the mouse
+  shows its snap points — corners, edge middles, circle centres (the *Snap* filters) — as green dots and its nearest
+  edge lit; a click on a dot picks that point. *Hover: ⟋ Edges / • Snap points* at the bottom switch them off.
+  **📏 Measure** always shows the hovered face's dots (what it catches), on parts, inside sub-assemblies and on
+  simplified imported parts alike.
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident. The Suggested table always shows

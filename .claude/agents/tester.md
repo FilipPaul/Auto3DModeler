@@ -925,6 +925,12 @@ Never report "works" without having run it; report failures with their output.
    a parts-list row and empty space, twice, each painted under 100 ms and choosing what it should; the project's
    picture drawn with no part built again on the server; --profile prints
    each step's and click's top functions.
+   `tools/e2e_asm_snaps.py <url> <dir> [--ict] [--window]` covers the snap points shown under the mouse in an assembly
+   (real mouse moves, Czech, a clean localStorage — the Hover filters on): the 150-part demo — a part's face and a
+   sub-assembly's merged body hovered show dots, a dot clicked is the snap picked, 📏 Measure shows the dots too and
+   two dots clicked measure the distance between them —; the same demo exported as a STEP assembly and opened as an
+   assembly with every part 🪶 simplified (no edges in their meshes: fetched for the hovered part, /api/model/edges)
+   the same; --ict: the owner's "Sestava ICT M1556.stp" (a copy) the same; no console errors.
    `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint
    (Czech: an arm on a pin; the widget folded -> the row unfolds it, rings its row, focuses the slider; floating behind
    the suggestions -> raised; a new hole at the arm's other end and the first deleted: J1 broken — the row and the

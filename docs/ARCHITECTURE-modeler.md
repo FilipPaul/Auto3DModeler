@@ -171,6 +171,24 @@ Date: 2026-10-25. Written by the architect agent.
   normal faces up / down before placing them. After: top a part 47–58 ms, another 31–63, a row 31–59, empty space 25–42;
   the sub-assembly 33–53 ms. e2e_ict_switch: a part (its face picked with it), another, a list row and empty space,
   twice, in the top assembly and in the sub-assembly — painted under 100 ms each, each choosing what it should.
+- **Snap points under the mouse in an assembly, 📏 Measure too — 🪶 simplified parts included (2026-10-31)** (the owner:
+  "why don't I see snapping points in assembly?" — in the ICT STEP assembly none, not even in 📏 Measure). Causes: (1) a
+  STEP tree over 150 parts + sub-assemblies opens with every part 🪶 simplified (stepfile.js addTree) and a light mesh
+  has no edges (kernel.tessellate), so no part — nor any merged sub-assembly body made of them — had a snap point to
+  show or take; (2) 📏 Measure cleared the dots on purpose (assembly and 3D modeler); (3) on plain parts the dots were
+  set before the hover's draw() (a new part lit) and cleared by setBodies until the next move. Fix: kernel.body_edges /
+  doc.edges / worker op "edges" / POST /api/model/edges — only a part's edges (the light mesh's face indices), asked
+  for lazily for the one part under the mouse (Assembly.partEdges, once per build, kept); mergeAssembly records its
+  light parts (`bare`: face offset, count, part, matrix to the merged body); edgesFor puts the fetched edges into the
+  body's coordinates / face indices and keeps body edges + every part fetched so far (AsmView.edgesOf: snapNear,
+  edgeAt, roundAt, hoverMarks use them; the hover is shown again when they come — rehover). hoverMarks runs after the
+  draw, and with 📏 on (its points always; Measure lights its own edge); the 3D modeler's 📏 shows the hovered step's
+  dots too. The dots' visibility in an assembly by the GPU (each pulled 0.1 % of its distance toward the camera,
+  depth-tested — as measurePoint's sees takes them; a ray per point over the board's 1.3 M triangles took 10–20 ms).
+  The ICT file, a real Edge window, before → after: open as an assembly 50.0 → 44–47 s (noise; nothing more is sent),
+  heap after open 219.0 → 217.8 MB, the .a3d reopened 90.9 → 91.5 s, heap 217.2 → 217.4 MB; hover work per frame idle
+  p50 / p95 / max 0.4 / 0.8 / 5.8 → 0.7 / 3.5 / 6.5 ms, 📏 0.5 / 0.8 / 13.1 → 1.5 / 7.1 / 14.7 ms (the max: a part's
+  edges arriving — the merged body's list made anew); e2e_ict_switch budgets and clicks as before. tools/e2e_asm_snaps.py.
 
 - **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
   both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a

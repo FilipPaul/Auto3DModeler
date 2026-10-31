@@ -795,10 +795,10 @@ export class Modeler {
 
   /** With no tool on: the edge under the mouse lit (a line or a circle), and the snap points of the hovered step
    *  (its faces' corners, edge middles and centres, by the snap filters) shown as dots. */
-  hoverMarks(e, fs) {
-    const body = this.view.body, hk = hoverKinds(), i = body && hk.edges ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1;
-    this.view.setHoverEdges(i >= 0 ? [{ pts: body.edges[i].pts }] : [], i >= 0 ? `e${i}` : '');
-    if (!fs || !body || !hk.points) { this.view.setHoverSnaps([]); return; }
+  hoverMarks(e, fs, measure = false) {
+    const body = this.view.body, hk = hoverKinds(), i = body && hk.edges && !measure ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1;
+    if (!measure) this.view.setHoverEdges(i >= 0 ? [{ pts: body.edges[i].pts }] : [], i >= 0 ? `e${i}` : ''); // (📏 Measure lights its own edge)
+    if (!fs || !body || (!hk.points && !measure)) { this.view.setHoverSnaps([]); return; } // (📏 Measure: its points always — what it catches)
     const kinds = snapKinds(), key = `${fs.step.id}|${Object.entries(kinds).map(([k, v]) => (v ? k : '')).join('')}`;
     if (key === this.view.hoverSnapKey) return;
     const ids = new Set(fs.ids), idx = new Set(body.faces.map((f, k) => (ids.has(f.id) ? k : -1)).filter((k) => k >= 0));
@@ -4408,7 +4408,12 @@ export class Modeler {
       const id = this.view.pickOutline(e.clientX, e.clientY);
       if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
       cv.title = '';
-      if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
+      if (this.measuring) { // (what a click measures: lit, named — and the snap points of the step under the mouse as dots)
+        this.ms.hover(e);
+        const h = this.view.pick(e.clientX, e.clientY);
+        this.hoverMarks(e, h?.face && this.stepFaces(h.face), true);
+        return;
+      }
       const sp = this.view.measurePoint(e.clientX, e.clientY);
       this.view.setSnapMark(sp); // (a corner, an edge's middle, a centre, the origin: it can be picked)
       const ax = !sp?.snap && this.view.originAxis(e.clientX, e.clientY);

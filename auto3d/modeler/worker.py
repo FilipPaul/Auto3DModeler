@@ -31,7 +31,7 @@ _seq = itertools.count(1)  # every job's sequence number (its reply carries it b
 
 
 # what each job is, in plain words (the jobs list in the top bar)
-KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "threads_bin": "Cutting real threads", "export": "Exporting", "assembly_step": "Exporting an assembly",
+KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "edges": "Finding a part's edges", "threads_bin": "Cutting real threads", "export": "Exporting", "assembly_step": "Exporting an assembly",
          "assembly_clashes": "Checking collisions", "assembly_clearance": "Measuring a clearance", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
          "assembly_sheet": "Making a drawing", "limits": "Working out limits", "import_solid": "Importing a file",
          "import_assembly": "Reading an assembly", "print_pieces": "Splitting for print"}
@@ -65,6 +65,7 @@ def _main(conn):
     partcache.ON = os.environ.get("A3D_PARTCACHE", "1").strip().lower() not in ("0", "false", "no", "off")  # (built parts on disk)
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
            "threads_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (🔩 a part's real threads, cut while it is edited)
+           "edges": doc.edges,  # (a 🪶 simplified part's edges: its mesh came without them)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
            "assembly_step": lambda a: doc.assembly_step(a.get("instances"), a.get("tree"), a.get("name") or "assembly", a.get("fmt") or "step"),
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
@@ -313,7 +314,7 @@ def _of_part(part):
 def part_key(op, arg):
     """Which part a job is about (its jobs go to one process), or None: any process (a new file, an export of many)."""
     arg = arg or {}
-    if op in ("rebuild", "rebuild_bin"):
+    if op in ("rebuild", "rebuild_bin", "edges"):
         return _of_part(arg)
     if op == "threads_bin":  # (its own process when there are more: the part's edits are not held up by the cut)
         return "threads:" + _of_part(arg)
