@@ -277,6 +277,28 @@ Date: 2026-10-25. Written by the architect agent.
   the rod dragged to its spot 60° on — the crank there, the spot 0.2 px off the mouse, the formula held, one Ctrl+Z;
   the slider 40 px — 13 mm, the crank turns; the crank; a click chooses; limits 30 … 150° held by 8 drags of the rod and
   the slider, both stops reached; the four-bar's coupler), e2e_assembly_dragcue (⚙ over the crank and rod unchosen).
+- **⇆ The assembly kept warm across tabs (2026-10-31)** (the owner: back to the big assembly from one of its parts
+  loads terribly long — keep it ready, change only what differs). Measured first: a real Edge window with the GPU, in
+  Czech, a project-tree row clicked, to the switch done and its frame painted (tools/e2e_big_assembly.py --window). On
+  this code the way back was already short — big-500 96–100 ms, big-150 120–136 ms, from a sub-assembly 231 ms, after
+  a plate 1 mm thicker 102 / 145 ms — the owner's long wait did not show (the bodies were kept per part by key and the
+  meshes per placement already; the 2.5 s a panel in Czech and the kernel's cold builds were fixed 10-30). The CDP
+  profile showed what each return still did: Assembly.load handled it as an open — the doc cloned, every panel drawn,
+  the joints solved, the mechanisms found, setBodies, a collision check on the server again, the camera put back to
+  iso (the owner's view lost); ModelView.resize set the same size again (the canvas reallocated: 18 ms); from a
+  sub-assembly every shape of the top one had been freed (one view) and was made again. Done: the same assembly back
+  unchanged (its id and JSON as left): refresh({warm}) builds only the parts whose key changed, and when every placed
+  part's body and look are as drawn (`drawn`) does nothing more (the list and bar only) — choice, camera, clash list
+  kept; one part changed: only its body fetched, its copies' geometry swapped (the other meshes reused), the joints
+  solved, the clash check (pairs that moved). Another assembly opened: this one park()ed — doc, the view's placed
+  meshes (with their BVH) and shapes, camera, clash list — the last WARM = 3, an older one released (its shapes freed
+  unless drawn or held by another); back: unparked, drawn from the kept meshes, its camera. Another project loaded:
+  all released (a3d:project-loading). resize skips an unchanged size. After (the same runs): big-500 back 41–44 ms,
+  after the change 75 ms; big-150 back 34–37 ms, from the sub-assembly 154 ms (its data normalised on its first visit:
+  its merged body made once more), after the change 106 ms. Into a part 35–47 ms (the first 120–150 ms: the modeler's
+  shaders) and ✎ Edit here with 520 parts around it 180–210 ms — not changed. e2e_big_assembly: the tab timings with
+  budgets (back < 300 ms, after a change < 1.5 s) and checks (back unchanged: nothing fetched or drawn, the same meshes
+  and camera; the plate 1 mm thicker: its copies' box 1 mm taller, joints held, no stale meshes, every mesh reused).
 - **💾 Built parts kept on disk; kernel processes started with the server (2026-10-30)** (the big-assembly measurements'
   next costs: after a restart the 160-hole base took 4.7 s in each process that needed it, and the first collision
   check built the parts again and computed every pair). auto3d/modeler/partcache.py, in A3D_DATA/cache/parts: doc.evaluate

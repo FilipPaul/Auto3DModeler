@@ -6,7 +6,7 @@ collisions, the BOM, an autosave, a version save, JS heap and GPU buffers (estim
 and kernel call — printed, kept as JSON, and held to budgets.
 
   A3D_DATA=<a scratch folder> py server.py --port 5199 --no-browser
-  PYTHONIOENCODING=utf-8 py tools/e2e_big_assembly.py http://127.0.0.1:5199 <out dir> [--files a.a3d b.a3d …] [--profile] [--gpu] [--build]
+  PYTHONIOENCODING=utf-8 py tools/e2e_big_assembly.py http://127.0.0.1:5199 <out dir> [--files a.a3d b.a3d …] [--profile] [--gpu] [--window] [--build]
 
 The full UI is timed too, with the page in Czech (the owner's): a click on a part, on another, on empty space, Esc,
 a click on a row of the parts tree — from the press to the handlers' end, to the next painted frame, the long tasks.
@@ -14,7 +14,13 @@ a click on a row of the parts tree — from the press to the handlers' end, to t
 --build: the assembly built now through the app (tools/make_big_assembly.py) and saved in <out dir>, not the demo;
 --files: measure these .a3d files instead (made before by make_big_assembly.py; no budgets checked, a mechanism file is
 driven too); --profile: a CDP CPU profile of opening each (<out>/<name>.cpuprofile, its top functions printed); --gpu:
-the machine's GPU (default: WebGL in software, SwiftShader — what the budgets are set for).
+the machine's GPU (default: WebGL in software, SwiftShader — what the budgets are set for); --window: a real Edge
+window (with the GPU), as the owner sees it.
+
+Tabs (the owner: back to the big assembly from one of its parts took long): a row of the project tree clicked — the
+assembly -> a plate in it -> the assembly, twice; a sub-assembly and back; the plate 1 mm thicker in its tab, then back —
+timed to the switch done and its frame drawn, with checks: back unchanged nothing built, drawn or checked again (the
+same meshes, the camera kept); after the change its copies drawn 1 mm thicker, the joints hold, no stale meshes.
 """
 import json
 import sys
@@ -29,7 +35,8 @@ from make_big_assembly import Builder, big150  # noqa: E402
 # triangles with the studio's reflections takes ~150 ms on the CPU (6 fps measured; merging every part into one draw
 # call gave only +30 %) — so the frame rate's budget there is low; with a GPU (--gpu) it is 60 fps
 BUDGET = {"interactive_s": 8.0, "orbit_fps": 4, "pick_ms": 50, "select_ms": 100, "hover_ms": 50, "drag_move_ms": 50,
-          "ui_ms": 100}  # (the whole UI's answer to a click / Esc, in Czech: the handlers, the panels, their translation)
+          "ui_ms": 100,  # (the whole UI's answer to a click / Esc, in Czech: the handlers, the panels, their translation)
+          "tab_back_ms": 300, "tab_back_changed_ms": 1500}  # (a project tree row clicked: back to the assembly, to its frame painted)
 
 URL = sys.argv[1].rstrip("/")
 OUT = Path(sys.argv[2])
@@ -37,7 +44,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 args = sys.argv[3:]
 FILES = [Path(a) for a in args[args.index("--files") + 1:] if not a.startswith("--")] if "--files" in args else []
 PROFILE = "--profile" in args
-GPU = "--gpu" in args  # (the machine's GPU; default: software GL, as the budgets assume)
+GPU = "--gpu" in args or "--window" in args  # (the machine's GPU; default: software GL, as the budgets assume)
+WINDOW = "--window" in args  # (a real Edge window, not headless: its frames painted as the owner sees them; implies --gpu)
 BUILD = "--build" in args
 if GPU:
     BUDGET["orbit_fps"] = 30
@@ -232,6 +240,9 @@ def measure(b, path, mechanism=False):
             res[key] = f"error: {str(e)[:120]}"
     res["project_json_kB"] = js("return Math.round(JSON.stringify(window.__app.autosave.hooks.project()).length / 1024)")
 
+    # ---- tabs: the assembly -> one of its parts -> the assembly (with and without a dimension changed there)
+    res.update(tab_switch(b))
+
     # ---- memory: the JS heap; the GPU's buffers estimated from the geometries drawn (each once)
     res["js_heap_MB"] = js("return performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null")
     res["gpu_buffers_MB"] = js("""const seen = new Set(); let n = 0;
@@ -320,6 +331,94 @@ def ui_timings(b, pts):
     return res
 
 
+# in the page: what a switch of tabs did — fetched, drawn anew, the meshes and camera before it (to compare)
+TAB_PROBE = """const A = window.__app.assembly;
+if (!window.__tab) { window.__tab = {}; const f = window.fetch; window.fetch = (u, o) => { window.__tab.fetches?.push(String(u).split('?')[0]); return f(u, o); };
+  const s = A.view.setBodies.bind(A.view); A.view.setBodies = (l) => { window.__tab.drawn++; return s(l); }; }
+Object.assign(window.__tab, { fetches: [], drawn: 0, meshes: new Set(A.view.meshes || []), cam: A.view.camera.position.toArray().join() });"""
+
+
+def tab_switch(b):
+    """The owner's way back and forth (the page in Czech): a row of the project tree clicked — the assembly -> a plate
+    placed in it -> the assembly, twice; a sub-assembly and back (when there is one); the plate 1 mm thicker, then back -> timings from
+    the click to the frame painted (the switch done, the view drawn) and what was right: {tab_<what>_ms, tab_right}."""
+    d, js = b.d, b.js
+    asm = js("return window.__app.project.active")
+    plate = js("""const P = window.__app.project, used = window.__app.assembly.doc.instances.map((i) => i.part);  // (a plate placed right in it: Plate B / Plate A)
+      return (P.parts.filter((p) => /^Plate/.test(p.name) && used.includes(p.id)).sort((x, y) => used.filter((u) => u === y.id).length - used.filter((u) => u === x.id).length)[0] || {}).id || null;""")
+    if not plate:  # (a file of other parts: --files)
+        return {}
+    b.run("const I = await import('/js/i18n.js'); I.setLang('cs');")
+    time.sleep(1)
+    sub = js("return (window.__app.project.parts.find((p) => p.kind === 'assembly' && p.name === 'Module A') || {}).id || null")
+
+    def go(pid):  # (the tree's row clicked as a mouse does; -> ms to the switch done and its view drawn)
+        xy = js("""const r = document.querySelector(`#projTree .pt-row[data-part="${arguments[0]}"] .pt-open`); r.scrollIntoView({ block: 'nearest' });
+          const b = r.getBoundingClientRect(); return [b.left + 20, b.top + b.height / 2];""", pid)
+        d.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": xy[0], "y": xy[1], "button": "none"})
+        time.sleep(0.4)
+        js("""const pid = arguments[0], P = window.__app.project, t0 = performance.now(); window.__done = null;
+          const look = () => { const A = window.__app.assembly, M = window.__app.modeler, v = P.current?.kind === 'assembly' ? A.view : M.view;
+            if (P.active === pid && !P.busy && !M.inflight && !v.dirty) { window.__done = performance.now() - t0; return; } requestAnimationFrame(look); };
+          requestAnimationFrame(look);""", pid)
+        for ty in ("mousePressed", "mouseReleased"):
+            d.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": ty, "x": xy[0], "y": xy[1], "button": "left", "clickCount": 1})
+        b.wait("return window.__done !== null", 60)
+        return round(js("return window.__done"))
+
+    res, right = {}, {}
+    js("const v = window.__app.assembly.view; v.controls.rotate(0.4, 0.1); v.controls.changed();")  # (the owner's own view: kept)
+    time.sleep(1.5)
+    for k in (1, 2):
+        res[f"tab_to_part_{k}_ms"] = go(plate)
+        time.sleep(1)
+        js(TAB_PROBE)
+        res[f"tab_back_{k}_ms"] = go(asm)
+        time.sleep(1.5)  # (what may follow: a clash check, the panels)
+        same = js("""const A = window.__app.assembly, w = window.__tab;
+          return { fetched: w.fetches.filter((u) => /rebuild|clashes/.test(u)), drawn: w.drawn, kept: A.view.meshes.every((m) => w.meshes.has(m)) && A.view.meshes.length === w.meshes.size,
+            camera: A.view.camera.position.toArray().join() === w.cam };""")
+        right[f"back {k}: nothing built, drawn or checked again, the same meshes, the camera kept"] = not same["fetched"] and not same["drawn"] and same["kept"] and same["camera"]
+        if not right[f"back {k}: nothing built, drawn or checked again, the same meshes, the camera kept"]:
+            print(f"  (tab back {k}: {same})")
+    if sub:  # (another assembly on screen between: this one put aside warm, its meshes back)
+        js(TAB_PROBE)  # (the assembly's meshes and camera now: the same ones back)
+        res["tab_to_sub_ms"] = go(sub)
+        time.sleep(1)
+        res["tab_back_from_sub_ms"] = go(asm)
+        time.sleep(1.5)
+        k = js("const A = window.__app.assembly, w = window.__tab; return [A.view.meshes.every((m) => w.meshes.has(m)) && A.view.meshes.length === w.meshes.size, A.view.camera.position.toArray().join() === w.cam, A.view.bodyGroup.children.filter((o) => o.isMesh).length === A.doc.instances.length];")
+        right["back from a sub-assembly: its meshes kept, the camera kept, no other assembly's meshes left"] = all(k)
+    # the plate 1 mm thicker in its tab -> back: its copies drawn with the new body (their box 1 mm taller), the joints hold
+    box = """const A = window.__app.assembly, m = A.view.meshes.find((x) => A.inst(x.userData.inst)?.part === arguments[0]);
+      m.geometry.computeBoundingBox(); const s = m.geometry.boundingBox.getSize(new (m.geometry.boundingBox.min.constructor)()); return [s.x, s.y, s.z].map((v) => Math.round(v * 1000) / 1000);"""
+    size0 = js(box, plate)
+    res["tab_to_part_3_ms"] = go(plate)
+    m = json.loads(b.call("get_model"))
+    ext = next(x for x in m.get("features", m.get("steps", [])) if x.get("type") == "extrude")
+    b.call("edit_feature", id=ext["id"], fields={"d": (ext.get("d") or 3) + 1})
+    b.run("const M = window.__app.modeler; while (M.inflight) await M.inflight;")
+    time.sleep(1)
+    js(TAB_PROBE)
+    res["tab_back_changed_ms"] = go(asm)
+    time.sleep(2)
+    size1 = js(box, plate)
+    st = js("""const A = window.__app.assembly, w = window.__tab, v = A.view;
+      return { unmet: A.unmet().length, stale: v.meshes.filter((m) => m.userData.body !== A.bodyOf(A.inst(m.userData.inst))?.body).length,
+        extra: v.bodyGroup.children.filter((o) => o.isMesh && !v.meshes.includes(o)).length, n: v.meshes.length, all: A.doc.instances.length,
+        reused: v.meshes.filter((m) => w.meshes.has(m)).length, camera: v.camera.position.toArray().join() === w.cam };""")
+    res["tab_changed"] = {"box_before": size0, "box_after": size1, **st}
+    right["back after the plate 1 mm thicker: its copies drawn 1 mm thicker, the joints hold"] = (
+        st["unmet"] == 0 and sorted(round(b1 - b0, 3) for b0, b1 in zip(size0, size1)) == [0, 0, 1])
+    right["back after the change: no stale meshes (each drawn with its part's body now), every mesh reused, the camera kept"] = (
+        st["stale"] == 0 and st["extra"] == 0 and st["n"] == st["all"] and st["reused"] == st["all"] and st["camera"])
+    b.run(f"await window.__app.project.switchTo('{plate}'); const M = window.__app.modeler; await M.history.go(-1); while (M.inflight) await M.inflight;"
+          f" await window.__app.project.switchTo('{asm}');")  # (the plate as it was: the measurements after this on the demo as made)
+    b.run("const I = await import('/js/i18n.js'); I.setLang('en');")
+    res["tab_right"] = right
+    return res
+
+
 def show(res):
     print(f"\n== {res['file']}: {res.get('top')} placed ({res.get('all')} with the sub-assemblies' parts), {res.get('joints')} joints, "
           f"{res.get('calls')} draw calls, {res.get('triangles')} triangles")
@@ -334,7 +433,7 @@ def show(res):
         print(f"    {row[0]:8} ms  {row[1]}  {row[2]}")
 
 
-b = Builder(URL, software_gl=not GPU)
+b = Builder(URL, software_gl=not GPU, window=WINDOW)
 b.d.execute_cdp_cmd("Performance.enable", {})
 try:
     results = []
@@ -369,6 +468,10 @@ try:
         check("full UI: each click / Esc chose what it should; a tree row clicked: its lines blue, hovered: lit, nothing drawn anew",
               all(r["ui_chosen_right"].values()), r["ui_chosen_right"])
         check(f"the mouse over a tree row under {BUDGET['hover_ms']} ms", r["ui_tree_hover_ms"].get("max", 1e9) < BUDGET["hover_ms"], r["ui_tree_hover_ms"])
+        for k in ("tab_back_1_ms", "tab_back_2_ms") + (("tab_back_from_sub_ms",) if "tab_back_from_sub_ms" in r else ()):
+            check(f"tabs: {k[4:-3].replace('_', ' ')} to the assembly under {BUDGET['tab_back_ms']} ms", r[k] < BUDGET["tab_back_ms"], r[k])
+        check(f"tabs: back after a dimension changed in the part under {BUDGET['tab_back_changed_ms']} ms", r["tab_back_changed_ms"] < BUDGET["tab_back_changed_ms"], r["tab_back_changed_ms"])
+        check("tabs: the assembly kept warm — nothing again when nothing changed, only the changed part after a change", all(r["tab_right"].values()), {**r["tab_right"], **r["tab_changed"]})
         unmet = b.js("return window.__app.assembly.unmet().length")
         check("every part drawn, every joint holds", r["top"] > 90 and unmet == 0, f"{r['top']} placed, {unmet} not held")
         check("collisions, BOM, autosave and a version: no error", all(isinstance(r[k], float) for k in ("collisions_s", "bom_s", "autosave_s", "version_s")),

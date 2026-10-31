@@ -872,14 +872,18 @@ Never report "works" without having run it; report failures with their output.
    tree; two parts with Ctrl+click; H / Shift+H / Alt+H; a face picked: both rows, acting on its part; mechanisms,
    BOM, collisions unchanged; set_visibility / get_assembly / get_screenshot; reload keeps it; ✎ from a picked face
    opens the part in place with that face chosen; no console errors).
-   `tools/e2e_big_assembly.py <url> <dir> [--gpu] [--build] [--profile] [--files a.a3d …]` covers big assemblies'
+   `tools/e2e_big_assembly.py <url> <dir> [--gpu] [--window] [--build] [--profile] [--files a.a3d …]` covers big assemblies'
    speed: the 🎬 demo velka-sestava-150.a3d (--build: made anew by tools/make_big_assembly.py) opened on a fresh page
    in headless Edge with software GL — it prints open → first frame / interactive, orbit fps and render ms, pick /
    hover / select / drag ms, the joint solve, collisions, BOM, autosave, a version, JS heap, GPU buffers and the
    server's /api/timings — and holds budgets (interactive < 8 s, orbit ≥ 4 fps in software GL / ≥ 30 with --gpu, pick
    < 50 ms, hover and select p50 < 50 / 100 ms, a drag step < 50 ms, every joint held, no console errors; the full UI
    in Czech — a click on a part, another, empty space, Esc, a parts-tree row by real mouse / key input with the default
-   docks and suggestions — its handlers p50 < 100 ms, with --gpu its painted frame < 100 ms and no long task over it). --files
+   docks and suggestions — its handlers p50 < 100 ms, with --gpu its painted frame < 100 ms and no long task over it;
+   tabs, a project-tree row clicked: the assembly -> a plate in it -> back, twice, a sub-assembly and back, the plate 1 mm
+   thicker then back — back < 300 ms, after the change < 1.5 s, back unchanged nothing built / drawn / clash-checked
+   again with the same meshes and camera, after the change its copies 1 mm thicker, joints held, no stale meshes;
+   --window: a real Edge window). --files
    measures other .a3d files without budgets (a mech*.a3d is driven and played too); compare numbers before / after a
    change on the same machine (another job's load moves them).
    `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint

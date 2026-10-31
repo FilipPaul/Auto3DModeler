@@ -34,10 +34,11 @@ def T(x, y, z):
 class Builder:
     """A headless Edge on the app with the AI's tools (call) and a bulk placer (put / mate / done)."""
 
-    def __init__(self, url, software_gl=False):
+    def __init__(self, url, software_gl=False, window=False):
         self.url = url.rstrip("/")
         opts = webdriver.EdgeOptions()
-        opts.add_argument("--headless=new")
+        if not window:  # (window: a real Edge window — its frames painted as the owner sees them)
+            opts.add_argument("--headless=new")
         if software_gl:  # (WebGL on the CPU — SwiftShader —, as on a machine without a usable GPU)
             opts.add_argument("--use-angle=swiftshader")
             opts.add_argument("--enable-unsafe-swiftshader")

@@ -74,7 +74,7 @@ the file instead.
 
 **Several parts in one project**: every file you open becomes its own **part tab**, in a row of its own under the
 top bar — more rows when they do not fit, so every name stays readable (the tab on screen, or one being renamed, shows
-its whole name). Click a tab to switch parts; each keeps its edits and its own undo history. Double-click a
+its whole name). Click a tab to switch parts; each keeps its edits and its own undo history. An assembly stays ready while another tab is open (the last few assemblies you opened): back on it, it shows at once, its view and choice as you left them — only the parts changed meanwhile (a dimension changed in a part's tab) are built and drawn again. Double-click a
 tab to rename it, **drag** it to move it (dropped outside the window: it opens in a ⧉ new window), and use **✕** to
 close the tab — the part stays in the project; closing the last one leaves *No part open* until ☰ opens one. **☰** (before the tabs) opens the **project tree**
 in the left panel: every part of the project, open or not, as they go together — each assembly with what is in it
