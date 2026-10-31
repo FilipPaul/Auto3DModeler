@@ -15,6 +15,29 @@ Date: 2026-10-25. Written by the architect agent.
   and drawings (.step .igs .stl .obj .3mf .dxf .dwg .pdf .zip .a3d .svg, ≤ 50 MB) are saved to data/agent/attachments
   and named; SYSTEM_PROMPT: an attached file counts as asked to open. Chips (icon, name, size, ✕) in the box and in
   the sent bubble; kept conversations keep names, sizes and paths. Tests: test_chat_attach, tools/e2e_chat_attach.py.
+- **⇱ A sketch on an imported STEP's face, its outline taken (2026-10-31)** (the owner: "I miss a way to create a sketch
+  from a face of an imported STEP file"). Before: ▣ joined / ⬚ cut solid steps' faces (F1:f<n>) offered ✏ Skica na této
+  ploše; a 👁 reference solid's could not be picked at all (view.pick saw the body only), its plane did not follow it
+  (plane_frame looked in st.body only) and the AI's find_refs / faceOf saw no faces of it. Now: view.setRefs keeps the
+  reference meshes' faces, pick({refs}) returns the nearer one (refSolid); doc._named_faces / _body_with find a face on
+  the part or a reference solid (plane_frame, _plane_offset, _origin, ⬆ outlines). ⇱ shapes taken from faces / edges: a
+  {t: "proj", face | edges, ents, pts} relation in the sketch's constraints; doc._projections (each rebuild, before
+  _follow_refs) finds the edges again (kernel.face_edges / find_edges) and makes them kernel.edge_shapes — lines, arcs
+  (counter-clockwise by the circle's axis), circles, splines through 24 points (B-splines, ellipses, curves off a
+  parallel plane; a closed one as two halves) — named k<n>p<i> / k<n>e<i> (the same edges keep their ids, a deleted shape
+  is not taken again, a gone face keeps them with a warning); s["update"] hands them to the browser; constraints.py
+  holds their points and radii where they were drawn. /api/model/sketch/project (worker op "project", doc.project) for
+  the sketcher. UI: the face table's ⇱ Převzít obrys plochy do skici (also a reference face: refFaceTable — ✏, ⇱, 📏, its
+  step), picked edges' ⇱ Převzít hrany do skici, the sketch bar's ⇱ Z dílu tool (a face or an edge, any plane), the ⇱
+  relation symbol frees them. Assembly: a flat face of a model part — ✏ Skica na této ploše → upravit díl zde
+  (editInPlace {sketch}: the sketch opens on it) and, for an imported part, ＋ Nový díl se skicou na této ploše
+  (newPartOn: a part with the file as a 👁 reference under the same step id, placed with its placement, edited in place).
+  AI: add_feature sketch shapes [{from_face} | {from_edges}], faceOf / find_refs see reference faces (ref: true),
+  get_model taken_from; model-a-part skill. Fixed on the way: kernel._mixed_wire turns a smooth curve drawn against its
+  loop's way round (a hole with such a curve was added, not cut — nist_ftc_10's pocket loop). Not done: a solid step
+  cannot be moved inside a 3D model (it follows a newer file); a joined nist_ctc_01 does not fuse with new material
+  (an older OCCT boolean failure of that file, also for a plain circle). Tests: tests/test_step_sketch.py (new: volumes,
+  watertight, STEP round trip, a moved file followed, solver), tools/e2e_step_sketch.py (new).
 
 - **The AI designs parts that are easy to assemble: easy-assembly skill (2026-10-31)** (DFA, later a setting
   "🔩 Snadná montáž"). agent_plugin/skills/easy-assembly: Boothroyd's three questions to merge parts, fewer

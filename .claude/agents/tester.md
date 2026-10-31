@@ -151,6 +151,12 @@ Never report "works" without having run it; report failures with their output.
    assembly a boss' quadrant, its centre and a block corner clicked 2 px off -> that point (the table "A quadrant Ø16",
    Measure from here, Copy its coordinates), not the face; the hovered face's dots; the face away -> the face; a hidden
    part's point not taken; an imported STEP's (nist_ctc_01) hole quadrant; the same three in the 3D model workspace.
+   `tools/e2e_step_sketch.py <url> <dir>` covers a sketch on an imported STEP's face, in Czech with real clicks
+   (nist_ctc_01): 👁 reference — its flat face with holes offers ✏ Skica na této ploše (plane = the face F1:f<n>, origin
+   its centre) and ⇱ Převzít obrys plochy do skici (its loops as lines / arcs / circles held by one ⇱ relation, dof 0,
+   their length = the face's edges', extruded 5 mm = area × 5 in the face's box); ▣ joined — the same; an assembly —
+   ✏ … → upravit díl zde and ＋ Nový díl se skicou na této ploše (a new part, the file see-through, the sketch on that
+   face); the AI through /api/agent/call (find_refs ref faces, shapes [{from_face}], extrude); no console errors.
    `tools/e2e_select_from_point.py <url> <dir>` covers a snap point offering what it belongs to (a hole's centre:
    Select the hole M5 in the top 3 -> its Type / Size table, Select the circle -> the edge's; a pocket: the round face;
    an edge's middle: Select the edge; a sketch circle's centre; an assembly hole's centre -> Concentric).

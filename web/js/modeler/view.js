@@ -400,7 +400,8 @@ export class ModelView {
     this.invalidate();
   }
 
-  /** Reference solids: shown see-through (not part of the part, not picked): [{positions (base64)}]. */
+  /** Reference solids: shown see-through (not part of the part): [{id, positions (base64), face_ids, faces}]. Their
+   *  faces can be picked (pick's refs: a sketch on a bought part's face, its outline taken into a sketch). */
   setRefs(list = []) {
     if (!this.refGroup) { this.refGroup = new THREE.Group(); this.scene.add(this.refGroup); }
     this.clear(this.refGroup);
@@ -409,11 +410,21 @@ export class ModelView {
       geo.setAttribute('position', new THREE.BufferAttribute(b64(r.positions, Float32Array), 3));
       geo.computeVertexNormals();
       // drawn through the part (a cover built around it hides it otherwise)
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.35, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+      const mesh = accelerate(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.35, depthWrite: false, depthTest: false, side: THREE.DoubleSide })));
       mesh.renderOrder = 4;
+      mesh.userData.ref = { id: r.id, faces: r.faces || [], faceIds: r.face_ids ? b64(r.face_ids, Uint32Array) : null };
       this.refGroup.add(mesh);
     }
     this.invalidate();
+  }
+
+  /** A face of a reference solid by its name (its frame for a sketch on it), or null. */
+  refFace(name) {
+    for (const m of this.refGroup?.children || []) {
+      const f = m.userData.ref?.faces.find((x) => x.name === name || (x.names || []).includes(name));
+      if (f) return { ...f, refSolid: m.userData.ref.id };
+    }
+    return null;
   }
 
   /** How far a face reaches along a frame's x and y, from the frame's origin: [u0, u1, v0, v1] (null: no such face). */
@@ -600,13 +611,17 @@ export class ModelView {
     return ray;
   }
 
-  /** What is under the mouse: {face} (a face of the body) or {datum} (a base plane), or null. */
-  pick(clientX, clientY, { datums = false } = {}) {
+  /** What is under the mouse: {face} (a face of the body) or {datum} (a base plane), or null. refs: a face of a 👁
+   *  reference solid too, when it is nearer (the face marked refSolid: the solid step's id; not one of the body's). */
+  pick(clientX, clientY, { datums = false, refs = false } = {}) {
     const ray = this.ray(clientX, clientY);
-    if (this.mesh) {
-      const h = ray.intersectObject(this.mesh, false)[0];
-      if (h) return { face: this.face(this.faceIds[h.faceIndex]), point: h.point };
+    const h = this.mesh ? ray.intersectObject(this.mesh, false)[0] : null;
+    const rh = refs && this.refGroup?.children.length ? ray.intersectObjects(this.refGroup.children, false).find((x) => x.object.userData.ref?.faceIds) : null;
+    if (rh && (!h || rh.distance < h.distance)) {
+      const u = rh.object.userData.ref, id = u.faceIds[rh.faceIndex], f = u.faces[id]?.id === id ? u.faces[id] : u.faces.find((x) => x.id === id);
+      if (f) return { face: { ...f, refSolid: u.id }, point: rh.point };
     }
+    if (h) return { face: this.face(this.faceIds[h.faceIndex]), point: h.point };
     if (datums && this.datumGroup.visible) {
       const h = ray.intersectObjects(this.datumGroup.children.filter((c) => c.userData.datum), false)[0];
       if (h) return { datum: h.object.userData.datum, point: h.point };

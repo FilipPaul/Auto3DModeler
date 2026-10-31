@@ -200,11 +200,27 @@ def _face_name(plane):
     return None
 
 
+def _named_faces(st: State, name):
+    """The faces called `name` now: on the part, else on a 👁 reference solid (an imported part shown see-through)."""
+    body = _body_with(st, name)
+    return body.faces_of(name) if body is not None else []
+
+
+def _body_with(st: State, name):
+    """The body that has a face called `name`: the part, else a reference solid; None when none has."""
+    if not name:
+        return None
+    for body in [st.body, *st.refs.values()]:
+        if body is not None and body.faces_of(name):
+            return body
+    return None
+
+
 def _plane_offset(name, n0, o0, st: State):
     """How far along n0 from o0 the flat face `name` (square to n0) lies now; None when it is not there."""
-    if not name or st.body is None:
+    if not name:
         return None
-    for face in st.body.faces_of(name):
+    for face in _named_faces(st, name):
         pl = K.plane_of(face)
         if pl is not None and abs(abs(pl[1] @ n0) - 1) <= 1e-6:
             return float((pl[0] - o0) @ n0)
@@ -231,9 +247,9 @@ def plane_frame(plane, st: State):
         if None not in offs:
             fr["o"] = [round(float(x), 9) for x in o0 + (sum(offs) / 2) * n0]
         return _origin(plane, fr, name, st)
-    if name and st.body is not None:
-        # follow the face: wherever it is now (its plane), the sketch keeps its place on it
-        for face in st.body.faces_of(name):
+    if name:
+        # follow the face (of the part, or of a reference solid): wherever it is now (its plane), the sketch keeps its place on it
+        for face in _named_faces(st, name):
             pl = K.plane_of(face)
             if pl is None:
                 continue
@@ -259,7 +275,7 @@ def _origin(plane, fr, name, st: State):
     if how == "world":
         p = np.zeros(3)
     elif how == "corner":
-        faces = [f for f in (st.body.faces_of(name) if name and st.body is not None else [])
+        faces = [f for f in _named_faces(st, name)
                  if (pl := K.plane_of(f)) is not None and abs(abs(pl[1] @ n) - 1) <= 1e-6]
         span = K.face_span(faces, fr) if faces else None
         if span is None:
@@ -287,6 +303,7 @@ def _apply(f, st: State, s):
     if t == "sketch":
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
+        f = _projections(f, fr, st, s)
         f = _follow_refs(f, fr, st, s)
         f = _param_dims(f, s)
         f = _face_outlines(f, fr, st, s)
@@ -778,15 +795,132 @@ def _face_outlines(f, fr, st, s):
     out, rings = [], {}
     for e in ents:
         if e.get("t") == "outline" and not e.get("construction"):
-            if st.body is None:
+            body = _body_with(st, (e.get("face") or {}).get("name")) or st.body
+            if body is None:
                 raise K.KernelError("The face it takes its outline from is not there (it needs a part first).")
-            face = K.find_faces(st.body, [e.get("face") or {}])[0]
+            face = K.find_faces(body, [e.get("face") or {}])[0]
             loops = K.face_loops(face, fr)
             rings[e.get("id")] = [[[round(u, 6), round(v, 6)] for u, v in ring] for _, ring in loops]
             e = {**e, "_loops": loops}
         out.append(e)
     s["outline"] = rings
     return {**f, "entities": out}
+
+
+def _edges_now(k, fr, st):
+    """⇱ A proj relation's edges as they are now (of the part, or of a 👁 reference solid) -> kernel.edge_shapes."""
+    if k.get("face"):
+        body = _body_with(st, k["face"].get("name"))
+        if body is None:
+            raise K.KernelError("The face the sketch takes its shapes from is not there.")
+        return K.edge_shapes(K.face_edges(K.find_faces(body, [k["face"]])[0]), fr)
+    refs = [r for r in k.get("edges") or [] if isinstance(r, dict)]
+    if not refs:
+        raise K.KernelError("Take shapes from a face ({face}) or from edges ({edges}).")
+    body = _body_with(st, refs[0].get("a")) or st.body
+    if body is None:
+        raise K.KernelError("The edges the sketch takes its shapes from are not there.")
+    return K.edge_shapes(K.find_edges(body, refs)[0], fr)
+
+
+def _proj_shapes(kid, shapes):
+    """kernel.edge_shapes -> (points {id: [u, v]}, entities) of a sketch, named after their proj relation kid (k3p1,
+    k3e1 …: the same edges get the same ids each rebuild, so what is drawn onto them keeps them); ends that meet share
+    a point."""
+    pts, ents = {}, []
+
+    def point(q):
+        q = [round(float(q[0]), 9), round(float(q[1]), 9)]
+        for pid, p in pts.items():
+            if abs(p[0] - q[0]) < 1e-6 and abs(p[1] - q[1]) < 1e-6:
+                return pid
+        pid = f"{kid}p{len(pts) + 1}"
+        pts[pid] = q
+        return pid
+
+    for i, sh in enumerate(shapes, 1):
+        e = {"id": f"{kid}e{i}", "t": sh["t"]}
+        if sh["t"] == "line":
+            e.update(a=point(sh["a"]), b=point(sh["b"]))
+        elif sh["t"] == "arc":
+            e.update(c=point(sh["c"]), a=point(sh["a"]), b=point(sh["b"]))
+        elif sh["t"] == "circle":
+            e.update(c=point(sh["c"]), r=round(float(sh["r"]), 9))
+        else:
+            e["pts"] = [point(q) for q in sh["pts"]]
+        ents.append(e)
+    return pts, ents
+
+
+def _projections(f, fr, st, s):
+    """⇱ Shapes taken from the part's edges — {t: "proj", face: {name, fp}} (a flat face's loops: its outline and its
+    holes) or {t: "proj", edges: [{a, b, fp}]} in the sketch's constraints: the edges found again on the part (or on a
+    👁 reference solid) as it is now, seen square onto the sketch as lines, arcs, circles and curves (ents / pts: theirs),
+    held where they are (constraints.py fixes them). A new one (no ents yet) gets its shapes here; a face that moved
+    takes them along; one that is gone leaves them where they were (a warning). Changed: back to the browser
+    (s["update"])."""
+    cons = f.get("constraints") or []
+    if not any(k.get("t") == "proj" for k in cons):
+        return f
+    pts, ents, out, changed = dict(f.get("points") or {}), list(f.get("entities") or []), [], False
+    taken = {k.get("id") for k in cons}
+    for k in cons:
+        if k.get("t") != "proj":
+            out.append(k)
+            continue
+        k = dict(k)
+        if not k.get("id"):
+            k["id"] = next(f"k{i}" for i in range(1, 10 ** 6) if f"k{i}" not in taken)
+            taken.add(k["id"])
+            changed = True
+        try:
+            shapes = _edges_now(k, fr, st)
+        except K.KernelError:
+            if not k.get("ents"):
+                raise
+            s["warnings"].append("The face / edges the sketch took its shapes from are gone — they stay where they were.")
+            out.append(k)
+            continue
+        if not shapes:
+            raise K.KernelError("There is nothing to take from it on this sketch's plane (it is seen edge-on).")
+        new_pts, new_ents = _proj_shapes(k["id"], shapes)
+        old_ids, old_pts = set(k.get("ents") or []), set(k.get("pts") or [])
+        if old_ids:  # (a shape deleted in the sketch is not taken again)
+            new_ents = [e for e in new_ents if e["id"] in old_ids]
+            used = {q for e in new_ents for q in [e.get("a"), e.get("b"), e.get("c"), *(e.get("pts") or [])] if q}
+            new_pts = {p: q for p, q in new_pts.items() if p in used}
+        was = {e["id"]: e for e in ents if e.get("id") in old_ids}
+        new_ents = [{**e, "construction": True} if was.get(e["id"], {}).get("construction") else e for e in new_ents]
+        if [was.get(e["id"]) for e in new_ents] != new_ents or len(was) != len(new_ents) or any(pts.get(p) != q for p, q in new_pts.items()):
+            changed = True
+            at = next((i for i, e in enumerate(ents) if e.get("id") in old_ids), len(ents))
+            ents = [e for e in ents if e.get("id") not in old_ids]
+            ents[at:at] = new_ents
+            used = {q for e in ents for q in [e.get("a"), e.get("b"), e.get("c"), *(e.get("pts") or [])] if q}
+            pts = {p: q for p, q in pts.items() if p not in old_pts or p in used or p in new_pts}
+            pts.update(new_pts)
+        k["ents"], k["pts"] = [e["id"] for e in new_ents], list(new_pts)
+        out.append(k)
+    if out != cons:
+        changed = True
+    if not changed:
+        return f
+    f = {**f, "points": pts, "entities": ents, "constraints": out}
+    s["update"] = {**(s.get("update") or {}), "points": pts, "entities": ents, "constraints": out}
+    return f
+
+
+def project(a):
+    """⇱ Take a face's outline (or edges) into a sketch being drawn: {features: the steps before it, sketch, face:
+    {name, fp} | edges: [{a, b, fp}]} -> {sketch: {points, entities, constraints} with the new shapes and their proj
+    relation, warnings}."""
+    st, _ = evaluate(a.get("features") or [])
+    sk = a.get("sketch") or {}
+    fr = plane_frame(sk.get("plane"), st)
+    k = {"t": "proj", **({"face": a["face"]} if a.get("face") else {"edges": a.get("edges") or []})}
+    s = {"warnings": []}
+    f = _projections({**sk, "constraints": [*(sk.get("constraints") or []), k]}, fr, st, s)
+    return {"sketch": {key: f.get(key) for key in ("points", "entities", "constraints")}, "warnings": s["warnings"]}
 
 
 def _up_to_face(f, fr, st):

@@ -18,6 +18,7 @@ import { isPlain, exprText } from '../params.js';
 import { takeField, setExpr, exprLabel } from '../paramsui.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
+const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
 const ORIGIN = 'O';
 const HV_DEG = 3; // a line drawn within 3° of horizontal / vertical becomes exactly that
@@ -286,6 +287,8 @@ export const RELATIONS = {
   pat: { icon: '⁂', name: 'Pattern', picks: [], tool: true },
   // made by the ⧈ Offset tool: the copy stays the distance away from its original (its ⧈ size label types it)
   off: { icon: '⧈', name: 'Offset', picks: [], tool: true },
+  // made by ⇱ From the part: shapes taken from a face's outline or edges of the part, held where the part has them
+  proj: { icon: '⇱', name: 'From the part', picks: [], tool: true },
 };
 
 const segDist = (p, a, b) => {
@@ -484,6 +487,7 @@ export class Sketcher {
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'slot') return !this.start ? 'Click the centre of one round end of the slot.' : !this.slotEnd ? 'Click the centre of the other end.' : 'Move out to its width and click (Esc = stop drawing).';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
+    if (this.tool === 'project') return 'From the part: click a face (its outline and holes) or an edge of the part — taken into the sketch as lines, arcs and circles held to the part (they follow it). Esc = done.';
     if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside). The copy follows its original (a picture outline: a one-off copy).';
     if (this.tool === 'relate') {
       const r = RELATIONS[this.relType] || RELATIONS.par, k = (this.relPicks || []).length, want = r.picks[k];
@@ -1284,6 +1288,8 @@ export class Sketcher {
     this.f.entities = this.f.entities.filter((e) => !gone.has(e.id));
     this.f.constraints = this.f.constraints.filter((c) => !gone.has(c.e) && !gone.has(c.arc) && !(c.lines || []).some((l) => gone.has(l))
       && !(s.kind === 'point' && c.p === s.id && c.t === 'corner') && !(c.t === 'off' && !c.pairs.some(([o, q]) => !gone.has(o) && !gone.has(q))));
+    for (const c of this.f.constraints) if (c.t === 'proj') c.ents = (c.ents || []).filter((id) => !gone.has(id)); // (⇱ a shape taken from the part, deleted: not taken again)
+    this.f.constraints = this.f.constraints.filter((c) => c.t !== 'proj' || c.ents.length);
     const used = new Set([...this.f.entities.flatMap((e) => [e.a, e.b, e.c, ...(e.pts || [])]), ...this.f.constraints.filter((c) => c.t === 'corner').map((c) => c.p)]);
     for (const p of Object.keys(this.f.points)) if (!used.has(p)) delete this.f.points[p];
     this.f.dims = this.f.dims.filter((d) => !gone.has(d.e) && (!d.a || d.a === ORIGIN || this.f.points[d.a]) && (!d.b || this.f.points[d.b]));
@@ -1477,6 +1483,7 @@ export class Sketcher {
   }
 
   click(e) {
+    if (this.tool === 'project') { this.projectAt(e); return; }
     const uv0 = this.view.planePoint(e.clientX, e.clientY, this.frame());
     if (!uv0) return;
     if (this.tool === 'select') {
@@ -1845,6 +1852,7 @@ export class Sketcher {
   /** A relation's place in the sketch (for its symbol): the middle of its first shape, or its point. */
   relAt(k) {
     if (k.t === 'off') return null; // (its ⧈ size label shows it)
+    if (k.t === 'proj') return (k.pts || []).map((p) => this.P(p)).find(Boolean) || null; // (⇱ by its first point)
     if (k.t === 'pat') { // between the original and its first copy
       const pr = (k.pairs || []).find(([p, qs]) => qs[0] && qs[0] !== p && this.P(p) && this.P(qs[0]));
       return pr ? [(this.P(pr[0])[0] + this.P(pr[1][0])[0]) / 2, (this.P(pr[0])[1] + this.P(pr[1][0])[1]) / 2] : null;
@@ -2514,6 +2522,40 @@ export class Sketcher {
   }
 
 
+
+  /** ⇱ From the part: the edge under the mouse — else the face (its outline and holes) — taken into the sketch. */
+  projectAt(e) {
+    const m = this.m, i = m.view.pickEdge(e.clientX, e.clientY, 7), ref = i >= 0 ? m.edgeRef(i) : null;
+    if (ref) return this.takeFrom({ edges: [ref] });
+    const h = m.view.pick(e.clientX, e.clientY, { refs: true });
+    if (h?.face?.name) return this.takeFrom({ face: { name: h.face.name, fp: h.face.centroid } });
+    m.toast(t('Click a face of the part (its outline and holes) or an edge.'), 'info', 4000);
+    return null;
+  }
+
+  /** ⇱ A face's outline (src {face: {name, fp}}) or edges ({edges: [{a, b, fp}]}) of the part — or of a 👁 reference
+   *  solid — as lines, arcs, circles and curves of this sketch, held where the part has them by one ⇱ relation (the
+   *  rebuild moves them with the part; a click on its symbol frees them). -> true when taken. */
+  async takeFrom(src) {
+    let r;
+    try {
+      const res = await fetch('/api/model/sketch/project', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ features: this.m.shown(), sketch: { plane: this.f.plane, points: this.f.points, entities: this.f.entities, constraints: this.f.constraints }, ...src }) });
+      r = await res.json();
+      if (!res.ok || r.error) throw new Error(r.error || res.statusText);
+    } catch (err) {
+      this.m.toast(t(err.message), 'warning', 6000);
+      return false;
+    }
+    this.step();
+    Object.assign(this.f, { points: r.sketch.points, entities: r.sketch.entities, constraints: r.sketch.constraints });
+    const k = this.f.constraints.filter((c) => c.t === 'proj').at(-1), n = k?.ents?.length || 0;
+    for (const w of r.warnings || []) this.m.toast(t(w), 'warning', 6000);
+    this.m.toast(t2('{n} shapes taken from the part — held to it, they follow it (⇱: a click on it frees them).', { n }), 'ok', 5000);
+    this.changed();
+    this.m.view.lookAt(this.frame(), this.m.sketchSpan());
+    return true;
+  }
 
   /** ⬆ A face's outline (its edges, found again each rebuild): its rings in sketch coordinates, as the last rebuild
    *  that built this sketch found them. */
@@ -3574,7 +3616,8 @@ export class Sketcher {
     // 🏷 Sizes (the modeler's All / Locked / None; a big sketch labels only its locked sizes)
     const shows = (locked) => this.m.sizeShown?.(locked, f) ?? true;
     const freeShown = shows(false), anyShown = shows(true);
-    const showSize = (spec) => anyShown && !this.isHidden(spec) && (freeShown || !!this.findDim(spec));
+    const taken = new Set(f.constraints.filter((c) => c.t === 'proj').flatMap((c) => c.ents || [])); // (⇱ held to the part: no free size labels)
+    const showSize = (spec) => anyShown && !this.isHidden(spec) && ((freeShown && !taken.has(spec.e)) || !!this.findDim(spec));
     const groupSide = {}; // a rectangle's width / height: the side that shows it
     for (const e of f.entities) {
       if (e.t !== 'line' || !e.g || this.isHidden({ t: 'len', e: e.id })) continue;
@@ -3785,7 +3828,7 @@ export class Sketcher {
       el.className = 'sk-label sk-rel';
       el.style.pointerEvents = 'auto'; // it takes clicks (the label layer lets them through to the view)
       el.textContent = RELATIONS[k.t]?.icon || '?';
-      el.title = `${t(RELATIONS[k.t]?.name || k.t)} — ${t(k.t === 'pat' ? 'click to change the count / spacing' : 'click to remove it')}`;
+      el.title = `${t(RELATIONS[k.t]?.name || k.t)} — ${t(k.t === 'pat' ? 'click to change the count / spacing' : k.t === 'proj' ? 'click to free them (they stay where they are, no longer held to the part)' : 'click to remove it')}`;
       for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
       el.addEventListener('click', (x) => { x.stopPropagation(); if (k.t === 'pat') this.editPattern(k.id); else this.delRelation(k.id); });
       labels.push({ el, u: at[0] + mpp * 8, v: at[1] - mpp * 10 });

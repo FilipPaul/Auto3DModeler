@@ -548,10 +548,45 @@ export class Assembly {
       } })),
       { icon: '📏', label: t('Measure from here'), rank: 7, run: () => { done(); this.toggleMeasure(); } },
       ...[this.harnessTool.fromHere(this.lastClick?.p?.inst === q.inst ? this.lastClick : null)].filter(Boolean),
+      ...this.faceSketchItems(q, a),
       { section: `${this.partName(a.part)} ${a.id}` },
       { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
+  }
+
+  /** ✏ A flat face of a placed 3D model part: a sketch on it, its part edited here (unlocked first) with the sketch open
+   *  on that face; a face of an imported part (a file's solid): ＋ a new part designed here — placed where that part is,
+   *  the file's solid in it see-through (to take its outline from), its first sketch on that face. */
+  faceSketchItems(q, a) {
+    if (q.face.type !== 'plane' || !this.hooks.editInPlace || this.kindOf(a.part) !== 'model' || String(q.face.name || '').includes('/')) return [];
+    const data = this.hooks.partData(a.part) || {}, solid = (data.features || []).find((f) => f.type === 'solid' && (f.blob || f.step) && String(q.face.name).startsWith(`${f.id}:`));
+    return [
+      { icon: '✏', label: t('Sketch on this face → edit the part here'), rank: 0.5,
+        title: t(this.editable(a.part) ? 'Its part opens here, the rest of the assembly see-through around it, with a sketch on this face'
+          : 'Its part opens here with a sketch on this face — it is unlocked for this assembly first (🔒 in its panel locks it again)'),
+        run: () => { if (!this.editable(a.part)) this.toggleEditable(a.part); this.facePicks = []; this.editInPlace(a.id, q.face.name, { sketch: true }); } },
+      ...(solid && this.hooks.addModelPart ? [{ icon: '＋', label: t('New part with a sketch on this face'), rank: 1.5,
+        title: t('A new 3D model part designed here, around this one: placed where it is, this part in it see-through, its first sketch on this face'),
+        run: () => this.newPartOn(a, q.face.name, solid) }] : []),
+    ];
+  }
+
+  /** ＋ New part with a sketch on this face (of the imported part placed as a): a new 3D model part whose only step is
+   *  a's file as a 👁 reference solid (the same step id: its faces keep their names), placed with a's placement, then
+   *  edited here with a sketch open on that face. -> the new placed part's id. */
+  async newPartOn(a, face, solid) {
+    const base = this.partName(a.part), name = t2('Part on {name}', { name: base });
+    const pid = this.hooks.addModelPart(name, { features: [{ ...solid, name: `${solid.name || base} (${t('reference')})`, op: 'ref' }] });
+    const it = { id: this.newId(), part: pid, matrix: [...a.matrix] };
+    this.doc.instances.push(it);
+    this.doc.editable = { ...(this.doc.editable || {}), [pid]: true }; // (made here to be edited here)
+    this.facePicks = [];
+    this.sel = it.id;
+    this.commit();
+    await this.refresh();
+    await this.editInPlace(it.id, face, { sketch: true });
+    return it.id;
   }
 
   /** ↔ Axis distance for two picked faces (two round ones, or a round one and a flat one) as a suggestion: its distance
@@ -2204,8 +2239,8 @@ export class Assembly {
   }
 
   /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it — with `face`
-   *  (its name in the part, picked here): that face chosen there, its suggestions ready. */
-  async editInPlace(instId, face = null) {
+   *  (its name in the part, picked here): that face chosen there, its suggestions ready (sketch: a sketch open on it). */
+  async editInPlace(instId, face = null, { sketch = false } = {}) {
     const it = this.inst(instId);
     if (!it || !this.hooks.editInPlace) return;
     if (this.kindOf(it.part) !== 'model') { this.hooks.toast('Only 3D model parts can be changed here — open a quick part in its own tab.', 'info', 4000); return; }
@@ -2213,7 +2248,7 @@ export class Assembly {
     const Mi = new THREE.Matrix4().fromArray(it.matrix).invert();
     const context = this.doc.instances.filter((o) => o.id !== instId && this.bodyOf(o)?.body).map((o) => ({
       positions: this.bodyOf(o).body.positions, matrix: Mi.clone().multiply(new THREE.Matrix4().fromArray(o.matrix)).toArray() }));
-    await this.hooks.editInPlace(it.part, { context, back: this.hooks.selfId?.(), assembly: this.hooks.parts().find((p) => p.id === this.hooks.selfId?.())?.name, inst: instId, ...(face ? { face } : {}) });
+    await this.hooks.editInPlace(it.part, { context, back: this.hooks.selfId?.(), assembly: this.hooks.parts().find((p) => p.id === this.hooks.selfId?.())?.name, inst: instId, ...(face ? { face, ...(sketch ? { sketch: true } : {}) } : {}) });
   }
 
   /** Colour and see-through of a placed part: its own here (↺ back to its part's). */

@@ -72,7 +72,7 @@ def _main(conn):
            "assembly_clearance": lambda a: doc.assembly_clearance(a["instances"], a.get("a")),
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section")), bool(a.get("simple"))),
            "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0, bool(a.get("simple")), a.get("base")),
-           "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid,
+           "limits": lambda a: doc.limits(a["features"], a["id"]), "project": doc.project, "import_solid": doc.import_solid,
            "import_assembly": doc.import_assembly, "print_pieces": printsplit.pieces,
            "ping": lambda a: True}  # (Pool.warm: the process started, nothing done)
     while True:
@@ -319,7 +319,7 @@ def part_key(op, arg):
         return "threads:" + _of_part(arg)
     if op in ("export", "sheet"):
         return _of_part(arg.get("part"))
-    if op == "limits":
+    if op in ("limits", "project"):
         return _of_part({"features": arg.get("features")})
     if op in ("assembly_clashes", "assembly_sweep", "assembly_sheet", "assembly_clearance"):
         # (by the parts it is made of, not its placed ids: one more screw of a part already in keeps its process — its

@@ -790,6 +790,34 @@ const CS = {
   '● Turn it on': '● Zapnout', '◌ Turn it off': '◌ Vypnout',
   'On this face': 'Na této ploše', 'Its edges': 'Její hrany', 'The part': 'Díl', 'Step': 'Krok', 'Sketch on this face': 'Skica na této ploše',
   'Extrude this face': 'Vysunout tuto plochu',
+  // ⇱ shapes taken from the part's faces / edges (also of an imported part shown see-through)
+  "Take the face's outline into a sketch": 'Převzít obrys plochy do skici', 'Take the edges into a sketch': 'Převzít hrany do skici',
+  '⇱ From the part': '⇱ Z dílu', 'From the part': 'Z dílu',
+  "Take a face's outline (and its holes) or edges of the part into the sketch: click them — they stay on the part and follow it":
+    'Převzít obrys plochy (i s otvory) nebo hrany dílu do skici: klikněte na ně — zůstanou na dílu a sledují ho',
+  'A sketch on their flat face with these edges as lines, arcs and circles held to the part': 'Skica na jejich rovné ploše s těmito hranami jako úsečkami, oblouky a kružnicemi drženými na dílu',
+  'A sketch on this face of the reference solid — it follows the face': 'Skica na této ploše referenčního tělesa — sleduje plochu',
+  'A sketch on this face with its outline and holes as lines, arcs and circles held to it — extrude it into a matching part, a pocket or a cover':
+    'Skica na této ploše s jejím obrysem a otvory jako úsečkami, oblouky a kružnicemi drženými na ní — vysuňte z ní lícující díl, kapsu nebo kryt',
+  'a see-through reference solid': 'průhledné referenční těleso',
+  'These edges are on no flat face — open a sketch and take them with ⇱ From the part.': 'Tyto hrany neleží na žádné rovné ploše — otevřete skicu a převezměte je pomocí ⇱ Z dílu.',
+  'click to free them (they stay where they are, no longer held to the part)': 'kliknutím je uvolníte (zůstanou, kde jsou, už nejsou drženy na dílu)',
+  'From the part: click a face (its outline and holes) or an edge of the part — taken into the sketch as lines, arcs and circles held to the part (they follow it). Esc = done.':
+    'Z dílu: klikněte na plochu (její obrys a otvory) nebo hranu dílu — převezmou se do skici jako úsečky, oblouky a kružnice držené na dílu (sledují ho). Esc = hotovo.',
+  'Click a face of the part (its outline and holes) or an edge.': 'Klikněte na plochu dílu (její obrys a otvory) nebo na hranu.',
+  '{n} shapes taken from the part — held to it, they follow it (⇱: a click on it frees them).': 'Z dílu převzato tvarů: {n} — jsou na něm drženy a sledují ho (⇱: kliknutím je uvolníte).',
+  'The face / edges the sketch took its shapes from are gone — they stay where they were.': 'Plocha / hrany, ze kterých skica převzala tvary, už nejsou — tvary zůstávají, kde byly.',
+  "There is nothing to take from it on this sketch's plane (it is seen edge-on).": 'Na rovině této skici z toho nic převzít nejde (je vidět z boku).',
+  'The face the sketch takes its shapes from is not there.': 'Plocha, ze které skica přebírá tvary, tu není.',
+  'The edges the sketch takes its shapes from are not there.': 'Hrany, ze kterých skica přebírá tvary, tu nejsou.',
+  'Take shapes from a face ({face}) or from edges ({edges}).': 'Převezměte tvary z plochy ({face}) nebo z hran ({edges}).',
+  'Sketch on this face → edit the part here': 'Skica na této ploše → upravit díl zde', 'New part with a sketch on this face': 'Nový díl se skicou na této ploše',
+  'Its part opens here, the rest of the assembly see-through around it, with a sketch on this face': 'Jeho díl se otevře zde, zbytek sestavy průhledně kolem, se skicou na této ploše',
+  'Its part opens here with a sketch on this face — it is unlocked for this assembly first (🔒 in its panel locks it again)':
+    'Jeho díl se otevře zde se skicou na této ploše — nejdřív se pro tuto sestavu odemkne (🔒 v jeho panelu ho zase zamkne)',
+  'A new 3D model part designed here, around this one: placed where it is, this part in it see-through, its first sketch on this face':
+    'Nový díl 3D modelu navržený zde, kolem tohoto: umístěný tam, kde je tento, ten v něm průhledně, jeho první skica na této ploše',
+  'Part on {name}': 'Díl na {name}',
   'Its face is not flat and parallel to the sketch any more — pick the face again.': 'Její plocha už není rovná a rovnoběžná se skicou — vyberte plochu znovu.',
   'Its face has no outline to use.': 'Její plocha nemá obrys, který by šel použít.',
   'The face it takes its outline from is not there (it needs a part first).': 'Plocha, ze které bere obrys, tu není (nejdřív je potřeba díl).',
