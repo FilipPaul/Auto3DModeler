@@ -2805,7 +2805,7 @@ const chat = new ChatPanel($('tab-ai'), { toast,
   onUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).go(-1),
   canUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).canUndo() });
 window.__chat = chat;
-startBridge(agentHandlers);
+startBridge(agentHandlers, () => ({ workspace: state.workspace, part: project.current?.name || '' })); // (a failed call: where, for the tool-error log)
 initSplitters(document.querySelector('main.layout'), $('aiDrawer'));
 leftDock.init(document.querySelector('main.layout')); // (the left column: docked widgets — the project tree, the panel, the suggestions)
 window.__leftDock = leftDock;

@@ -48,7 +48,8 @@ Never report "works" without having run it; report failures with their output.
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).
    `tools/e2e_agent.py` drives every AI tool through the real MCP server process (no model needed), incl. the 3D model
-   tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print);
+   tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print)
+   and the tool-error log (edit_feature on a missing step twice -> one entry ×2 in list_reports "tool errors");
    `tools/e2e_chat.py <url> <dir> "message"` sends a real chat message through the installed Claude Code —
    it uses the Claude account Claude Code is signed in with, so run it sparingly.
    `tools/e2e_ai_access.py <url> <dir>` covers the AI's set-up screen (no sign-in, no key: Sign in with Claude, the key

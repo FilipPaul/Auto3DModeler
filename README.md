@@ -1584,6 +1584,12 @@ can open them.
   report under *Screenshots* (Markdown image links: VS Code's preview and GitHub show them).
   All are git-ignored (`RealSWReports/*.gz`, `*.recording.json`, `*.png`, `*.webp`); `A3D_REPORTS=<folder>` sends a
   (test) server's reports elsewhere.
+  **Tool errors are logged on their own**: every AI tool call that fails (the app's answer is an error) lands in one
+  digest a day, `RealSWReports/<date>-tool-errors.md` — the tool, the error, when, the app version, the workspace and
+  part, the conversation and the arguments (at most 2 kB, without pictures) — the most frequent first; the same error
+  again (other numbers or ids) only counts up, and a day holds at most 500 different ones. Deliberate refusals (🔒 the
+  AI may not change it, the internet switched off) are not errors and stay out. Nothing waits for it and it costs the
+  AI nothing; `list_reports` shows the top recurring ones with their counts (`kind: "tool errors"`: more of them).
 - **⟳ New version — restart the app**: a small mark in the top bar when the app's files were updated but its server
   still runs the code it started with (checked every minute and when the window comes to the front); its tooltip
   says what to do. *⟳ New version — reload the page*: the server was restarted under an older page (a click reloads

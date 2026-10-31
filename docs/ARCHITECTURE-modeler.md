@@ -14,6 +14,19 @@ Date: 2026-10-25. Written by the architect agent.
   one part, cables and service; checked with get_assembly, check_collisions, move_free / check_travel along the
   insertion axis, measure, set_view section / explode; reported as Assembly rows in design-review. Routed from
   start-a-design, SYSTEM_PROMPT, design-review, assemble-parts; get_guide topic. Not done: the settings toggle.
+- **Every failed AI tool call logged on its own (2026-10-31)** (the owner: "the AI saves ALL API errors it runs
+  into, by default, always" — with no AI tokens). /api/agent/call (server._log_tool_error) hands each error result —
+  a server tool that raised, a browser handler's {error: true}, an unknown tool — to auto3d/tool_errors.py: queued,
+  written by one thread (a call never waits for the disk; a failed write is dropped). One digest a day,
+  RealSWReports/<date>-tool-errors.md (the most frequent first: tool, error, when, version, workspace · part the page
+  said — startBridge's where(), the conversation, the arguments ≤ 2 kB without pictures / long strings), written from
+  its data <date>-tool-errors.json (ignored by version control). The same tool + message without numbers / ids /
+  quoted names counts up; ≤ 500 different a day. Left out: refusals by design — a result with expected: true, or a
+  message starting "🔒" / "internet je vypnutý" / "the internet is off" (tool_errors.EXPECTED, a prefix allow-list).
+  Logged only when the app serves (main / the launcher set LOG_TOOL_ERRORS): unit tests stay out of RealSWReports.
+  reports.read leaves the digests out; list_reports (all, or kind "tool errors") adds the top errors of 7 days with
+  counts. SYSTEM_PROMPT: tool errors are not reported any more — only wrong results, UI problems and missing tools.
+  Tests: tests/test_tool_errors.py; e2e_agent (edit_feature F98 / F99 -> one entry ×2 in list_reports).
 
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
