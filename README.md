@@ -1669,6 +1669,16 @@ can open them.
   `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.
   It joins the parts so they move as in reality (`get_assembly` says what can still move, or `fully_held`) and checks
   `check_collisions`.
+- **"Use part number X"** (a Misumi, Festo, SMC, igus, INGUN, Würth … part not in the library): with 🌐 *Hledat díly na
+  internetu* on in the AI settings (the default), Claude searches the web (`WebSearch` only, it cannot read arbitrary
+  pages) for the maker's STEP and calls `fetch_cad {url, part_number, maker, to}`. The app downloads the file (https
+  only, up to 100 MB), accepts only CAD content — a STEP, IGES or STL, or a ZIP holding one — and refuses a web page
+  ("a login or configurator is probably needed"). It keeps the file in `data/cad_downloads/` with its source, makes it
+  your own library part (*My parts*, with its maker, part number and source link, so it is in the BOM) and places it
+  in the assembly or a new 3D model. The same part number or link again comes from that cache. Makers that need a
+  login or a configurator (TraceParts, CADENAS PARTcommunity, Misumi, Festo) are not bypassed: Claude gives you the
+  page link to download the file and drag it in. The makers' models are for use in your design, not to pass on. With
+  the setting off, Claude has no web search and `fetch_cad` is refused.
 - **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/). The workflows are model-a-part,
   change-a-model, from-picture, print-prep, assemble-parts and production-drawing. Claude designs like an experienced
   mechanical engineer: **design-principles** (datums, step order, parameters, names — a part easy to change),
@@ -1684,7 +1694,8 @@ can open them.
   design is done (function, strength, ergonomics, economy, safety as one table, fixes offered). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
-- Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader), only this MCP
+- Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader; `WebSearch` is added
+  when 🌐 internet is on), only this MCP
   server is loaded (`--strict-mcp-config`), your global hooks and settings are not (`--setting-sources local`),
   and the session runs in the empty folder `data/agent/`.
 - How it fits together: the chat panel → `POST /api/chat/send` → one Claude Code process per chat (stream-json in

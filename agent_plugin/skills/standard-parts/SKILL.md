@@ -1,6 +1,6 @@
 ---
 name: standard-parts
-description: Use whenever you add a bought part (screw, nut, washer, dowel pin, insert, standoff, bearing, spring, probe, receptacle) to a design, and at hand-over. Keeps the number of different bought parts small — one screw size per job, a few lengths, one head type, the same pins and standoffs — and reports how many kinds the design uses.
+description: Use whenever you add a bought part (screw, nut, washer, dowel pin, insert, standoff, bearing, spring, probe, receptacle) to a design, when the user names a part number to use (its maker's STEP found online), and at hand-over. Keeps the number of different bought parts small — one screw size per job, a few lengths, one head type, the same pins and standoffs — and reports how many kinds the design uses.
 ---
 
 # Few kinds of bought parts
@@ -42,7 +42,8 @@ one with 10 perfectly sized ones. Bought parts always come from the library (`li
 - Nuts and washers with `library_pair {part, role: "nut"}` or `{part, set: true}` — they take the screw's thread.
 - `suggest_fasteners` / `add_fasteners` and `bolt_parts` choose lengths themselves: afterwards read `get_bom` and
   bring odd lengths back into the set.
-- A part not in the library: say so, draw a plain stand-in of its outside sizes, name it after the part number.
+- A part not in the library: find its maker's model (6.); none to be had: say so, draw a plain stand-in of its outside
+  sizes, name it after the part number.
 
 ## 5. Hand-over: count and reduce
 From `get_bom {mode: "summary"}` report one line:
@@ -50,3 +51,17 @@ From `get_bom {mode: "summary"}` report one line:
 receptacles 1."
 For each group with more than one kind, say whether it can merge ("M4 × 14 → M4 × 16 with the thread 2 mm deeper")
 and offer it with `ask_user {question, options, recommended}` — your recommendation first.
+
+## 6. "Use part number X" — find the maker's model
+1. `library_search {query: "<part number>"}` (also the series: "DSNU 16"), then the project: `get_bom` / `list_parts`.
+2. Not there and you have **WebSearch** (🌐 internet on in the AI settings): search
+   `<maker> <part number> STEP download`. Take a **direct file link** (ends in .step / .stp / .igs / .stl / .zip, or a
+   maker's download URL) — the maker's own site first (INGUN, igus, Würth, SMC and many others link their STEP files).
+3. `fetch_cad {url, part_number, maker, to: "assembly"}` — downloaded, checked, kept in the cache and in the library
+   (My parts) with its part number, so it is in `get_bom`. The same part again: `fetch_cad {part_number}` (cache).
+4. **A login or a configurator** (TraceParts, CADENAS PARTcommunity, Misumi, Festo, most SMC series — or fetch_cad
+   says "a web page, not a CAD file"): give the user the page link and ask them to download the STEP and drag it in.
+   Never try to get round a login, a captcha or a configurator.
+5. **Internet off** (no WebSearch; fetch_cad refused): ask the user for the file or a link, or draw a stand-in.
+6. **Licence**: a maker's model is for use in this design, not to pass on or publish; its source stays with the
+   library part — say so when you hand over a STEP export of the assembly.

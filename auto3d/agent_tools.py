@@ -540,6 +540,18 @@ TOOLS = [
                     "becomes a chain C… (get_assembly `chains`; edit_chain sets its links, travel and the part it moves with). A "
                     "cable clip for a harness point: edit_harness clip (it picks and places one).",
      "inputSchema": _obj({"item": STR, "size": STR, "length": NUM, "to": {"type": "string", "enum": ["assembly", "model"]}}, ["item"])},
+    {"name": "fetch_cad", "where": "server",
+     "description": "🌐 A maker's real CAD model by its link (when the user names a part number that is not in the library): url — a "
+                    "DIRECT link to the file (https; a STEP, IGES, STL or a ZIP of one — found with WebSearch "
+                    "\"<maker> <part number> STEP download\"); part_number, maker, name for the parts list. The app downloads it "
+                    "(≤ 100 MB), refuses a web page (a login or a configurator is needed: give the user the link instead), keeps it "
+                    "in its CAD download cache (the same part number or url again: no download — then url may be left out) and "
+                    "makes it the user's own library part (My parts, its maker, part number and source: it is in get_bom). "
+                    "to: \"assembly\" (placed in the assembly on screen: its placed id and faces, as library_add), \"model\" (a new "
+                    "3D model tab) or \"library\" (only kept there); default: where the user works. Refused when 🌐 internet is off "
+                    "in the AI settings.",
+     "inputSchema": _obj({"url": STR, "part_number": STR, "maker": STR, "name": STR,
+                          "to": {"type": "string", "enum": ["model", "assembly", "library"]}})},
     {"name": "library_pair", "where": "browser",
      "description": "Put in what goes with a placed library part (library_search lists it as goes_with): a screw's nut / washer / "
                     "heat-set insert (the same thread), a standoff's screw, a test probe's receptacle or a receptacle's probe, a "
@@ -1030,6 +1042,8 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 
 **Use the parts library first:** every bought part (screws, bearings, cylinders, sensors, probes …) comes from library_search / library_add with its part number — as few different kinds as possible; draw only the made parts, around the bought ones. Not in the library: say so, draw a stand-in of its outside sizes.
 
+**A part number the user names** ("use Misumi SFJ8-100", "Festo DSNU-16-50-P-A") and library_search does not have it, nor the project (list_parts / get_bom): when you have WebSearch (🌐 internet on in the AI settings), search "<maker> <part number> STEP download" and call fetch_cad {url (a direct file link), part_number, maker} — it lands with its part number in the BOM. Many makers want a login or a configurator (TraceParts, CADENAS PARTcommunity, Misumi, Festo): then give the user the page link and ask them to download the STEP and drag it in — never get round a login. The makers' models are for use in the design, not to pass on. Without WebSearch (internet off): ask the user for the file. Details: auto3d:standard-parts.
+
 Rules: pick faces and edges with find_refs, never by guessing. **Model from simple shapes**, one idea per sketch, fillets and chamfers last (design-principles); a complex sketch only when the user said it may be built any way. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
@@ -1040,4 +1054,4 @@ Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as
 
 Tool errors are logged on their own — do not report them. Report only what a tool cannot see: a wrong result (sizes, positions, a joint, a colour that does not show) — report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. A problem you can see (a control missing, a layout or rendering glitch): look with get_screenshot {ui: true}, then attach it — report_problem screenshots: ["last"] (with a caption); only when it helps. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
 
-Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""
+Answer in the user's language, briefly. You can only use the tools listed — no files or shell (WebSearch only when 🌐 internet is on)."""
