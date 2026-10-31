@@ -143,7 +143,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "bug-hunter", "change-a-model", "design-principles", "design-review", "easy-assembly", "fits-and-tolerances", "from-picture", "ict-fixture", "machined-part", "materials-and-strength", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "production-drawing", "standard-parts", "start-a-design", "suggest-features", "teach-me", "use-a-drawing"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "bug-hunter", "cable-routing", "change-a-model", "design-principles", "design-review", "easy-assembly", "fits-and-tolerances", "from-picture", "ict-fixture", "machined-part", "materials-and-strength", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "production-drawing", "standard-parts", "start-a-design", "suggest-features", "teach-me", "use-a-drawing"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -175,7 +175,7 @@ class TestMcpServer(unittest.TestCase):
         from auto3d.guides import guides
         g = guides()
         new = ("design-principles", "standard-parts", "machined-part", "materials-and-strength", "ict-fixture", "design-review",
-               "production-drawing", "easy-assembly", "teach-me", "bug-hunter")
+               "production-drawing", "easy-assembly", "teach-me", "bug-hunter", "cable-routing")
         for name in new:
             self.assertIn(name, SYSTEM_PROMPT, name)
             self.assertLessEqual(len(g[name]["text"].splitlines()), 150, name)
@@ -190,6 +190,8 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("easy-assembly", g["assemble-parts"]["text"])
         self.assertIn("check_travel", g["easy-assembly"]["text"])
         self.assertIn("complete: true", g["production-drawing"]["text"])
+        self.assertIn("cable-routing", g["start-a-design"]["text"])
+        self.assertIn("auto_fix: true", g["cable-routing"]["text"])
         self.assertIn("δ = F · L³ / (3 · E · I)", g["materials-and-strength"]["text"])
         self.assertNotIn("ui-tester", " ".join(g))  # merged into bug-hunter, teach-the-user into teach-me
 

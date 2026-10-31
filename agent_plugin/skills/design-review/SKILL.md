@@ -19,6 +19,7 @@ pinch points). Keep it quick: one pass, then the table.
 | Assembly access | every screw head reachable with its key from outside (`set_view {section}` + `get_screenshot`); screws not hidden under other parts; an assembly order exists |
 | Easy assembly | easy-assembly §8 checklist (order, insertion paths, tool clearance, exploded view) → its Assembly rows in the table |
 | Service | wearing parts (probes, guide pins, pads, belts) replaceable without taking the whole apart |
+| Cables | routed, bend radius kept, no taut cable over the travel: get_assembly `harnesses` at both limits (cable-routing) |
 | Strength | the weak point checked (materials-and-strength): load path through stiff parts, deflection, safety factor |
 
 ## 2. Ergonomics

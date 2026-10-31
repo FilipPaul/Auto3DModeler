@@ -1678,6 +1678,9 @@ can open them.
   pressure pins, guide pins), **easy-assembly** (design for assembly: fewer parts and fasteners, self-locating pins and
   lead-ins, one assembly direction, tool access, captive nuts, an assembly order and exploded view at hand-over),
   **mechanical-design**, **automation-design** — and **design-review** before it says a
+  pressure pins, guide pins), **cable-routing** (when you say which cables run from where to where, or the design has
+  motors, sensors, valves: a cable list with Ø and bend radii, holes / channels / clip spots / glands in the made parts,
+  an energy chain or service loop on moving axes, checked at both limits), **mechanical-design**, **automation-design** — and **design-review** before it says a
   design is done (function, strength, ergonomics, economy, safety as one table, fixes offered). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.

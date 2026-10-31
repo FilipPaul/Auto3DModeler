@@ -978,13 +978,13 @@ TOOLS = [
                     "questions before a new design), model-a-part, change-a-model, from-picture, use-a-drawing (a DXF / Gerber), "
                     "assemble-parts, print-prep, design-principles (design intent: datums, order, parameters), standard-parts (few kinds "
                     "of bought parts), machined-part (CNC rules, stock, materials), materials-and-strength (loads, mixed materials, "
-                    "joints), easy-assembly (design for assembly), mechanical-design, automation-design, ict-fixture (ICT / FCT test fixtures), fits-and-tolerances, "
+                    "joints), easy-assembly (design for assembly), mechanical-design, automation-design, ict-fixture (ICT / FCT test fixtures), cable-routing (cables, glands, clips, energy chains), fits-and-tolerances, "
                     "print-functional, print-graphics, production-drawing (a drawing for the workshop), design-review (the check before "
                     "hand-over), teach-me (guide the user step by step with gui_highlight), bug-hunter (/uiTester: do it through the GUI, "
                     "report problems), suggest-features (/suggest).",
      "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "change-a-model", "from-picture", "use-a-drawing",
                                                               "assemble-parts", "print-prep", "design-principles", "standard-parts", "machined-part",
-                                                              "materials-and-strength", "easy-assembly", "mechanical-design", "automation-design", "ict-fixture",
+                                                              "materials-and-strength", "easy-assembly", "mechanical-design", "automation-design", "ict-fixture", "cable-routing",
                                                               "fits-and-tolerances", "print-functional", "print-graphics", "production-drawing",
                                                               "design-review", "teach-me", "bug-hunter", "suggest-features"]}}, ["topic"])},
 ]
@@ -1020,6 +1020,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 **Skills** (auto3d:<name>; get_guide(topic) when skills are not available) — load the matching ones before the task:
 - Tasks: model-a-part, change-a-model, from-picture, use-a-drawing, assemble-parts, print-prep, production-drawing (a drawing for the workshop).
 - Design like an experienced mechanical engineer — a device, machine, bracket for bought parts or fixture: design-principles, standard-parts (before adding any bought part) and mechanical-design; machined parts: machined-part (automation: + automation-design, fits-and-tolerances); an ICT / FCT test fixture: + ict-fixture; load-carrying or joining parts, mixed materials: materials-and-strength; a functional print: print-functional; a decorative print: print-graphics; easy to assemble (automation, fixtures, multi-part prints): easy-assembly.
+- Cables / wiring / a harness mentioned, or powered moving parts (motors, sensors, valves on an axis): auto3d:cable-routing at concept time.
 - **Before you say a design is done**, run auto3d:design-review and show its table.
 - Modes, only when the user asks: "how do I / where is / show me / teach me" or /teachMe → auto3d:teach-me (you guide with gui_highlight {control, text, step, wait: true}, the user clicks — do not do it for them); /uiTester or /bugHunter → auto3d:bug-hunter (the task through the GUI only, every problem reported); /suggest → auto3d:suggest-features.
 
