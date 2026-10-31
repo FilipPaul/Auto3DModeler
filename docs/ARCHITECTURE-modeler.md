@@ -39,6 +39,20 @@ Date: 2026-10-25. Written by the architect agent.
   33–115 ms. tools/e2e_ict_switch.py: top → sub → top → sub → top timed, the card within 100 ms of the click on any
   step over 300 ms, budgets (the first visit < 1.5 s, every return < 0.5 s), no console errors; without the owner's
   file (CI) the 150-part demo exported as a STEP assembly and opened the same way.
+- **Choosing in a big imported STEP assembly under 100 ms (2026-10-31)** (the owner, the same ICT file in Czech:
+  choosing anything — a part or a face in the view, a row of the list — took an enormous time). Measured (real window,
+  Czech, from the press to the painted frame; tools/e2e_ict_switch.py): in the top assembly a part 251 / 207 ms, another
+  105 ms, a list row 295 / 281 ms; in the sub-assembly every click 127–146 ms (on the original code; a first click before
+  the table's geometry was made went through the quadratic isPin: seconds). Not i18n this time (the t() memo held): the
+  CDP profile showed the Suggested table of the chosen part — pinFits placed every round face of the chosen merged
+  sub-assembly and of each other part in the world (worldFace with its innerFrame, thousands) on every click, restOn
+  every flat face of it; in the sub-assembly kindOf / partData's finds over 298 parts (fixed with the switch, above).
+  smart.js: each body's round faces in the world kept per placement (freeRounds: body -> "inst|matrix", the last 8
+  places of a dragged part); pinFits's answer kept per part until a part moves, a body changes or a joint is made (the
+  whole assembly's smartSoon fills it for every loose part after a switch); restOn looks only at flat faces whose own
+  normal faces up / down before placing them. After: top a part 47–58 ms, another 31–63, a row 31–59, empty space 25–42;
+  the sub-assembly 33–53 ms. e2e_ict_switch: a part (its face picked with it), another, a list row and empty space,
+  twice, in the top assembly and in the sub-assembly — painted under 100 ms each, each choosing what it should.
 
 - **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
   both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a

@@ -1,6 +1,7 @@
 // Smart suggestions: what a placed part most likely goes onto, found by geometry so one click in the Suggested table
 // does it — ◎ a pin into a hole of the same Ø in another part (or a hole onto a pin), ⧉ a part put down on the top of
 // the fixed part (its underside onto it). Plain geometry over the assembly's bodies, no UI (assembly.js shows them).
+import * as THREE from 'three';
 import { isPin, facesOf } from './missing.js';
 
 /** A body's round faces with an axis, once per body (kept on it): [{name, d, pin}] — pin null (neither) left out. */
@@ -23,15 +24,25 @@ const usedRounds = (asm) => new Set((asm.doc.mates || []).filter((m) => m.type =
 export function freeRounds(asm, it, used = usedRounds(asm), want = null) {
   const body = asm.bodyOf(it)?.body;
   if (!body?.faces || it.fastener) return [];
-  const out = [];
+  // each round face in world coordinates kept per body and placement (a click on a part of a big assembly asks for
+  // thousands of them — the same ones again until it moves or its body changes)
+  if (!placedRounds.has(body)) placedRounds.set(body, new Map());
+  const at = placedRounds.get(body), where = `${it.id}|${it.matrix.join(',')}`;
+  if (at.get(where)?.asm !== asm) {
+    at.set(where, { asm, faces: new Map() });
+    if (at.size > 8) at.delete(at.keys().next().value); // (a part dragged: its last places only)
+  }
+  const kept = at.get(where).faces, out = [];
   for (const r of roundsOf(body)) {
     if (used.has(`${it.id}|${r.name}`) || (want && !want(r.d, r.pin))) continue;
-    let face;
-    try { face = asm.worldFace(it.id, r.name); } catch { continue; }
-    out.push({ inst: it.id, name: r.name, face, d: 2 * face.radius, pin: r.pin });
+    if (!kept.has(r.name)) { try { kept.set(r.name, asm.worldFace(it.id, r.name)); } catch { kept.set(r.name, null); } }
+    const face = kept.get(r.name);
+    if (face) out.push({ inst: it.id, name: r.name, face, d: 2 * face.radius, pin: r.pin });
   }
   return out;
 }
+
+const placedRounds = new WeakMap(); // body -> "inst|matrix" -> {asm, faces: name -> its world face} (freeRounds)
 
 /** Does a pin of Ø `p` fit a hole of Ø `h`? As big as the hole, or up to 0.6 mm smaller (a print's play). */
 const fits = (p, h) => p <= h + 1e-3 && h - p <= 0.6;
@@ -42,7 +53,22 @@ const fits = (p, h) => p <= h + 1e-3 && h - p <= 0.6;
 export function pinFits(asm, id, max = 2) {
   const a = asm.inst(id);
   if (!a || a.fastener) return [];
-  const used = usedRounds(asm), mine = freeRounds(asm, a, used);
+  const used = usedRounds(asm);
+  // kept until a part moves, a body changes or a joint is made (a click on a part of a big assembly: its fits once —
+  // the whole assembly's suggestions found them for each loose part already)
+  const sig = `${asm.doc.instances.map((it) => `${it.id}${it.fixed ? '!' : ''}${it.fastener ? 'f' : ''}:${it.matrix.join(',')}`).join('|')}#${[...used].join('|')}#${(asm.doc.mates || []).map((m) => m.move).join(',')}`;
+  const bodies = asm.doc.instances.map((it) => asm.bodyOf(it)?.body);
+  let memo = fitMemo.get(asm);
+  if (!memo || memo.sig !== sig || memo.bodies.length !== bodies.length || memo.bodies.some((b, k) => b !== bodies[k])) fitMemo.set(asm, (memo = { sig, bodies, fits: new Map() }));
+  if (!memo.fits.has(id)) memo.fits.set(id, fitsOf(asm, a, used));
+  return memo.fits.get(id).slice(0, max);
+}
+
+const fitMemo = new WeakMap(); // asm -> {sig, bodies, fits: id -> its fits, the best first} (pinFits)
+
+/** pinFits's work: all of part `a`'s fits, the best first. */
+function fitsOf(asm, a, used) {
+  const id = a.id, mine = freeRounds(asm, a, used);
   if (!mine.length) return [];
   const moving = new Set((asm.doc.mates || []).map((m) => m.move)), joined = (x) => moving.has(x);
   // its pins and holes by Ø: a round face of another part meets only those of a fitting Ø (a merged sub-assembly has
@@ -74,7 +100,7 @@ export function pinFits(asm, id, max = 2) {
       }
     }
   }
-  return [...best.values()].sort((x, y) => x.score - y.score).slice(0, max);
+  return [...best.values()].sort((x, y) => x.score - y.score);
 }
 
 /** ⧉ Put part `id` down on another part: its underside (the lowest face looking down) onto the top of part `ontoId`
@@ -89,7 +115,11 @@ export function restOn(asm, id, ontoId = null) {
   if (!base) return null;
   const flat = (it, up) => {
     let best = null;
-    for (const name of new Set((asm.bodyOf(it)?.body?.faces || []).filter((f) => f.type === 'plane').map((f) => f.name))) {
+    // (its flat faces looking up / down by their own normal first: a merged sub-assembly has thousands, each placed in
+    // the world is the costly part)
+    const nm = new THREE.Matrix3().getNormalMatrix(new THREE.Matrix4().fromArray(it.matrix)), n = new THREE.Vector3();
+    const facing = (f) => !f.normal || (up ? 1 : -1) * n.set(...f.normal).applyMatrix3(nm).normalize().z > 0.99;
+    for (const name of new Set((asm.bodyOf(it)?.body?.faces || []).filter((f) => f.type === 'plane' && facing(f)).map((f) => f.name))) {
       let f;
       try { f = asm.worldFace(it.id, name); } catch { continue; }
       if ((up ? f.normal.z : -f.normal.z) < 0.999) continue;

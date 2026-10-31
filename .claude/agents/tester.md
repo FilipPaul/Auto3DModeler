@@ -903,7 +903,9 @@ Never report "works" without having run it; report failures with their output.
    without it, the CI version: the 150-part demo exported as a STEP assembly): opened as an assembly in Czech, then top
    → "Sestava základní desky" → top → sub → top in a real Edge window, each step timed to its painted frame; a step over
    300 ms shows the loading card within 100 ms of the click; the first visit < 1.5 s, every return < 0.5 s; no console
-   errors, no native dialogs; --profile prints each step's top functions.
+   errors, no native dialogs; then in the top assembly and in the sub-assembly a part clicked (its face picked), another,
+   a parts-list row and empty space, twice, each painted under 100 ms and choosing what it should; --profile prints
+   each step's and click's top functions.
    `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint
    (Czech: an arm on a pin; the widget folded -> the row unfolds it, rings its row, focuses the slider; floating behind
    the suggestions -> raised; a new hole at the arm's other end and the first deleted: J1 broken — the row and the

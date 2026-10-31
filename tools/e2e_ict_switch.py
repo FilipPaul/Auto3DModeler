@@ -5,7 +5,9 @@ top assembly, then "Sestava základní desky", then the top again: half a minute
 Each step — a row of the project tree clicked as a mouse does, the page in Czech — is timed from the click to the
 switch done and its frame painted, with the loading card watched: a step over 300 ms shows it within 100 ms of the
 click (painted before the work, never a silent freeze), and the steps are held to budgets (the first visit of the
-sub-assembly a few seconds at most, every return warm under 0.5 s). No console errors.
+sub-assembly a few seconds at most, every return warm under 0.5 s). Then in the top assembly and in the sub-assembly:
+a part clicked in the view (its face picked with it), another one, a row of the parts list, empty space — each from
+the press to its painted frame, under 100 ms in the owner's window. No console errors.
 
   A3D_DATA=<a scratch folder> py server.py --port 5199 --no-browser
   PYTHONIOENCODING=utf-8 py tools/e2e_ict_switch.py http://127.0.0.1:5199 <out dir> [--file <a STEP assembly>] [--headless] [--profile]
@@ -13,7 +15,7 @@ sub-assembly a few seconds at most, every return warm under 0.5 s). No console e
 Without --file: the owner's file at C:/Users/PAULSWARE/Downloads/Sestava ICT M1556.stp (opened from a copy in <out dir>)
 when it is there, else (CI) a smaller one made here — the 150-part demo (demos/velka-sestava-150.a3d) exported as a
 STEP assembly (its sub-assemblies nested in it) and opened as an assembly the same way. --headless: no window
-(software GL).
+(software GL: the budgets of the paint are not held, the card and the switch's work are).
 """
 import json
 import shutil
@@ -38,7 +40,7 @@ PROFILE = "--profile" in args  # (a CDP CPU profile of each switch: <out>/ict-st
 DEMO = Path(__file__).resolve().parent.parent / "demos" / "velka-sestava-150.a3d"
 # budgets (ms) — measured on the owner's file in a real window (before the fix: the first return to the top 34 668 ms,
 # the second 29 528 ms, one long task each and no card; the first visit of the sub-assembly 575 ms, its card at 378 ms)
-BUDGET = {"first_visit_ms": 1500, "warm_ms": 500, "card_ms": 100, "card_over_ms": 300}
+BUDGET = {"first_visit_ms": 1500, "warm_ms": 500, "card_ms": 100, "card_over_ms": 300, "click_ms": 100}
 fails = []
 
 
@@ -138,6 +140,77 @@ def go(pid, tag=""):
     return r
 
 
+UI_PROBE = """
+if (!window.__ui) {
+  window.__ui = { ev: [], long: [], t0: 0 };
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__ui.ev.push([e.startTime, e.processingEnd, e.duration, e.processingEnd - e.processingStart]); }).observe({ type: 'event', durationThreshold: 16 });
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__ui.long.push([e.startTime, e.duration]); }).observe({ type: 'longtask' });
+  for (const ty of ['pointerdown', 'keydown']) window.addEventListener(ty, () => { if (!window.__ui.t0) window.__ui.t0 = performance.now(); }, true);
+}
+window.__ui.ev = []; window.__ui.long = []; window.__ui.t0 = 0;
+"""
+
+
+def clicks(where):
+    """In the assembly on screen: a part clicked in the view (a face of it picked), another, a row of its parts list,
+    empty space -> {what: {work, paint, long}} (ms: the handlers; the press to its frame painted; the longest task)."""
+    pts = js("""const A = window.__app.assembly, v = A.view, r = v.renderer.domElement.getBoundingClientRect(), out = [];
+      for (const m of v.shown()) {
+        m.geometry.computeBoundingSphere();
+        const c = m.geometry.boundingSphere.center.clone().applyMatrix4(m.matrix).project(v.camera);
+        const x = r.left + (c.x + 1) / 2 * r.width, y = r.top + (1 - c.y) / 2 * r.height;
+        if (x > r.left + 5 && x < r.right - 5 && y > r.top + 5 && y < r.bottom - 5 && document.elementFromPoint(x, y) === v.renderer.domElement
+          && v.pickInst(x, y)?.inst === m.userData.inst) out.push([x, y, m.userData.inst]);
+      }
+      return out;""")
+    empty = js("""const v = window.__app.assembly.view, r = v.renderer.domElement.getBoundingClientRect();
+      for (let y = r.top + 60; y < r.bottom - 20; y += 23) for (let x = r.left + 40; x < r.right - 40; x += 37)
+        if (document.elementFromPoint(x, y) === v.renderer.domElement && !v.pickInst(x, y)) return [x, y];
+      return null;""")
+
+    def click(x, y):
+        for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
+            d.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "none" if ty == "mouseMoved" else "left", "clickCount": 1})
+
+    def row(k):
+        xy = js("""const rows = [...document.querySelectorAll('.as-list > .mt-item')].filter((r) => r.offsetParent), r = rows[arguments[0] % rows.length];
+          r.scrollIntoView({ block: 'nearest' }); const b = r.querySelector('.mt-name').getBoundingClientRect(); return [b.left + 5, b.top + b.height / 2, r.dataset.inst];""", k)
+        click(xy[0], xy[1])
+        return xy[2]
+
+    out, right = {}, {}
+    steps = []
+    if pts:
+        p, q = pts[0], pts[len(pts) // 2]
+        steps += [("part", lambda: click(p[0], p[1]), p[2]), ("part2", lambda: click(q[0], q[1]), q[2])]
+    steps += [("row", lambda: row(1), "row")]
+    if empty:
+        steps += [("empty", lambda: click(*empty), None)]
+    for rep in range(2):
+        for what, fn, want in steps:
+            js(UI_PROBE)
+            if PROFILE:
+                d.execute_cdp_cmd("Profiler.start", {})
+            got = fn()
+            time.sleep(0.8)
+            if PROFILE:
+                prof = d.execute_cdp_cmd("Profiler.stop", {})["profile"]
+                (OUT / f"ict-click-{where.split()[-1]}-{what}-{rep}.cpuprofile").write_text(json.dumps(prof))
+                print(f"    {where}, {what} {rep}: " + ", ".join(f"{r[1]} {r[2]} {r[0]}" for r in top_functions(prof, 8) if r[1] not in ("(program)", "(idle)")))
+            r = js("""const u = window.__ui, t0 = u.t0, ev = u.ev.filter((e) => e[0] >= t0 - 1);
+              return { work: Math.round(ev.reduce((s, e) => s + e[3], 0)), paint: Math.round(ev.length ? Math.max(...ev.map((e) => e[0] + e[2])) - t0 : 0),
+                long: Math.round(Math.max(0, ...u.long.filter((l) => l[0] >= t0 - 5).map((l) => l[1]))), sel: window.__app.assembly.sel,
+                face: (window.__app.assembly.facePicks || []).length };""")
+            ok = r["sel"] == got if want == "row" else bool(r["sel"]) if want else r["sel"] is None
+            right[what] = right.get(what, True) and ok
+            out.setdefault(what, []).append({k: r[k] for k in ("work", "paint", "long")})
+            if what == "part" and rep == 0:
+                right["part: a face picked with it"] = r["face"] > 0
+    print(f"  clicks in {where}: {json.dumps(out)}")
+    check(f"{where}: each click chose what it should (a part and its face, a list row's part, none on empty space)", all(right.values()), right)
+    return out
+
+
 try:
     if OWNER.exists():
         src = OUT / OWNER.name
@@ -174,10 +247,20 @@ try:
     check(f"the first visit of the sub-assembly under {BUDGET['first_visit_ms']} ms", steps[1]["ms"] < BUDGET["first_visit_ms"], steps[1]["ms"])
     for k in (2, 3, 4):
         check(f"step {k} (back, warm) under {BUDGET['warm_ms']} ms", steps[k]["ms"] < BUDGET["warm_ms"], steps[k]["ms"])
+    # choosing in it (the owner: selecting anything in the ICT assembly took an enormous time)
+    b.run("const I = await import('/js/i18n.js'); I.setLang('cs');")
+    ui = {"top": clicks("the top assembly")}
+    go(sub[0])
+    ui["sub"] = clicks("the sub-assembly")
+    for where, out in ui.items():
+        for what, rows in out.items():
+            worst = max(x["paint"] for x in rows)
+            check(f"{where}: a click on {what} painted under {BUDGET['click_ms']} ms" if WINDOW else f"{where}: a click on {what}: its handlers under {BUDGET['click_ms']} ms",
+                  (worst if WINDOW else max(x["work"] for x in rows)) < BUDGET["click_ms"], rows)
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE" and "favicon" not in e["message"]]
     check("no console errors", not errs, errs[:3])
     check("no native dialogs", not js("return +localStorage.getItem('e2e.native') || 0"))
-    (OUT / "ict_switch.json").write_text(json.dumps({"open_s": s, "steps": res}, indent=1))
+    (OUT / "ict_switch.json").write_text(json.dumps({"open_s": s, "steps": res, "clicks": ui}, indent=1))
 finally:
     b.quit()
 print("\nALL OK" if not fails else f"\n{len(fails)} FAILED: {fails}")
