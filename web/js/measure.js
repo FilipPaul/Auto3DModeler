@@ -8,6 +8,7 @@
 // (thin lines, a small label each); the tool stays on until Esc. The table is a left-column widget (leftdock.js):
 // one line a row — #, icon, what, the value bold, the rest muted (also its tooltip); hovering a row lights its marks,
 // a click on it suggests copy / hide / delete; 👁 all marks, 📋 copy all (tab separated), 🗑 clear (↶ in the toast).
+// Each kind has its colour (icon, value, label, line): a distance, a size (L Ø R), an angle, an area; ΔX ΔY ΔZ the axes'.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t } from './i18n.js';
@@ -22,6 +23,16 @@ const V = (p) => (p?.isVector3 ? p.clone() : new THREE.Vector3(...p));
 const arr = (p) => p.toArray().map((x) => +x.toFixed(4));
 const PAR = 1 - 1e-4; // |cos| above this: parallel
 const COL = { mark: 0xf2cc60, hot: 0x58a6ff };
+/** A row's kind -> its colour group (styles.css: --m-dist, --m-size, --m-angle, --m-area, --m-other; the class mk-…). */
+const TONE = { dist: 'dist', clear: 'dist', len: 'size', dia: 'size', rad: 'size', angle: 'angle', area: 'area', point: 'other', part: 'other' };
+export const toneOf = (r) => TONE[r?.kind] || 'size';
+/** A tone's colour as the view draws it (the CSS variable, so a light theme changes it too). */
+function toneColor(tone) {
+  const c = getComputedStyle(document.documentElement).getPropertyValue(`--m-${tone}`).trim();
+  return c ? new THREE.Color(c) : new THREE.Color(COL.mark);
+}
+/** Text with ΔX ΔY ΔZ in it -> html with each in its axis' colour (--m-dx …). */
+export const deltaHtml = (s) => esc(s).replace(/Δ([XYZ]) ([^ ·]+)/gi, (m, k) => `<span class="m-d${k.toLowerCase()}">${m}</span>`);
 
 // ---------------------------------------------------------------------------------------------- geometry
 /** What a picked thing is, geometrically: {t: 'point', p} | {t: 'line', p, d, a, b, len} | {t: 'axis', p, d, r, ring?,
@@ -261,6 +272,15 @@ export class MeasureTool {
     this.pick(ent);
   }
 
+  /** What a right-click in the view does while the tool is on (actiondock.js: { word, run }): a first pick waiting —
+   *  the measurement ends there (its own row stays: a face's area, an edge's length, a hole's Ø), the next click starts
+   *  anew; nothing waiting — the tool closes (as Esc / ✕). Off: undefined (the view's usual right-click). */
+  rclick() {
+    if (!this.on) return undefined;
+    if (this.pend) return { word: 'End measurement', run: () => { this.endPend(); this.render(); } };
+    return { word: 'Close Measure', run: () => this.o.stop() };
+  }
+
   // ------------------------------------------------------------------ the mouse
   /** A click in the view while the tool is on. */
   click(e) {
@@ -441,8 +461,8 @@ export class MeasureTool {
     this.eye.style.opacity = this.marks ? '' : '0.45';
     this.table(list); // (hidden too: no rows left behind in it)
     if (this.on) {
-      this.o.hint?.(t(this.pend ? 'Click another item: the distance or angle to it — or empty space for a new measurement. Esc ends.'
-        : this.mode === 'parts' ? 'Click two parts: the clearance between them. Esc ends.' : 'Click an edge, a face or a corner — then another one for the distance or angle. Esc ends.'));
+      this.o.hint?.(`${t(this.pend ? 'Click another item: the distance or angle to it — or empty space for a new measurement. Esc ends.'
+        : this.mode === 'parts' ? 'Click two parts: the clearance between them. Esc ends.' : 'Click an edge, a face or a corner — then another one for the distance or angle. Esc ends.')} ${t(this.pend ? 'Right-click: end the measurement.' : 'Right-click: close the tool.')}`);
     }
     this.draw();
   }
@@ -454,8 +474,8 @@ export class MeasureTool {
       ${anyAlt ? `<div class="seg ms-seg" title="${esc(t('Two round things (holes, pins): how far apart their axes are, or the least gap between their surfaces'))}">
         <button data-mcc="centre" class="${this.cc === 'centre' ? 'on' : ''}">${esc(t('centre–centre'))}</button><button data-mcc="min" class="${this.cc === 'min' ? 'on' : ''}">${esc(t('min'))}</button></div>` : ''}</div>` : '';
     this.box.innerHTML = `${bar}${list.length ? `<div class="ms-th"><span>#</span><span></span><span>${esc(t('What'))}</span><span class="ms-u">mm</span><span></span><span></span></div>` : ''}
-      <div class="ms-list">${list.map((r, i) => `<div class="ms-row${r.id === this.sel ? ' sel' : ''}${r.id === this.hot ? ' hot' : ''}${this.pend?.id === r.id ? ' pend' : ''}${r.hide ? ' off' : ''}" data-ms="${r.id}" data-no-i18n
-          title="${esc(this.rowTip(r, i))}"><span class="ms-n">${i + 1}</span><span class="ms-i">${esc(r.icon || '')}</span><span class="ms-what">${esc(this.what(r))}</span><b class="ms-v">${this.valueHtml(r)}</b><span class="ms-tail">${esc(this.tail(r))}</span><button class="ms-x" data-msx="${r.id}" title="${esc(t('Delete this measurement'))}">✕</button></div>`).join('')}</div>
+      <div class="ms-list">${list.map((r, i) => `<div class="ms-row mk-${toneOf(r)}${r.id === this.sel ? ' sel' : ''}${r.id === this.hot ? ' hot' : ''}${this.pend?.id === r.id ? ' pend' : ''}${r.hide ? ' off' : ''}" data-ms="${r.id}" data-no-i18n
+          title="${esc(this.rowTip(r, i))}"><span class="ms-n">${i + 1}</span><span class="ms-i">${esc(r.icon || '')}</span><span class="ms-what">${esc(this.what(r))}</span><b class="ms-v">${this.valueHtml(r)}</b><span class="ms-tail">${deltaHtml(this.tail(r))}</span><button class="ms-x" data-msx="${r.id}" title="${esc(t('Delete this measurement'))}">✕</button></div>`).join('')}</div>
       ${list.length ? '' : `<p class="hint ms-empty">${esc(t(this.mode === 'parts' ? 'Nothing measured yet — click two parts.' : 'Nothing measured yet — click an edge, a face or a corner of the part.'))}</p>`}`;
     for (const b of this.box.querySelectorAll('[data-msm]')) b.addEventListener('click', () => { this.mode = b.dataset.msm; this.endPend(); this.render(); });
     for (const b of this.box.querySelectorAll('[data-mcc]')) b.addEventListener('click', () => { this.cc = b.dataset.mcc; this.render(); });
@@ -499,10 +519,11 @@ export class MeasureTool {
     v.clear(v.msGroup);
     v.invalidate();
     if (!this.marks || this.closed) return;
+    const tones = {};
     this.rows().forEach((r, i) => {
       const lit = r.id === this.hot || r.id === this.sel;
       if (r.hide && !lit) return;
-      const col = lit ? COL.hot : COL.mark, m = r.mark || {};
+      const tone = toneOf(r), col = lit ? COL.hot : (tones[tone] ||= toneColor(tone)), m = r.mark || {};
       for (const pl of m.lines || []) {
         if (pl.length < 2) continue;
         const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pl.map(V)), new THREE.LineBasicMaterial({ color: col, depthTest: false, transparent: true, opacity: lit ? 1 : 0.8 }));
@@ -516,7 +537,7 @@ export class MeasureTool {
       }
       if (m.at) {
         const el = document.createElement('div');
-        el.className = `ms-mark${lit ? ' on' : ''}`;
+        el.className = `ms-mark mk-${tone}${lit ? ' on' : ''}`;
         el.dataset.noI18n = '';
         el.dataset.ms = r.id;
         el.innerHTML = `<i>${i + 1}</i>${this.valueHtml(r)}`;

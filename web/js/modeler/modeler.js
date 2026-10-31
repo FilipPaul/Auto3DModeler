@@ -2972,8 +2972,10 @@ export class Modeler {
   }
 
   /** What a right-click in the view does now (actiondock.js): in a sketch it ends the drawing tool ({ word, run }) or
-   *  nothing (false) — the sketch is finished only by ✓ Finish sketch / Enter; elsewhere undefined (the OK button). */
+   *  nothing (false) — the sketch is finished only by ✓ Finish sketch / Enter; 📏 Measure: it ends the measurement, or
+   *  closes the tool (measure.js); elsewhere undefined (the OK button). */
   rclickAction() {
+    if (this.active && this.mode === 'part' && this.measuring && !this.ctx) return this.ms.rclick();
     if (!this.active || this.mode !== 'sketch' || !this.sk) return undefined;
     return this.ctx ? false : this.sk.rclick() || false;
   }

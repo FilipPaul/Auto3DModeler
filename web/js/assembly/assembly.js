@@ -2216,6 +2216,10 @@ export class Assembly {
 
   clickMeasure(e) { this.ms.click(e); }
 
+  /** What a right-click in the view does now (actiondock.js): 📏 Measure — it ends the measurement, or closes the
+   *  tool (measure.js); else undefined (the OK button). */
+  rclickAction() { return this.measuring ? this.ms.rclick() : undefined; }
+
   /** ⇹ The clearance between two placed parts (a sub-assembly: all its parts) — the kernel's least distance. */
   async clearanceOf(A, B) {
     const flat = this.flatParts(), of = (id) => flat.filter((f) => f.id === id || f.id.startsWith(`${id}/`));

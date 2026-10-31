@@ -16,6 +16,18 @@
   --k-part: #a371f7;
   --k-asm: #7ee787;
   --k-joint: #58a6ff;
+  /* 📏 Measure's kinds (measure.js; the drawing's Measure): one colour each — the icon and value in the table, the label
+     and line in the view. Warm sizes (a distance orange, a length / Ø / R yellow), an angle cyan, an area pink: none of
+     them the kinds' purple / green / blue above, nor the snap dots' green. ΔX ΔY ΔZ: the view's axes (X red, Y green,
+     Z blue), softened so they sit quietly beside the distance. */
+  --m-dist: #f0a04b;
+  --m-size: #f2cc60;
+  --m-angle: #67d4e8;
+  --m-area: #f47fbf;
+  --m-other: #c9d1d9;
+  --m-dx: #e8918b;
+  --m-dy: #93d39b;
+  --m-dz: #8fb4ec;
   /* the side columns' widgets (leftdock.js): cards on a darker gutter — where one starts and ends, at a glance */
   --dock-gutter: var(--bg);
   --dock-card: var(--panel);
@@ -683,6 +695,7 @@ body.ws-drawing .quick-only, body:not(.ws-drawing) .dwg-only, body.ws-sheet .qui
 .dw-layer input[type=color] { width: 22px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; }
 .dw-lname { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dw-measure { position: absolute; right: 12px; bottom: 34px; z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.dw-measure b { color: var(--mc, inherit); }
 .dw-status { pointer-events: none; }
 .dw-filter { display: grid; grid-template-columns: 1fr 64px 1fr auto; gap: 4px; margin-bottom: 4px; }
 .dw-filter select, .dw-filter input { min-width: 0; background-color: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font-size: 12px; }
@@ -1606,9 +1619,12 @@ button.tr-tw:hover { color: var(--text); }
 .ms-row.pend .ms-what { font-style: italic; }
 .ms-row.off .ms-v, .ms-row.off .ms-what { opacity: .5; }
 .ms-n { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
-.ms-i { color: #f2cc60; text-align: center; font-size: 11px; }
+.ms-row, .ms-mark { --mc: var(--m-size); }
+.mk-dist { --mc: var(--m-dist); } .mk-angle { --mc: var(--m-angle); } .mk-area { --mc: var(--m-area); } .mk-other { --mc: var(--m-other); }
+.m-dx { color: var(--m-dx); } .m-dy { color: var(--m-dy); } .m-dz { color: var(--m-dz); }
+.ms-i { color: var(--mc); text-align: center; font-size: 11px; }
 .ms-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.ms-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: #f2cc60; }
+.ms-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--mc); }
 .ms-v small, .ms-mark small { font-weight: 400; font-size: 9.5px; color: var(--muted); margin-left: 1px; }
 .ms-tail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .ms-x { background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; opacity: 0; font-size: 10px; }
@@ -1616,7 +1632,7 @@ button.tr-tw:hover { color: var(--text); }
 .ms-x:hover { color: var(--err); }
 .ms-box .ms-empty { margin: 6px 8px; }
 .lw-head .ms-act { font-size: 11px; }
-.ms-mark { font-size: 10.5px; color: #f2cc60; background: #161a20d8; border: 1px solid #6b5a2a; border-radius: 4px; padding: 0 4px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.ms-mark { font-size: 10.5px; color: var(--mc); background: #161a20d8; border: 1px solid color-mix(in srgb, var(--mc) 40%, transparent); border-radius: 4px; padding: 0 4px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 .ms-mark i { font-style: normal; color: var(--muted); margin-right: 3px; }
 .ms-mark.on { color: #fff; background: #1f3b5c; border-color: var(--dim); z-index: 2; }
 .m-section { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px;

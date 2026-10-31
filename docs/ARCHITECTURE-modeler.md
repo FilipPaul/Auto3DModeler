@@ -7,6 +7,24 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📏 A colour per measurement kind (2026-10-31)** (the owner: "distance, angles and area should have different
+  colours"; "X, Y, Z deltas a slightly different colour each"). styles.css: `--m-dist` #f0a04b (orange: distances,
+  ⊥ ⫽, clearance), `--m-size` #f2cc60 (the old mark yellow: L, Ø, R), `--m-angle` #67d4e8 (cyan), `--m-area` #f47fbf
+  (pink), `--m-other` (a point's coordinates, a part) — warm for lengths, cool for angles, none the kinds' purple /
+  green / blue or the snap dots' green; `--m-dx/dy/dz` the view's AxesHelper red / green / blue softened (#e8918b,
+  #93d39b, #8fb4ec) so they sit beside the muted details. measure.js: `toneOf(row)` -> class `mk-<tone>` on the row
+  (icon + value) and the view's label; the lines / dots read the variable (`toneColor`), the lit row stays blue;
+  `deltaHtml` wraps ΔX ΔY ΔZ in `m-dx/dy/dz`; the 📐 drawing's Measure box and line use the same. A light theme
+  changes the variables only. tools/e2e_measure_colours.py (10 checks).
+- **📏 Right-click ends a measurement (2026-10-31)** (the owner: "right click to finish the current measurement; if
+  nothing is selected, the right click can cancel the measurement tool"). Through actiondock.js's `rclick` hook (a click:
+  < 4 px, < 0.4 s; a right-drag still orbits / pans; its contextmenu cancelled, the cursor hint says the word):
+  `MeasureTool.rclick()` -> a first pick waiting: *Ukončit měření* (endPend: the single pick's own row stays — area,
+  length, Ø; a whole part in Parts mode measures nothing, its row goes as before), else *Zavřít měření* (o.stop, as
+  Esc). Hooked in modeler.rclickAction (part mode, before the sketch's), assembly.rclickAction, and the 📐 drawing
+  editor's own Measure (drawing2d.rclickAction: the first spot dropped, else back to Select); app.js passes the asm /
+  dwg hooks. The tool's hint line ends with "Pravé tlačítko: ukončit měření." / "… zavřít nástroj.".
+  tools/e2e_measure_rclick.py (22 checks: model, assembly, drawing; real context_click and right-drag).
 - **▭ Docked widgets as cards (2026-10-31)** (the owner: "a little hard at first look to see where a pinned widget starts
   and ends"). The side columns (`.lw-col`) are a darker gutter (`--dock-gutter`: the page's `--bg`) with a 4 px padding
   (`--dock-gap`); each docked widget is a card on it — `--dock-card` surface, a 1 px `--dock-edge` hairline,

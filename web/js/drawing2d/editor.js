@@ -6,6 +6,7 @@ import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { choose } from '../choose.js';
 import { showSuggest } from '../suggest.js';
+import { deltaHtml } from '../measure.js';
 import { drawingSuggest } from './drawsuggest.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -249,7 +250,7 @@ export class DrawingEditor {
     if (this.measure?.a) {
       const b = this.measure.b || this.cursor?.p;
       if (b) {
-        c.strokeStyle = '#f2cc60';
+        c.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--m-dist').trim() || '#f0a04b'; // (a distance: its colour)
         c.lineWidth = 1.5;
         c.beginPath(); c.moveTo(...this.toScreen(this.measure.a)); c.lineTo(...this.toScreen(b)); c.stroke();
       }
@@ -452,7 +453,7 @@ export class DrawingEditor {
     this.measure = null;
     this.$('.dw-measure').hidden = true;
     this.hint({ line: 'Line: click where it starts, then where it ends (it goes on from there; Esc = stop).', circle: 'Circle: click the centre, then a point on it.',
-      measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø.', select: '' }[tool] || '');
+      measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø. Right-click: close the tool.', select: '' }[tool] || '');
     this.renderBar();
     this.renderSuggest();
     this.draw();
@@ -509,7 +510,7 @@ export class DrawingEditor {
       const id = !s.snap ? this.hitAt(sx, sy) : null, e = id ? this.d.entities.find((x) => x.id === id) : null;
       if (e && (e.t === 'circle' || e.t === 'arc')) {
         box.hidden = false;
-        box.innerHTML = `<b>${e.t === 'circle' ? t('Circle') : t('Arc')}</b> Ø ${fmt(2 * e.r)} mm · R ${fmt(e.r)} · ${t('centre')} ${fmt(e.c[0])}, ${fmt(e.c[1])}`;
+        box.innerHTML = `<b>${e.t === 'circle' ? t('Circle') : t('Arc')}</b> <span class="mk-size"><b>Ø ${fmt(2 * e.r)} mm</b></span> · R ${fmt(e.r)} · ${t('centre')} ${fmt(e.c[0])}, ${fmt(e.c[1])}`;
         this.measure = null;
         return;
       }
@@ -521,8 +522,16 @@ export class DrawingEditor {
     }
     this.measure.b = s.p;
     const [a, b] = [this.measure.a, s.p];
-    box.innerHTML = `<b>${fmt(Math.hypot(b[0] - a[0], b[1] - a[1]))} mm</b> · Δx ${fmt(Math.abs(b[0] - a[0]))} · Δy ${fmt(Math.abs(b[1] - a[1]))} · ${fmt((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI)}°`;
+    box.innerHTML = `<span class="mk-dist"><b>${fmt(Math.hypot(b[0] - a[0], b[1] - a[1]))} mm</b></span> · ${deltaHtml(`Δx ${fmt(Math.abs(b[0] - a[0]))} · Δy ${fmt(Math.abs(b[1] - a[1]))}`)} · <span class="mk-angle">${fmt((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI)}°</span>`;
     this.draw();
+  }
+
+  /** What a right-click in the view does now (actiondock.js): Measure — a first spot waiting: that measurement ends
+   *  (the next click starts anew); else the tool closes (back to Select). Else undefined (the OK button). */
+  rclickAction() {
+    if (!this.active || this.tool !== 'measure') return undefined;
+    if (this.measure?.a && !this.measure.b) return { word: 'End measurement', run: () => { this.measure = null; this.$('.dw-measure').hidden = true; this.setTool('measure'); } };
+    return { word: 'Close Measure', run: () => this.setTool('select') };
   }
 
   /** The file's units were not what it was read as: rescale everything (one file unit = UNIT_MM[u] mm). */
