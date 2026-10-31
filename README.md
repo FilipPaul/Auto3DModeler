@@ -1474,6 +1474,19 @@ the app: every change appears in the 3D view at once and **↶ Undo AI change** 
 On a quick part the chat is the **✨ AI** tab of the left panel; in a 3D model or an assembly the **✨ AI** button in
 the top bar opens the same chat (the same conversation) at the right side — ✕ closes it.
 
+**🔒 Locked for the AI (Zamčeno pro AI)** — bought parts, parts already made, approved designs: the AI must not change
+them. Click the small 🔒 on a row of the ☰ Project tree or of an assembly's parts list (it shows on hover; a locked
+row keeps it), or choose several rows (Ctrl / Shift+click — in the project tree too) and use **🔒 Zamknout pro AI (n)**
+/ **🔓 Odemknout pro AI (n)** in the suggestions, the tree's bar or a row's **⋯** menu (one undo step). The part's /
+assembly's panel shows **🔒 Zamčeno pro AI** with a toggle and a reason: *koupený / vyrobený / schválený*. The lock is
+saved in the project. **Library parts are always locked for the AI.** The AI then cannot change a locked part's steps,
+sketches, material, colour, name, the 𝑥 parameters that drive it, nor delete it; in a locked (sub-)assembly it cannot
+move, remove or re-join the parts or edit its cables and mechanisms — it is told *"🔒 … je zamčený pro AI … vazby
+přidat lze"* and takes another way. It **may** still add joints to locked parts and into a locked sub-assembly, insert
+them, measure them and use them in drawings and the BOM; `list_parts` / `get_model` / `get_assembly` say
+`ai_locked`. Only you can lock or unlock (the AI has no tool for it), and you can still edit a locked part — a short
+note reminds you that it is locked for the AI.
+
 **🕘 Previous conversations** (the bar under the chat's head): every conversation is kept on the server
 (`data/chats/`, the last 200) with the project it was about. The list shows this project's conversations first (the
 others under "Other projects"), each with its date, its first message as the title and the number of messages;

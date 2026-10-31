@@ -32,6 +32,7 @@ import { t, getLang } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
 import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
+import { lockBtn, lockItems, lockPanel, lockOf, lockInfo, keysParts, refusal } from '../ailock.js';
 import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
@@ -828,6 +829,7 @@ export class Assembly {
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
         { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
         ...displayItems(this, [a.id, b.id]), // (👁 both hidden, see-through, isolated …)
+        ...lockItems([a.part, b.part], 8), // (🔒 for the AI)
       ]);
       return;
     }
@@ -858,6 +860,7 @@ export class Assembly {
       { icon: '✕', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) },
       { icon: '◆', label: `${t('Only')} ${this.partName(first.part)} ${first.id}`, rank: 9, run: () => this.choose(first.id) },
       ...displayItems(this, ids), // (👁 all of them hidden, see-through, isolated …)
+      ...lockItems(keysParts(this.selKeys())), // (🔒 the AI may add joints to them, not change them)
     ].map((x) => (x.sub ? x : { ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Ctrl+click adds or takes out a part'), refs);
   }
 
@@ -1220,8 +1223,8 @@ export class Assembly {
       row.dataset.inst = it.id;
       // (👁 first: in one place whether the hover's buttons show or not)
       row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
-        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
-        <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
+        ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}${lockBtn(it.part)}
+        <span class="mt-acts"><button class="mini" data-ailock-menu="@${it.id}" title="More: lock it for the AI …">⋯</button><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
@@ -1254,7 +1257,7 @@ export class Assembly {
   /** What the parts list's rows show, but which is chosen (renderList: the same -> only the lit rows change). */
   listKey(open) {
     const subs = this.doc.instances.filter((it) => this.kindOf(it.part) === 'assembly').map((it) => JSON.stringify(instanceTree(this.bomCtx(), it.part, it.id)));
-    return JSON.stringify([this.hooks.selfId?.(), getLang(), [...open], subs, this.doc.display || {}, this.doc.instances.map((it) => [it.id, it.part, this.partName(it.part),
+    return JSON.stringify([this.hooks.selfId?.(), getLang(), [...open], subs, this.doc.display || {}, this.hooks.parts().map((p) => lockOf(p)?.reason ?? (lockOf(p) ? 1 : 0)), this.doc.instances.map((it) => [it.id, it.part, this.partName(it.part),
       this.partIcon(it.part), !!it.fixed, !!it.stay, this.bodies[it.part]?.error || ''])]);
   }
 
@@ -1294,7 +1297,7 @@ export class Assembly {
       row.className = 'mt-item as-inner-row';
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
-      row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
+      row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>${lockBtn(n.part)}<span class="mt-acts"><button class="mini" data-ailock-menu="@${n.path}" title="More: lock it for the AI …">⋯</button></span>`;
       row.querySelector('.mt-name').textContent = this.partName(n.part);
       row.querySelector('.mt-what').textContent = n.id;
       row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });
@@ -1582,6 +1585,7 @@ export class Assembly {
         ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}${chainsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
           ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
+      lockPanel(box, it.part); // (🔒 Locked for the AI: its part)
       if (missHere) this.mech.bindMissing(box);
       box.querySelector('[data-a=flexsub]')?.addEventListener('change', (ev) => this.setRigid(it.id, !ev.target.checked));
       for (const inp of box.querySelectorAll('input[data-k]')) {
@@ -1641,6 +1645,7 @@ export class Assembly {
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p></div>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
+    lockPanel(box, this.hooks.selfId?.()); // (🔒 Locked for the AI: this assembly)
     this.bindJointRows(box);
     bindCouplingRows(this, box, renameInPlace);
     bindSpringRows(this, box, renameInPlace);
@@ -4535,7 +4540,7 @@ export class Assembly {
   innerOf(it) {
     let r = null;
     try { r = this.innerMotions(it); } catch { r = null; }
-    return r ? { inner: r.parts.map(({ id }) => ({ part: `${it.id}/${id}`, name: this.partName(r.sub.inst(id).part), ...r.sub.freeOf(id) })) } : {};
+    return r ? { inner: r.parts.map(({ id }) => ({ part: `${it.id}/${id}`, name: this.partName(r.sub.inst(id).part), ...r.sub.freeOf(id), ...lockInfo(r.sub.inst(id).part) })) } : {};
   }
 
   /** The closed loop a part is in when it is a mechanism (its parts move together) or cannot close — not one that holds
@@ -4558,13 +4563,14 @@ export class Assembly {
   summary() {
     const self = this.hooks.selfId?.(), totals = new Map(self ? bomOf(this.bomCtx(), self).rows.map((r) => [r.part, r.qty]) : []); // (rolled up through the sub-assemblies)
     return {
+      ...(self ? lockInfo(self) : {}), // (🔒 this assembly locked for the AI: joints only)
       parts: this.doc.instances.map((it) => {
         const b = this.bodyOf(it)?.body, m = new THREE.Matrix4().fromArray(it.matrix);
         const bb = b ? new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(m) : null;
         const mg = b?.sub ? b.mass_g : this.massOf(it.part); // (as the ⊕ centre of mass weighs it)
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, ...(Number.isFinite(mg) ? { mass_g: +mg.toFixed(2) } : {}),
-          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it), ...(it.rigid && this.kindOf(it.part) === 'assembly' ? { rigid: true } : {}) };
+          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it), ...(it.rigid && this.kindOf(it.part) === 'assembly' ? { rigid: true } : {}), ...lockInfo(it.part) };
       }),
       ...(() => { const mp = this.massProps(); return mp.cog ? { mass_g: mp.mass_g, cog_mm: mp.cog, ...(mp.unknown ? { parts_without_mass: mp.unknown } : {}) } : {}; })(),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
@@ -4736,6 +4742,8 @@ export class Assembly {
         Object.assign(this.bolt, { kind, size, upto: through || null });
         const plan = this.boltPlan();
         if (plan.error) { this.cancelBolt(); throw new Error(plan.error); }
+        const locked = plan.holes.map((h) => this.hooks.parts().find((p) => p.id === h.part)).find((p) => p && lockOf(p)); // (🔒 for the AI: no hole drilled in it)
+        if (locked) { this.cancelBolt(); throw new Error(refusal(locked)); }
         await this.addBolt(plan, true);
         return { text: `Added ${plan.text}; holes drilled: ${plan.holes.map((h) => `Ø${h.d} ${h.through ? 'through' : `${h.depth} mm deep`} in ${this.partName(h.part)} (${h.inst})`).join(', ')}. ${JSON.stringify(this.summary())}` };
       },

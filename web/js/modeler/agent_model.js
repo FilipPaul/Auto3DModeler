@@ -12,6 +12,7 @@ import { nextFrames } from '../frames.js';
 import { sketchHandlers } from './agent_sketch.js';
 import { HOLE_SIZES, HOLE_SHAPES, dFlat, holeSpec, presetFor } from './holes.js';
 import { exprArgs, keepExprs } from '../paramsui.js';
+import { lockInfo } from '../ailock.js';
 
 // 𝑥 the numbers of a step the AI may give as an expression of the project's parameters ("L / 2")
 const EXPR_KEYS = ['d', 'd2', 'offset', 'draft', 'r', 'angle', 't', 'depth', 'count', 'spacing', 'h', 'flat', 'flat_angle', 'head_d', 'head_depth', 'head_angle'];
@@ -533,7 +534,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   };
 
   return {
-    list_parts: async () => ({ text: JSON.stringify(project.parts.map((p) => ({ id: p.id, name: p.name, kind: KIND[p.kind] || 'quick part', on_screen: p.id === project.active }))) }),
+    list_parts: async () => ({ text: JSON.stringify(project.parts.map((p) => ({ id: p.id, name: p.name, kind: KIND[p.kind] || 'quick part', on_screen: p.id === project.active, ...lockInfo(p.id) }))) }), // (🔒 ai_locked: joints only)
 
     open_part: async ({ id }) => {
       const p = project.parts.find((q) => q.id === id || q.name === id);
@@ -597,7 +598,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const n = m.barAt(), fs = m.part.features;
       const rollback = n < fs.length ? { after: fs[n - 1].id, name: fs[n - 1].name, rolled_back: fs.slice(n).map((f) => f.id),
         note: 'The view, body and new steps are as after this step (new steps go in under it); exports, the print copy, assemblies and drawings are the part as the bar stands too. rollback {to: "end"} brings them back.' } : undefined;
-      return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, ...(rollback ? { rollback } : {}), body: summary() }) };
+      return { text: JSON.stringify({ name: project.current?.name, ...lockInfo(project.active), unit: 'mm', steps, ...(rollback ? { rollback } : {}), body: summary() }) };
     },
 
     rollback: async ({ to } = {}) => {

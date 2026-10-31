@@ -30,6 +30,22 @@ def _part_name(payload, fallback):
     return src or fallback
 
 
+AI_LOCK_REASONS = ("bought", "made", "approved")
+
+
+def _ai_lock(p):
+    """🔒 A part locked for the AI (web/js/ailock.js): `ai_lock` {reason?} kept as {} or {"reason": bought | made |
+    approved}; `true` reads as locked, anything else (false, junk) as not locked."""
+    lock = p.get("ai_lock")
+    if lock is None:
+        return
+    if lock is True or isinstance(lock, dict):
+        reason = lock.get("reason") if isinstance(lock, dict) else None
+        p["ai_lock"] = {"reason": reason} if reason in AI_LOCK_REASONS else {}
+    else:
+        del p["ai_lock"]
+
+
 def migrate(proj):
     """Any project file -> version 3 (raises ProjectError for something that is not a project)."""
     if not isinstance(proj, dict) or proj.get("app") != APP:
@@ -82,6 +98,7 @@ def migrate(proj):
         elif p["kind"] != "classic":
             raise ProjectError(f"Part “{p.get('name') or p['id']}” is of an unknown kind “{p['kind']}”.")
         p.setdefault("name", _part_name(p.get("classic"), p["id"]))
+        _ai_lock(p)
     act = (out.get("active") or {}).get("part")
     if act not in seen:
         out["active"] = {"part": parts[0]["id"]}

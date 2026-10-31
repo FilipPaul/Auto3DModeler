@@ -438,6 +438,19 @@ class TestMcpServer(unittest.TestCase):
             self.assertIn(words, SYSTEM_PROMPT)
         self.assertNotIn("trace_picture", BROWSER_TOOLS)
 
+    def test_the_ai_respects_the_lock(self):
+        """🔒 Locked for the AI: the prompt says to keep locked parts as they are, that joints may still be added and
+        that a lock is never worked around; the skills that change parts say it too; there is no tool to unlock (only the
+        user does). The page refuses the calls (web/js/ailock.js; tools/e2e_ai_lock.py)."""
+        from auto3d.agent_tools import SYSTEM_PROMPT
+        from auto3d.guides import guides
+        for words in ("🔒 Locked for the AI", "ai_locked", "add joints", "Never work around a lock", "only the user unlocks"):
+            self.assertIn(words, SYSTEM_PROMPT)
+        g = {k: v["text"] for k, v in guides().items()}
+        for topic in ("model-a-part", "change-a-model", "assemble-parts"):
+            self.assertIn("ai_locked", g[topic], topic)
+        self.assertFalse({t["name"] for t in TOOLS} & {"set_ai_lock", "unlock", "unlock_part"})
+
     def test_the_ai_sees_the_suggestions_table(self):
         """The app is worked through its suggestions table: gui_state returns it (where: suggest = only it), gui_action
         picks a named face / part and runs a row by its label, get_screenshot {ui: true} draws it; the prompt and the

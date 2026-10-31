@@ -4,6 +4,7 @@ import { leftDock } from './leftdock.js';
 import { suggestMenu } from './suggest.js';
 import { params } from './params.js';
 import { loadParams } from './paramsui.js';
+import { lockBtn, lockItems } from './ailock.js';
 
 // A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
 // becomes a part; click a tab to switch, double-click to rename, ✕ to close the tab (the part stays in the project:
@@ -359,7 +360,7 @@ export class Project {
       parameters: params.toJSON(), // (𝑥 the project's parameters)
       active: { part: this.active },
       parts: this.parts.filter((p) => p.data && p.data !== 'live')
-        .map((p) => ({ id: p.id, kind: p.kind, name: p.name, [p.kind === 'classic' ? 'classic' : p.kind]: p.data, ...(p.closed ? { closed: true } : {}) })),
+        .map((p) => ({ id: p.id, kind: p.kind, name: p.name, [p.kind === 'classic' ? 'classic' : p.kind]: p.data, ...(p.closed ? { closed: true } : {}), ...(p.ai_lock ? { ai_lock: p.ai_lock } : {}) })),
     };
     if (this.current) this.current.data = 'live';
     return out;
@@ -369,7 +370,8 @@ export class Project {
   async loadAll(proj) {
     window.dispatchEvent(new Event('a3d:project-loading'));
     loadParams(proj.parameters); // (its numbers agree with them already: project.migrate)
-    this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null, ...(p.closed ? { closed: true } : {}) }));
+    this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null, ...(p.closed ? { closed: true } : {}), ...(p.ai_lock ? { ai_lock: p.ai_lock } : {}) }));
+    this.picked = new Set();
     this.next = 1 + Math.max(0, ...this.parts.map((p) => parseInt(String(p.id).replace(/\D/g, ''), 10) || 0));
     const act = this.parts.find((p) => p.id === proj.active?.part) || this.parts.find((p) => !p.closed) || this.parts[0];
     delete act.closed;
@@ -516,6 +518,23 @@ export class Project {
   /** A part's data now (the one on screen: as it is on screen). */
   dataOf(p) { return p.id === this.active && p.data === 'live' ? this.hooks.payload(p.kind) : p.data; }
 
+  /** A click on a tree row: alone — the part opens; Ctrl — chosen too / taken out (several: 🔒 for the AI at once);
+   *  Shift — the rows from the last one clicked to this one (Ctrl+Shift: added to those chosen). */
+  clickRow(id, e, rows) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl && !e.shiftKey) { this.picked?.clear(); this.lastPick = id; this.switchTo(id); this.renderTree(); return; }
+    const ids = rows.map((r) => r.p.id);
+    this.picked ||= new Set();
+    if (e.shiftKey && this.lastPick && ids.includes(this.lastPick)) {
+      const a = ids.indexOf(this.lastPick), b = ids.indexOf(id), range = ids.slice(Math.min(a, b), Math.max(a, b) + 1);
+      this.picked = new Set([...(ctrl ? this.picked : []), ...range]);
+    } else {
+      if (this.picked.has(id)) this.picked.delete(id); else this.picked.add(id);
+      this.lastPick = id;
+    }
+    this.renderTree();
+  }
+
   /** The project's tree over the left panel: the assemblies with what is in them (sub-assemblies inside), each part's
    *  drawing sheets under it, then the parts in no assembly. */
   renderTree() {
@@ -526,7 +545,8 @@ export class Project {
       document.querySelector('main.layout')?.appendChild(this.tree);
       try { this.treeOpen = this.treeOpen ?? localStorage.getItem('a3d.tree') === '1'; } catch { this.treeOpen = false; }
       // a double-click on a row: its name to edit (the part opens with the first click)
-      this.tree.addEventListener('dblclick', (e) => { const r = e.target.closest('.pt-row'); if (r && !e.target.closest('.pt-win, .pt-del')) this.renameInTree(r.dataset.part); });
+      this.tree.addEventListener('dblclick', (e) => { const r = e.target.closest('.pt-row'); if (r && !e.target.closest('.pt-win, .pt-del, .ai-lock, .pt-more')) this.renameInTree(r.dataset.part); });
+      this.tree.addEventListener('mousedown', (e) => { if (e.shiftKey && e.target.closest('.pt-row')) e.preventDefault(); }); // (Shift+click: rows, not the page's text)
       // the header dragged: into the left column (docked) or onto the view (floating) — leftdock.js
       this.tree.addEventListener('pointerdown', (e) => { const h = e.target.closest('.tr-head'); if (h) leftDock.dragStart('project', e, h); });
       leftDock.onProject = () => this.render();
@@ -576,14 +596,23 @@ export class Project {
     const ub = box.querySelector('.tr-undo');
     if (ub) { ub.querySelector('span').textContent = this.lastDeleted.p.name || ''; ub.addEventListener('click', () => this.undoDelete()); }
     const list = box.querySelector('.tr-list');
+    this.picked = new Set([...(this.picked || [])].filter((id) => byId.has(id)));
+    if (this.picked.size > 1) { // several chosen (Ctrl / Shift+click): what to do with them all, as a suggestion row
+      const bar = document.createElement('div'), items = lockItems([...this.picked]);
+      bar.className = 'tr-picked';
+      bar.innerHTML = `<b>${t('{n} parts chosen').replace('{n}', this.picked.size)}</b>${items.map((it, i) => `<button class="btn small" data-i="${i}" title="${it.title}">${it.icon} ${it.label}</button>`).join('')}<button class="mini" data-x title="${t('None chosen (Esc)')}">✕</button>`;
+      for (const b of bar.querySelectorAll('[data-i]')) b.addEventListener('click', () => items[+b.dataset.i].run());
+      bar.querySelector('[data-x]').addEventListener('click', () => { this.picked.clear(); this.renderTree(); });
+      list.before(bar);
+    }
     for (const { p, depth, qty } of rows) {
       const row = document.createElement('div');
-      row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
+      row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}${this.picked?.has(p.id) ? ' picked' : ''}`;
       row.dataset.part = p.id;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab) — double-click: rename it' : 'Show it — double-click: rename it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab) — double-click: rename it' : 'Show it — double-click: rename it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${lockBtn(p.id)}<button class="mini pt-more" data-ailock-menu="${this.picked?.has(p.id) ? [...this.picked].join(',') : p.id}" title="${t('More: lock it for the AI …')}">⋯</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
-      row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
+      row.querySelector('.pt-open').addEventListener('click', (e) => this.clickRow(p.id, e, rows));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
       const del = row.querySelector('.pt-del');
       if (del) armDelete(del, () => this.remove(p.id, false)); // (a second click deletes; ↶ undoes it)

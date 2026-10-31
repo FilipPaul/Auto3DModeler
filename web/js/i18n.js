@@ -2401,6 +2401,19 @@ const CS = {
   '{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).':
     '{name}: {n} dílů pevně spojeno na {base} — pohybují se jako jeden (✕ v jejím řádku ji zruší; Ctrl+Z: zpět).',
   'fixing parts together': 'spojuje díly pevně',
+  // 🔒 locked for the AI (ailock.js)
+  'Lock it for the AI: the AI may add joints to it, but not change it': 'Zamknout pro AI: AI k němu smí přidat vazby, ale nesmí ho měnit',
+  'Library part — always locked for the AI': 'Díl z knihovny — pro AI vždy zamčený',
+  'Locked for the AI — click to unlock': 'Zamčeno pro AI — kliknutím odemknete',
+  'Locked for the AI': 'Zamčeno pro AI', 'bought': 'koupený', 'made': 'vyrobený', 'approved': 'schválený',
+  'Lock for the AI ({n})': 'Zamknout pro AI ({n})', 'Unlock for the AI ({n})': 'Odemknout pro AI ({n})',
+  'The AI may add joints to them, but not change them (bought, made or approved parts)': 'AI k nim smí přidat vazby, ale nesmí je měnit (koupené, vyrobené nebo schválené díly)',
+  'The AI may change them again': 'AI je smí zase měnit',
+  'Locked for the AI: {n}': 'Zamčeno pro AI: {n}', 'Unlocked for the AI: {n}': 'Odemčeno pro AI: {n}',
+  'The AI may add joints to it, but not change it — you can still change it': 'AI k němu smí přidat vazby, ale nesmí ho měnit — vy ho měnit můžete',
+  'The part is locked for the AI — you can still change it.': 'Díl je zamčený pro AI — vy ho měnit můžete.',
+  'The assembly is locked for the AI — you can still change it.': 'Sestava je zamčená pro AI — vy ji měnit můžete.',
+  'More: lock it for the AI …': 'Další: zamknout pro AI …', 'None chosen (Esc)': 'Nic nevybráno (Esc)',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)

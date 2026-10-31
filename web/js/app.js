@@ -44,6 +44,7 @@ import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the
 import { busy, busyFile, busyAside, painted, postWithProgress } from './busy.js'; // (a file opening, an export …: the loading card)
 import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
+import { initAiLock } from './ailock.js';
 import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
 import { initStart, initWindowDrop } from './start.js';
@@ -2575,6 +2576,9 @@ async function sheetScreenshot() {
 
 // 𝑥 the project's parameters: the widget, number fields with expressions, the parts following a change
 initParams({ project, modeler, assembly, toast });
+// 🔒 parts locked for the AI: the AI's calls checked (ailock.js); a lock changed: the tree, the list and the panel drawn again
+initAiLock({ state, project, modeler, assembly, toast,
+  refresh: () => { project.render(); if (state.workspace === 'assembly') assembly.render(); else if (state.workspace === 'model') modeler.renderProps(); } });
 
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });

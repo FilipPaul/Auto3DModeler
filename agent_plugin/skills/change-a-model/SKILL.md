@@ -6,7 +6,8 @@ description: Use when the user wants to change an existing 3D model part (make i
 # Change a 3D model part
 
 1. `list_parts` and `open_part` if the model is not on screen; then `get_model` — its steps (id, type,
-   values, ok / issues), the body's size and volume.
+   values, ok / issues), the body's size and volume. 🔒 `ai_locked: true` (a bought, made or approved part; library
+   parts always): do not change it — the edit is refused; tell the user and change the part next to it instead.
 2. Change the step that holds the value instead of adding new ones:
    - a size of the base shape → `edit_feature {id: "<sketch id>", fields: {shapes: [...]}}` (the whole shape
      list again, as in add_feature) or the extrude's `{d}`;
