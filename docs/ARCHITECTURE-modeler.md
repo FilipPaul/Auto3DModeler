@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking
+  an object should offer choosing the part or — only when there is one — the sub-assembly). `chooseItems(q, a)` in
+  suggestFaces' part section: for a face of a part inside the placed sub-assembly a (innerFace), the part's key, the
+  sub-assembly it is in and a itself, minus the one chosen now, the first two (rank -1: near the top); "Choose
+  {name}" (Vybrat …), the icon tells which. A placed part's face: none (the old ◆ Select the whole part stays there;
+  for an inner face it is left out — ◇ Choose ‹top› says it). suggest.js passes the click to `run(e)`: Ctrl+click on
+  the row adds to what is chosen. tools/e2e_nested_select.py.
 - **🔍 Find a part in the assembly's list; the clicked part's row in sight (2026-10-31)** (the owner: a search in
   the panel that lists the parts, and a part clicked in the view scrolled to and lit in the list). The field sits in
   the list's header (no row of its own: the list keeps its height); input is debounced 150 ms, `findRows()` walks the

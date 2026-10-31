@@ -6,7 +6,9 @@ have no ✕ Take them out (not Mid as a whole), Delete takes nothing out -> the 
 levels deep, Shift+click a range -> a plain click on Mid in the view still chooses it whole -> 🔍 find: "PIN" leaves
 the pin and the sub-assemblies it is in, "distancni" finds "Distanční sloupek", a found row chosen, Esc -> a part
 clicked in the view (the list short): its sub-assemblies folded open, its row marked and scrolled into sight; with a
-filter that hides it: the filter cleared; Ctrl+click: the row of the part added in sight.
+filter that hides it: the filter cleared; Ctrl+click: the row of the part added in sight -> a face of the pin
+clicked: ◆ Choose Pin / ◇ Choose Inner in the suggestions (not Mid: chosen), each chosen in turn, Ctrl: added; a placed
+part: none.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_nested_select.py http://127.0.0.1:5199 <out dir>
@@ -109,6 +111,17 @@ def in_sight(key):
     """The row inside the list's visible part."""
     return js("""const l = document.querySelector('#asmLeft .as-list'), r = l.querySelector(`[data-path="${arguments[0]}"], [data-inst="${arguments[0]}"]`);
       if (!r) return false; const a = l.getBoundingClientRect(), b = r.getBoundingClientRect(); return b.top >= a.top - 1 && b.bottom <= a.bottom + 1;""", key)
+
+
+def choose_rows():
+    return [x.strip() for x in js("return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(b => b.textContent)") or [] if x.strip().startswith(("◆ Choose", "◇ Choose"))]
+
+
+def choose_row(label, ctrl=False):
+    """A row of the suggestions (folded away in this test: clicked by the script, Ctrl held or not)."""
+    js("""const b = [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].find(x => x.textContent.trim() === arguments[0]);
+      b.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: arguments[1], detail: 1 }));""", label, ctrl)
+    time.sleep(0.4)
 
 
 def row(key):
@@ -230,6 +243,22 @@ try:
     js("document.querySelector('#asmLeft .as-list').scrollTop = 0")
     click(SPACER, ctrl=True)
     check(f"Ctrl+click the spacer: chosen too {keys()}, its row in sight", sorted(keys()) == sorted([PLATE, SPACER]) and in_sight(SPACER))
+
+    # ◆ Choose the part / ◇ Choose its sub-assembly in the suggestions of a face clicked
+    js(f"{A}.facePicks = []; {A}.select([])")
+    time.sleep(0.3)
+    click(PIN)
+    check(f"a click on the pin (Mid chosen): {choose_rows()}", choose_rows() == ["◆ Choose Pin", "◇ Choose Inner"])
+    choose_row("◆ Choose Pin")
+    check(f"◆ Choose Pin: {keys()} — then {choose_rows()}", keys() == [PIN] and choose_rows() == ["◇ Choose Inner", "◇ Choose Mid"])
+    choose_row("◇ Choose Inner")
+    check(f"◇ Choose Inner: {keys()} — then {choose_rows()}", keys() == ["I2/I2"] and choose_rows() == ["◆ Choose Pin", "◇ Choose Mid"])
+    choose_row("◆ Choose Pin", ctrl=True)
+    check(f"Ctrl+click ◆ Choose Pin: added {keys()}", sorted(keys()) == sorted(["I2/I2", PIN]))
+    js(f"{A}.facePicks = []; {A}.select([])")
+    time.sleep(0.3)
+    click(BASE)
+    check(f"a placed part clicked: no Choose rows {choose_rows()}", choose_rows() == [])
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

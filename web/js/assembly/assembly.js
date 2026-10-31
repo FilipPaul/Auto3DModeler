@@ -583,9 +583,28 @@ export class Assembly {
       ...[this.harnessTool.fromHere(this.lastClick?.p?.inst === q.inst ? this.lastClick : null)].filter(Boolean),
       ...this.faceSketchItems(q, a),
       { section: `${this.partName(a.part)} ${a.id}` },
-      { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
+      ...this.chooseItems(q, a), // (◆ the part under the mouse / ◇ its sub-assembly: when it is inside one)
+      ...(this.innerFace(a, q.face.name) ? [] : [{ icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } }]),
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
+  }
+
+  /** ◆ Choose ‹part› / ◇ Choose ‹sub-assembly› for a face of a part inside the placed sub-assembly a (q: the face
+   *  picked): the part itself (the deepest under the mouse), the sub-assembly it is in, and the top one (a) — not the
+   *  one chosen now, two rows at most (the nearer ones). Ctrl+click on a row: added to what is chosen. */
+  chooseItems(q, a) {
+    const deep = this.innerFace(a, q.face?.name || '');
+    if (!deep) return [];
+    const near = deep.key.split('/').slice(0, -1).join('/'), now = this.selKeys();
+    const ways = [[deep.key, deep.part, '◆'], ...(near !== a.id ? [[near, this.placedAt(near)?.it.part, '◇']] : []), [a.id, a.part, '◇']];
+    return ways.filter(([k]) => !(now.length === 1 && now[0] === k)).slice(0, 2).map(([k, pid, icon], i) => ({ icon, label: t2('Choose {name}', { name: this.partName(pid) }), rank: -1 + i * 0.1,
+      title: t(icon === '◆' ? 'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)' : 'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)'),
+      run: (e) => {
+        const more = e?.ctrlKey || e?.metaKey;
+        if (more) this.facePicks = []; // (several: what fits them all)
+        this.select(more ? [...now.filter((x) => x !== k), k] : [k]);
+        this.drawMarks();
+      } }));
   }
 
   /** ✏ A flat face of a placed 3D model part: a sketch on it, its part edited here (unlocked first) with the sketch open

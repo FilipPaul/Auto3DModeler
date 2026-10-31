@@ -250,7 +250,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
-  for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', (e) => (items[+b.dataset.sg].sub ? subMenu(b, items[+b.dataset.sg], !e.detail) : items[+b.dataset.sg].run())); // (a row with choices: its list; by the keyboard — no mouse — on its first choice)
+  for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', (e) => (items[+b.dataset.sg].sub ? subMenu(b, items[+b.dataset.sg], !e.detail) : items[+b.dataset.sg].run(e))); // (a row with choices: its list; by the keyboard — no mouse — on its first choice; run(e): a row may read Ctrl)
   for (const b of box.querySelectorAll('[data-sgc]')) b.addEventListener('click', () => { const [i, j] = b.dataset.sgc.split(':').map(Number); items[i].chips[j].run(); });
   for (const b of box.querySelectorAll('[data-sg]')) { // a row with hover(on): shows what it would do while the mouse (or the keyboard) is on it
     const it = items[+b.dataset.sg];

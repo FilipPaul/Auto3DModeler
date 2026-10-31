@@ -1076,6 +1076,10 @@ part's rolled-up `total`.
   panel lists them (*I2/I2/I1*), the suggestions offer what fits them (🔒 for the AI, ◆ Only one of them, ◆ Open its
   part for copies of one part) — not ✕ *Take them out* or 👁 hide, which would take or hide their whole
   sub-assembly; Delete does nothing then. ✎ Edit it here works on one at a time.
+  **◆ Choose ‹part› / ◇ Choose ‹sub-assembly›** (*Vybrat …*): a click on a part inside a sub-assembly chooses the
+  sub-assembly placed here, and the Suggested table offers near its top ◆ *Choose* the part itself (the one under the
+  mouse) and ◇ *Choose* the sub-assembly it is in — at most two rows: the nearer ones, never the one chosen now (the
+  part chosen: its sub-assembly and the top one). Ctrl+click on such a row adds it to what is chosen.
   **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
   with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
   the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click

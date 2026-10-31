@@ -2531,7 +2531,10 @@ const CS = {
     'Ctrl+klik přidá nebo odebere díl, Shift+klik v seznamu vybere řádky mezi — co jde se všemi udělat, je v návrzích.',
   'Parts inside a sub-assembly are changed in their own tab, or one at a time with ✎ Edit it here.':
     'Díly uvnitř podsestavy se mění v jejich vlastní záložce, nebo po jednom přes ✎ Upravit zde.',
-  'Find a part…': 'Hledat díl…', 'No part has that in its name.': 'Žádný díl to nemá v názvu.',
+  'Choose {name}': 'Vybrat {name}',
+  'This part itself, not its sub-assembly (Ctrl+click: added to what is chosen)': 'Jen tento díl, ne jeho podsestava (Ctrl+klik: přidá se k vybraným)',
+  'The sub-assembly it is in, as one (Ctrl+click: added to what is chosen)': 'Podsestava, ve které je, jako celek (Ctrl+klik: přidá se k vybraným)',
+  'Find a part…': 'Hledat díl…','No part has that in its name.': 'Žádný díl to nemá v názvu.',
   'Only the rows whose name has this in it (and the sub-assemblies they are in) — Esc clears it':
     'Jen řádky, které to mají v názvu (a podsestavy, ve kterých jsou) — Esc hledání zruší',
   // 🔗 a rigid group of many parts
