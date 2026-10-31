@@ -752,7 +752,8 @@ Never report "works" without having run it; report failures with their output.
    (computed); a reload keeps them, ↺ resets them; ✕ closes the suggestions: 💡 Suggestions (n) bottom left above
    the filter row, said once, a selection does not open it but the count follows, gui_state closed: true, the button
    opens it, Automatically on: opens on a selection, a reload keeps it closed, Space opens / closes; Czech headers /
-   menu / tooltips / Rows / the 💡 button; 1600×1000; no horizontal scroll).
+   menu / tooltips / Rows / the 💡 button; 1600×1000; no horizontal scroll; the docked widgets are separate cards: a
+   3–6 px gutter with a grip, a 1 px edge, rounded, card ≠ gutter, in both columns).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5
    letters readable on each, the one on screen and one being renamed wider, a tab dragged before the first, all
    closed: "No part open", ☰ opens one again).

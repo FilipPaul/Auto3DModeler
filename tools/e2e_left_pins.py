@@ -245,7 +245,8 @@ try:
     time.sleep(0.6)
     w1, c1 = rect("#leftCol")["w"], rect("#modelViewport canvas")["w"]
     check(abs(w1 - w0 - 60) < 4 and abs(c0 - c1 - 60) < 4, f"wider column {w0:.0f} -> {w1:.0f}, the 3D view {c0:.0f} -> {c1:.0f}")
-    check(abs(rect("#leftCol .lw-widget[data-w=project]")["w"] - w1) < 3, "the tree as wide")
+    inner = js("const c = document.querySelector('#leftCol'), s = getComputedStyle(c); return c.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)")
+    check(abs(rect("#leftCol .lw-widget[data-w=project]")["w"] - inner) < 3, "the tree as wide (its card: the column less its gutter)")
 
     print("the suggestions docked")
     face_click()
@@ -255,7 +256,7 @@ try:
     time.sleep(0.5)
     check(state().get("suggest") == "dock", "📌: docked")
     sg, ph = rect("#modelViewport .view-suggest"), rect("#leftCol .lw-widget[data-w=suggest]")
-    check(sg and ph and abs(sg["x"] - ph["x"]) < 2 and abs(sg["w"] - ph["w"]) < 2 and sg["y"] >= ph["y"] and sg["b"] <= ph["b"] + 1,
+    check(sg and ph and sg["x"] >= ph["x"] and sg["r"] <= ph["r"] and sg["w"] >= ph["w"] - 3 and sg["y"] >= ph["y"] and sg["b"] <= ph["b"] + 1,
           f"the table over its place in the column: {sg} / {ph}")
     order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.dataset.w)")
     check(order == ["project", "panel", "suggest"], f"under the panel: {order}")

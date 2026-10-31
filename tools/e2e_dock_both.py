@@ -183,6 +183,17 @@ try:
     check(js(f"return {M}.$('[data-x=stl]') === document.querySelector('#modelExport [data-x=stl]')"), "the model still finds its export buttons (its $)")
     shot("db1_default")
     vp0 = rect("#modelViewport")
+    print("the docked widgets: cards on a darker gutter, where one ends and the next starts")
+    for c in ("leftCol", "rightCol"):
+        seam = js("""const ws = [...document.querySelectorAll('#' + arguments[0] + ' > .lw-widget')].filter(e => e.offsetHeight)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+          const [a, b] = ws, ca = getComputedStyle(a), col = getComputedStyle(a.parentElement), sp = a.parentElement.querySelector('.lw-split:not([hidden])');
+          return {gap: b.getBoundingClientRect().top - a.getBoundingClientRect().bottom, border: parseFloat(ca.borderTopWidth),
+            radius: parseFloat(ca.borderTopLeftRadius), card: ca.backgroundColor, gutter: col.backgroundColor,
+            side: a.getBoundingClientRect().left - a.parentElement.getBoundingClientRect().left - a.parentElement.clientLeft,
+            grip: sp ? getComputedStyle(sp, '::after').backgroundColor : null, head: a.querySelector(':scope > .lw-head').offsetHeight};""", c)
+        check(3 <= seam["gap"] <= 6 and seam["border"] >= 1 and seam["radius"] >= 4 and seam["card"] != seam["gutter"] and seam["side"] >= 3
+              and seam["grip"] not in (None, seam["gutter"]) and seam["head"] <= 26, f"{c}: separate cards, a gap of ≤ 6 px with a grip: {seam}")
 
     print("Properties dragged into the left column")
     lc = rect("#leftCol")

@@ -16,6 +16,12 @@
   --k-part: #a371f7;
   --k-asm: #7ee787;
   --k-joint: #58a6ff;
+  /* the side columns' widgets (leftdock.js): cards on a darker gutter — where one starts and ends, at a glance */
+  --dock-gutter: var(--bg);
+  --dock-card: var(--panel);
+  --dock-edge: var(--line);
+  --dock-gap: 4px;
+  --dock-radius: 6px;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 13px;
   color-scheme: dark;
@@ -1674,13 +1680,17 @@ body.fb-resizing, body.fb-resizing * { cursor: var(--fb-cur, nwse-resize) !impor
 
 /* the left column: widgets one above another (the ☰ project tree, the workspace's panel, the suggestions), each with
    a header to drag it (up or down here, onto the view to float it), ▾ to fold it, ⋯ for the rest — leftdock.js */
-.lw-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; z-index: 6; background: var(--panel); }
+.lw-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; z-index: 6; background: var(--dock-gutter);
+  padding: var(--dock-gap); }
 .left-col { border-right: 1px solid var(--line); }
 .right-col { border-left: 1px solid var(--line); }
-.lw-col.col-empty { background: var(--panel-2); }
+.lw-col.col-empty { background: var(--panel-2); padding: 0; }
 body.lw-empty .split-left, body.rw-empty .split-right { display: none; }
 .lw-widget { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); }
 .lw-widget[hidden] { display: none !important; }
+/* docked: a card — a hairline edge, round corners; the gutter between two is the splitter */
+.lw-col > .lw-widget { background: var(--dock-card); border: 1px solid var(--dock-edge); border-radius: var(--dock-radius); overflow: hidden; }
+.lw-col > .lw-widget.folded > .lw-head { border-bottom: 0; }
 .lw-widget > .panel { flex: 1 1 auto; min-height: 0; border-left: 0; border-right: 0; }
 .lw-sec { padding: 10px 14px; }
 .lw-sec > [data-dock] > h3:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
@@ -1700,8 +1710,10 @@ body.lw-empty .split-left, body.rw-empty .split-right { display: none; }
 .lw-op[hidden] { display: none; }
 .lw-widget.folded > :not(.lw-head) { display: none !important; }
 .lw-widget.folded { flex: 0 0 auto !important; }
-.lw-split { flex: none; height: 5px; cursor: row-resize; touch-action: none; background: var(--line); border-top: 2px solid var(--panel); border-bottom: 2px solid var(--panel); box-sizing: border-box; }
-.lw-split:hover, .lw-split.on { background: var(--accent); }
+/* the gutter between two cards: drag it to share the height; a short grip in its middle says so */
+.lw-split { flex: none; height: calc(var(--dock-gap) + 2px); margin: -1px 0; position: relative; z-index: 1; cursor: row-resize; touch-action: none; background: none; }
+.lw-split::after { content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px; margin: -1px 0 0 -11px; border-radius: 1px; background: var(--dock-edge); }
+.lw-split:hover::after, .lw-split.on::after { left: 0; width: 100%; margin-left: 0; background: var(--accent); }
 .lw-split[hidden] { display: none; }
 .lw-widget > .proj-tree.in-widget { position: static; display: block; width: auto; flex: 1 1 auto; min-height: 0; border: 0; padding: 4px 6px 8px; z-index: auto; }
 .lw-widget > .proj-tree.in-widget .tr-list { margin-top: 0; }
@@ -1735,7 +1747,7 @@ body.lw-empty .split-left, body.rw-empty .split-right { display: none; }
 .vs-head .vs-pin:hover { opacity: 1; }
 .vs-head[data-op]::after { content: attr(data-op); font-size: 11px; color: var(--accent); }
 /* the suggestions docked: the table stays in its view, shown over its place in the column (position: fixed) */
-.view-suggest.docked { position: fixed; bottom: auto; right: auto; border: 0; border-radius: 0; box-shadow: none; max-height: none; z-index: 7; }
+.view-suggest.docked { position: fixed; bottom: auto; right: auto; border: 0; border-radius: 0 0 calc(var(--dock-radius) - 1px) calc(var(--dock-radius) - 1px); box-shadow: none; max-height: none; z-index: 7; }
 .view-suggest.docked .vs-head { cursor: default; }
 .view-suggest.docked .vs-pin { display: none; }
 .view-suggest.docked.lw-off { display: none; }
