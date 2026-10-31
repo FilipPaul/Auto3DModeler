@@ -25,6 +25,24 @@ Date: 2026-10-25. Written by the architect agent.
   editor's own Measure (drawing2d.rclickAction: the first spot dropped, else back to Select); app.js passes the asm /
   dwg hooks. The tool's hint line ends with "Pravé tlačítko: ukončit měření." / "… zavřít nástroj.".
   tools/e2e_measure_rclick.py (22 checks: model, assembly, drawing; real context_click and right-drag).
+- **✕ Cancel on the drawing set, its finished drawings kept (2026-11-01)** (the owner: "cancel saves the drawings
+  already done and one continues later"). busy(text, {onCancel}): the card's own Cancel (once, then disabled; the
+  server stage's cancelAll as before). SheetEditor.drawingSet: the part pages through `inTurn` (n at a time — first a
+  quick look at the server, 6 at a time, `cache: "only"`, then the misses as many at a time as the kernel has processes,
+  GET /api/kernel workers); ctx.stop() true: nothing more started, the ones under way finish (killing a kernel process
+  would cost its restart and warm caches) -> {cancelled, done, total, made, the finished pages}. Then askKeep: the
+  app's question "Save the finished drawings (n of m)? …" — Yes, save / No, discard (forget(made): POST
+  /api/sheet/forget) / Save and download their PDF; Esc keeps them. The kept drawings: auto3d/modeler/sheetcache.py,
+  A3D_DATA/cache/sheets/<key>.json, key = sha1(VERSION, partcache.stamp() — the modeler's code —, op, the request less
+  rid / cache), 300 MB LRU by mtime; /api/sheet/build and /api/sheet/assembly read / write it only when the request
+  says `cache` (a drawing set's — the AI's too; the sheet editor's builds unchanged). Every set run fills it (a
+  second run is cheap; a changed part is another key), so "Yes" writes nothing more and "No" removes what the run
+  made. tests/test_sheet_cache.py (6: hit / miss / only, a changed part / paper / preset / code, assembly pages,
+  forget, LRU eviction, a damaged entry); tools/e2e_drawing_cancel.py (48 plates: cancel -> Ne -> nothing kept;
+  cancel -> Ano -> reload -> the counter at 21 / 49 in 0.2 s, 28 of 48 parts drawn, a 49-page PDF; warm: 0 drawn).
+  The 150-part demo has only 11 pages (its parts repeat): 2.0 s on a just started server, 0.3 s with its parts built,
+  0.2 s from the sheet cache.
+
 - **▭ Docked widgets as cards (2026-10-31)** (the owner: "a little hard at first look to see where a pinned widget starts
   and ends"). The side columns (`.lw-col`) are a darker gutter (`--dock-gutter`: the page's `--bg`) with a 4 px padding
   (`--dock-gap`); each docked widget is a card on it — `--dock-card` surface, a 1 px `--dock-edge` hairline,

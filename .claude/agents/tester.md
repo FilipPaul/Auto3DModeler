@@ -319,6 +319,11 @@ Never report "works" without having run it; report failures with their output.
    export pdf writes the same set. Then in Czech: 📑 Všechny listy sestavy (6) first in the assembly sheet's tables (also ⤓
    PDF všech listů) -> 6 sheets on screen, ▼ Další list / ▲ Předchozí list / ↩ Zpět na tento list; the Base's sheet:
    📑 Listy sestavy „Machine“ -> the set, the Base's page in sight; get_sheet's drawing_set; sheet_edit all_pages.
+   `tools/e2e_drawing_cancel.py <url> <dir>` covers ✕ Zrušit on the "Dělám výkresy… n / m" card on the 150-part demo (a
+   fresh server data folder): a cold full run timed (then forgotten); cancel -> the in-app question "Uložit hotové
+   výkresy (n z m)? …" with Ano, uložit / Ne, zahodit / Uložit a stáhnout PDF hotových; no more drawings started; Ne ->
+   the next run finds none kept; that run cancelled -> Ano -> reload, the demo again -> the counter at the kept count
+   within seconds, only the rest drawn, the PDF has all pages "n / N"; a warm full run draws nothing; no native dialogs.
    `tools/e2e_assembly_openpart.py <url> <dir>` covers ◆ Open its part in a placed part's panel (it opens that part's
    tab; back in the assembly, the other one).
    `tools/e2e_ai_sheet.py <url> <dir>` covers the AI's sheet tools (export pdf of a model still the plain drawing;

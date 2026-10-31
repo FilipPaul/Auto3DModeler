@@ -933,6 +933,13 @@ assembly's parts 1, 2 …, a sub-assembly's new ones go on from there; a part us
 one (with your dimensions), otherwise made with the medium preset; bought and standard parts (library, screws, nuts)
 are only in the parts lists. Each page's title block names the part or assembly, what it is in (*in Machine · Pos.
 1*) and its page (*Sheet 2 / 5*). The AI's `export {format: "pdf"}` in an assembly writes the same set.
+While it works the card counts the pages (*Making the drawings… 45 / 250*) and has **Cancel**: no more drawings are
+started (the few under way are finished), then the app asks *Save the finished drawings (45 of 250)? Next time they
+will not be made again.* — **Yes, save**, **No, discard** or **Save and download their PDF** (just the finished pages).
+Every drawing of a set is kept on the server as it is made (the data folder's `cache/sheets`, by what it was drawn from:
+the part's steps and sizes, preset, paper, scale; up to 300 MB, the least used go first), so the next run — also after
+a reload or a server restart — counts the kept ones at once and only draws the rest; a changed part is drawn again by
+itself. *No, discard* removes the drawings that run made.
 
 **📐 Drawing (PDF)** in a 3D model's panel (or *PDF — 2D drawing* in the Export menu) makes an A4 drawing sheet:
 the **Front**, **Top** and **Right** views with visible edges (solid) and hidden ones (dashed), an iso view, the

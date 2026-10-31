@@ -18,7 +18,7 @@
 //    rev, created, changed}
 import { History } from '../history.js';
 import { t, getLang } from '../i18n.js';
-import { ask } from '../choose.js';
+import { ask, choose } from '../choose.js';
 import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
@@ -86,6 +86,19 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { year: 'nu
 const mul4 = (a, b) => { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; };
 const ID4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const post = async (url, body) => { const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const r = await res.json(); if (!res.ok) throw new Error(r.error || res.statusText); return r; };
+
+/** fn(item) for the items, n at a time; stop() true: no more started -> when the started ones have ended (the first
+ *  error thrown then, nothing more started after it). */
+async function inTurn(items, n, fn, stop = () => false) {
+  let i = 0, err = null;
+  const lane = async () => {
+    while (i < items.length && !err && !stop()) {
+      try { await fn(items[i++]); } catch (e) { err = err || e; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, lane));
+  if (err) throw err;
+}
 
 /** A logo picture -> a small data URL for the title block (a PNG / JPEG scaled to at most 600 × 300 px; an SVG as it
  *  is, when small). */
@@ -1177,7 +1190,8 @@ export class SheetEditor {
     }).concat(harnessSolids(this.hooks.partData(id), M).map((x) => ({ ...x, id: pre ? `${pre}/${x.id}` : x.id }))); // (🔌 its harnesses drawn too)
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
-    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, base: this.baseOf(aid), ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}) }); // (explode: the iso view pulled apart)
+    const { ck, hit, ...r } = await post('/api/sheet/assembly', { instances: flatten(aid), explode, base: this.baseOf(aid), ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}), ...(ctx.keep ? { cache: true } : {}) }); // (explode: the iso view pulled apart; ctx.keep: a drawing set's, kept on the server)
+    if (ck && !hit) ctx.keep?.(ck);
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
@@ -1198,15 +1212,21 @@ export class SheetEditor {
     return { built: { ...r, preset: 'light' }, rows };
   }
 
+  /** The drawing set of assembly rootId -> {svgs, ids, bom, pages}. Every drawing is kept on the server (sheetcache) as it
+   *  is made: the next set only makes what is not kept yet. ctx.progress(done, total): the pages so far; ctx.stop()
+   *  true (✕ Cancel): no more drawings started -> {cancelled, done, total, made (forget(made): what this run kept)}
+   *  plus the finished pages as above. */
   async drawingSet(rootId, ctx) {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
     let done = 0; // (ctx.progress(done, total): the pages made so far — total null while the assemblies are still read)
-    const tick = (total = null) => ctx.progress?.(done, total);
+    const tick = (total = null) => ctx.progress?.(done, total), stop = () => !!ctx.stop?.();
+    const made = []; // ({ck, key}: the drawings this run made and kept — on the server (ck) and in this.cache (key))
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
       const ex = ctx.sheetOf(aid)?.exploded ? 2 : 0; // (its own sheet's iso view exploded)
       const own = ctx.sheetOf(aid), sd = this.pageData(own || { source: aid }); // its own sheet: the user's moves, dimensions, texts
-      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`, () => this.assemblyPage(aid, ctx, ex, sd));
+      const key = `a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`;
+      const { built, rows } = await this.cached(key, () => this.assemblyPage(aid, { ...ctx, keep: (ck) => made.push({ ck, key }) }, ex, sd));
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       if (own && isoLaid(own)) base.views = { ...base.views, Iso: built.layout.views.Right }; // (its iso view where this layout puts it)
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
@@ -1225,29 +1245,69 @@ export class SheetEditor {
     const total = pages.length;
     done = pages.filter((pg) => !pg.part).length; // (the assemblies' and BOM pages: made above)
     tick(total);
-    await Promise.all(pages.filter((pg) => pg.part).map(async (pg) => { // (side by side: the kernel's processes draw several parts at once)
+    const finish = (pg, d) => { pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } }; done++; tick(total); };
+    const todo = []; // the part pages still to draw: {pg, d, key, req}
+    for (const pg of pages) {
+      if (!pg.part) continue;
       const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
       const d = this.pageData(own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now });
-      if (!d.built || d.built.stale || d.hash !== partHash(src) || this.builtKey(d) !== this.layKey(d)) {
-        const key = `p|${pg.part}|${partHash(src)}|${d.preset || 'medium'}|${d.paper || ''}|${JSON.stringify(d.vpreset || {})}|${this.layKey(d)}`;
-        d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {}, ...this.layReq(d) }))), preset: d.preset || 'medium', paper: d.paper ?? null, lk: this.layKey(d) };
-      }
-      pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
-      done++; tick(total);
-    }));
-    const n = pages.length;
-    const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
-    return { svgs, ids: pages.map((pg) => pg.part || pg.d.source), bom: pages.map((pg) => !!pg.bom), pages: pages.map((pg) => (pg.part ? pg.name : pg.bom ? `📋 ${pg.name}` : `◇ ${pg.name}`)) };
+      if (d.built && !d.built.stale && d.hash === partHash(src) && this.builtKey(d) === this.layKey(d)) { finish(pg, d); continue; }
+      const key = `p|${pg.part}|${partHash(src)}|${d.preset || 'medium'}|${d.paper || ''}|${JSON.stringify(d.vpreset || {})}|${this.layKey(d)}`;
+      const x = { pg, d, key, req: { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {}, ...this.layReq(d) } };
+      if (this.cache?.has(key)) this.put(x, structuredClone(this.cache.get(key)), finish);
+      else todo.push(x);
+    }
+    // the ones kept on the server first (quick: counted at once), then the rest made a few at a time — as many as the
+    // kernel has processes, so ✕ Cancel stops what is not started yet
+    await inTurn(todo, 6, async (x) => { const r = await post('/api/sheet/build', { ...x.req, cache: 'only' }); if (!r.miss) this.put(x, r, finish); }, stop);
+    if (this.workers == null) this.workers = await fetch('/api/kernel').then((r) => r.json()).then((k) => k.workers || 2).catch(() => 2);
+    await inTurn(todo.filter((x) => !x.pg.d), this.workers, async (x) => {
+      const r = await post('/api/sheet/build', { ...x.req, cache: true });
+      if (r.ck && !r.hit) made.push({ ck: r.ck, key: x.key });
+      this.put(x, r, finish);
+    }, stop);
+    const ready = pages.filter((pg) => pg.d), n = ready.length; // (cancelled: the finished pages only)
+    const svgs = ready.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
+    return { svgs, ids: ready.map((pg) => pg.part || pg.d.source), bom: ready.map((pg) => !!pg.bom), pages: ready.map((pg) => (pg.part ? pg.name : pg.bom ? `📋 ${pg.name}` : `◇ ${pg.name}`)),
+      made, done, total, cancelled: n < total };
+  }
+
+  /** A part page's drawing r (the server's answer) on it, kept in this.cache too; finish(pg, d): it is done. */
+  put(x, r, finish) {
+    const { ck, hit, ...b } = r; // eslint-disable-line no-unused-vars
+    this.remember(x.key, b);
+    x.d.built = { ...structuredClone(b), preset: x.d.preset || 'medium', paper: x.d.paper ?? null, lk: this.layKey(x.d) };
+    finish(x.pg, x.d);
+  }
+
+  /** A drawing set's drawings made by one run (its `made`) forgotten: "No, discard" after ✕ Cancel. */
+  async forget(made) {
+    for (const m of made) this.cache?.delete(m.key);
+    if (made.length) await post('/api/sheet/forget', { keys: made.map((m) => m.ck) });
+  }
+
+  /** A drawing set cancelled part-way (drawingSet's answer): keep its finished drawings for the next run? ->
+   *  'keep' | 'pdf' (kept, and their PDF wanted) | 'drop' (forgotten). Esc / ✕: kept (nothing is lost). */
+  async askKeep(set) {
+    const v = await choose(tv('Save the finished drawings ({n} of {m})? Next time they will not be made again.', { n: set.done, m: set.total }), [
+      { value: 'keep', label: 'Yes, save', primary: true },
+      { value: 'drop', label: 'No, discard' },
+      { value: 'pdf', label: 'Save and download their PDF' },
+    ], { cls: 'confirm' });
+    if (v === 'drop') await this.forget(set.made);
+    return v || 'keep';
   }
 
   /** A server build kept by its key (what it was made from), the last 40. */
   async cached(key, make) {
-    this.cache = this.cache || new Map();
-    if (!this.cache.has(key)) {
-      this.cache.set(key, await make());
-      if (this.cache.size > 40) this.cache.delete(this.cache.keys().next().value);
-    }
+    if (!this.cache?.has(key)) this.remember(key, await make());
     return structuredClone(this.cache.get(key));
+  }
+
+  remember(key, v) {
+    this.cache = this.cache || new Map();
+    this.cache.set(key, v);
+    if (this.cache.size > 40) this.cache.delete(this.cache.keys().next().value);
   }
 
   // ------------------------------------------------------------------ the screen
