@@ -2037,11 +2037,12 @@ function drawingCtx() {
   };
 }
 async function drawingSetPdf(aid, { quiet = false } = {}) {
-  const ctx = drawingCtx();
   const b = quiet ? null : busy('Making the drawings…');
+  const ctx = { ...drawingCtx(), progress: (n, m) => b?.step(m ? t2('{n} / {m}', { n, m }) : t2('{n} assemblies read…', { n }), m ? n / m : null) };
   await b?.painted;
   try {
     const set = await sheet.drawingSet(aid, ctx);
+    b?.step('Putting the PDF together…');
     const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs: set.svgs, name: tabName() }) });
     if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     const blob = await res.blob();

@@ -1200,6 +1200,8 @@ export class SheetEditor {
 
   async drawingSet(rootId, ctx) {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
+    let done = 0; // (ctx.progress(done, total): the pages made so far — total null while the assemblies are still read)
+    const tick = (total = null) => ctx.progress?.(done, total);
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
       const ex = ctx.sheetOf(aid)?.exploded ? 2 : 0; // (its own sheet's iso view exploded)
@@ -1209,6 +1211,7 @@ export class SheetEditor {
       if (own && isoLaid(own)) base.views = { ...base.views, Iso: built.layout.views.Right }; // (its iso view where this layout puts it)
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
+      done++; tick();
       if (own?.bomPage) for (const d of this.bomPages(aid, sd, built, parent || '')) pages.push({ name: `${t('BOM')} ${name(aid)}`, bom: true, d });
       for (const row of rows) if (row.kind === 'assembly' && !drawn.has(row.part)) { drawn.add(row.part); await visit(row.part, name(aid)); }
       for (const row of rows) {
@@ -1219,6 +1222,9 @@ export class SheetEditor {
     };
     await visit(rootId, null);
     if (!pages.length) throw new Error(t('The assembly has no parts to draw.'));
+    const total = pages.length;
+    done = pages.filter((pg) => !pg.part).length; // (the assemblies' and BOM pages: made above)
+    tick(total);
     await Promise.all(pages.filter((pg) => pg.part).map(async (pg) => { // (side by side: the kernel's processes draw several parts at once)
       const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
       const d = this.pageData(own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now });
@@ -1227,6 +1233,7 @@ export class SheetEditor {
         d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {}, ...this.layReq(d) }))), preset: d.preset || 'medium', paper: d.paper ?? null, lk: this.layKey(d) };
       }
       pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
+      done++; tick(total);
     }));
     const n = pages.length;
     const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));

@@ -1668,7 +1668,7 @@ const CS = {
   'Opening the assembly: {n} placed parts…': 'Otevírám sestavu: {n} vložených dílů…',
   'Loading {name}…': 'Načítám {name}…', '{n} placed parts — building and drawing them…': '{n} vložených dílů — sestavuji a kreslím je…', 'the assembly': 'sestavu',
   'Reading the file — the CAD kernel makes it a solid': 'Čtu soubor — CAD jádro z něj dělá těleso', "Reading the assembly's parts": 'Čtu díly sestavy', 'The server did not answer — is it running?': 'Server neodpověděl — běží?',
-  'Making the drawings…': 'Dělám výkresy…', '{n} pages: {pages}': 'Stran: {n} — {pages}', 'The assembly has no parts to draw.': 'Sestava nemá díly ke kreslení.',
+  'Making the drawings…': 'Dělám výkresy…', '{n} / {m}': '{n} / {m}', '{n} assemblies read…': 'Načteno sestav: {n}…', 'Putting the PDF together…': 'Skládám PDF…','{n} pages: {pages}': 'Stran: {n} — {pages}', 'The assembly has no parts to draw.': 'Sestava nemá díly ke kreslení.',
   'Sub-assembly': 'Podsestava', in: 'v', 'Pos.': 'Poz.', Sheet: 'List', 'Part number': 'Objednací číslo', bought: 'nakupovaný', more: 'další',
   '📄 Drawings (PDF)': '📄 Výkresy (PDF)',
   'One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one': 'Jedno PDF: tato sestava (pohledy, kusovník a pozice), pak každá podsestava s jejími díly, pak její vlastní vyráběné díly — podle jejich výkresů, pokud je mají',

@@ -109,6 +109,13 @@ try:
         sheetOf: (id) => { const p = window.__app.project.parts.find(q => q.kind === 'sheet' && typeof q.data === 'object' && q.data?.source === id); return p ? p.data : null; },
         bought: (data, name) => !!data?.standard || /screw|nut|insert/.test(name) }).then(s => s.pages)""")
     print("pages (the button's way):", res)
+    # the busy card's counter: "Dělám výkresy… 3 / 6" — ctx.progress(done, total) as the pages are made
+    ticks = js("""const t = []; return window.__app.sheet.drawingSet(window.__app.project.active, {
+        kindOf: (id) => window.__app.project.parts.find(q => q.id === id)?.kind, sheetOf: () => null,
+        bought: (data, name) => !!data?.standard || /screw|nut|insert/.test(name), progress: (n, m) => t.push([n, m]) }).then(s => [t, s.svgs.length])""")
+    tk, npg = ticks
+    counted = [x for x in tk if x[1] is not None]
+    check(f"the counter: up to {npg} / {npg}, never back", bool(counted) and counted[-1] == [npg, npg] and all(a[0] <= b[0] for a, b in zip(counted, counted[1:])), str(tk))
     nums = js("""const S = window.__app.sheet, P = window.__app.project, ctx = { kindOf: (id) => P.parts.find(q => q.id === id)?.kind, sheetOf: () => null, bought: (d, n) => /screw|ISO/.test(n) };
         const id = (n) => P.parts.find(q => q.name === n).id;
         return Promise.all(['Machine', 'Lid unit'].map(n => S.assemblyPage(id(n), ctx).then(r => r.rows.map(x => [x.pos, x.name]))))""")
