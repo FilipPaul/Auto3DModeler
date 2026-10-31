@@ -223,6 +223,7 @@ class App:
         import server  # (heavy: OpenCV, Flask … — after the second-copy check)
         from werkzeug.serving import make_server
         server.APP_URL = self.url  # the MCP server started by the chat calls back here
+        server.LOG_TOOL_ERRORS = True  # (the AI's failed tool calls: RealSWReports/<date>-tool-errors.md)
         if frozen():  # the log: errors, not a line per request (the page polls all the time)
             import logging
             logging.getLogger("werkzeug").setLevel(logging.WARNING)

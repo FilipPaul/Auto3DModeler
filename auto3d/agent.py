@@ -336,11 +336,13 @@ class ChatSession:
                                          "args": [*script, "--url", self.app_url,
                                                   *(["--client", self.client] if self.client else []),
                                                   *(["--group", self.group] if self.group else [])]}}}
+        from .fetchcad import internet_on
+        web = ",WebSearch" if internet_on(WORKDIR.parent) else ""  # 🌐 parts on the internet (AI settings): search only
         cmd = [*run_claude(exe), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                "--include-partial-messages",
                "--mcp-config", json.dumps(mcp), "--strict-mcp-config",
-               "--tools", "Skill",                             # only the Skill tool (the app's guides): no files, no shell
-               "--allowedTools", "mcp__auto3d,Skill",          # the app's tools and its skills run without prompts
+               "--tools", "Skill" + web,                       # only the Skill tool (the app's guides): no files, no shell
+               "--allowedTools", "mcp__auto3d,Skill" + web,    # the app's tools and its skills run without prompts
                "--plugin-dir", str(PLUGIN_DIR),                # the app's skills (agent_plugin/skills), this session only
                "--permission-mode", "dontAsk",                 # anything else is refused, not asked
                "--setting-sources", "local",                   # not the user's global hooks / settings

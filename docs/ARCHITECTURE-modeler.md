@@ -16,11 +16,61 @@ Date: 2026-10-25. Written by the architect agent.
   when it changed (sent_line; reset by a new conversation / a session not resumed). ⚡ Lean mode: agent_tools.TOOL_GROUPS
   (general + quick / model / assembly / sheet / drawing), mcp_server `--group`; another group → the process restarts
   unseen (_restart, `--resume`); 🌐 internet: the server writes <data>/ai/settings.json {"internet"} (read by
-  fetchcad.internet_on at the chat's start), a change restarts the process the same way. Schemas (chars / 4): all 113 tools ≈ 28.7k tokens; model 43 ≈ 11.8k (−16.9k),
-  assembly 53 ≈ 14.8k (−13.8k), sheet ≈ 7.4k, drawing ≈ 5.4k, quick ≈ 7.1k, start screen ≈ 4.5k. SYSTEM_PROMPT routes
+  fetchcad.internet_on at the chat's start), a change restarts the process the same way. Schemas (chars / 4): all 114 tools ≈ 29.0k tokens; model 44 ≈ 12.1k (−16.9k),
+  assembly 54 ≈ 15.1k (−13.9k), sheet ≈ 7.7k, drawing ≈ 5.7k, quick ≈ 7.4k, start screen ≈ 4.8k. SYSTEM_PROMPT routes
   the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter / lean).
   Tests: test_ai_settings (line, tags, groups, the chat's line / restart, the project file), tools/e2e_ai_settings.py.
 
+- **The AI designs parts that are easy to assemble: easy-assembly skill (2026-10-31)** (DFA, later a setting
+  "🔩 Snadná montáž"). agent_plugin/skills/easy-assembly: Boothroyd's three questions to merge parts, fewer
+  fasteners, dowel pin + slot, shoulders / spigots / pockets, 30–45° lead-ins, poka-yoke or full symmetry, top-down
+  order, tool access (Ø socket + 2 mm, one drive), captive nuts / inserts, one fit per direction, oversize holes on
+  one part, cables and service; checked with get_assembly, check_collisions, move_free / check_travel along the
+  insertion axis, measure, set_view section / explode; reported as Assembly rows in design-review. Routed from
+  start-a-design, SYSTEM_PROMPT, design-review, assemble-parts; get_guide topic. Not done: the settings toggle.
+- **Every failed AI tool call logged on its own (2026-10-31)** (the owner: "the AI saves ALL API errors it runs
+  into, by default, always" — with no AI tokens). /api/agent/call (server._log_tool_error) hands each error result —
+  a server tool that raised, a browser handler's {error: true}, an unknown tool — to auto3d/tool_errors.py: queued,
+  written by one thread (a call never waits for the disk; a failed write is dropped). One digest a day,
+  RealSWReports/<date>-tool-errors.md (the most frequent first: tool, error, when, version, workspace · part the page
+  said — startBridge's where(), the conversation, the arguments ≤ 2 kB without pictures / long strings), written from
+  its data <date>-tool-errors.json (ignored by version control). The same tool + message without numbers / ids /
+  quoted names counts up; ≤ 500 different a day. Left out: refusals by design — a result with expected: true, or a
+  message starting "🔒" / "internet je vypnutý" / "the internet is off" (tool_errors.EXPECTED, a prefix allow-list).
+  Logged only when the app serves (main / the launcher set LOG_TOOL_ERRORS): unit tests stay out of RealSWReports.
+  reports.read leaves the digests out; list_reports (all, or kind "tool errors") adds the top errors of 7 days with
+  counts. SYSTEM_PROMPT: tool errors are not reported any more — only wrong results, UI problems and missing tools.
+  Tests: tests/test_tool_errors.py; e2e_agent (edit_feature F98 / F99 -> one entry ×2 in list_reports).
+- **🌐 "Use part number X": the maker's STEP from the internet (2026-10-31)**. The chat's Claude Code gets
+  `WebSearch` (only; no WebFetch, files or shell) when the internet setting is on — auto3d/fetchcad.internet_on reads
+  `<data>/ai/settings.json` {"internet": bool} (default on; A3D_AI_INTERNET=0 too), the key the ✨ AI settings toggle
+  writes. New MCP tool fetch_cad {url, part_number, maker, name, to: model | assembly | library} (server.py
+  tool_fetch_cad): auto3d/fetchcad.py downloads (https only, redirects too, ≤ 100 MB, timeout), accepts only STEP /
+  IGES / STL / a ZIP of one (a web page: "a login or configurator is probably needed"), keeps it in
+  data/cad_downloads/<sha>.<ext> with index.json (urls, maker|pn keys: the same part again is not downloaded), reads
+  it through import_solid and saves a user library item dl-<maker>-<pn> (My parts, maker, pn, source_url, licence
+  note) — then library_add puts it in, so the BOM has its part number. SYSTEM_PROMPT and standard-parts §6: library →
+  project → WebSearch "<maker> <pn> STEP download" → fetch_cad with a direct link; a login / configurator: the link to
+  the user, never bypassed. Measured: one search ≈ 6–8 k input tokens (the results), 0.5 k output, 12–21 s,
+  ≈ $0.07–0.10 with the default model. Public, no-login STEP links: INGUN (ingun.com/media/…). igus, Würth, Festo,
+  Misumi: no direct link found by search (configurator or login). Tests: test_fetchcad (a local web server),
+  test_agent (the flags), e2e_agent (fetch_cad into an assembly -> get_bom).
+
+- **🔒 Locked for the AI (2026-10-31)** (the owner: bought, made and approved parts / assemblies the AI must not
+  change). The project's part keeps `ai_lock: {reason?: bought | made | approved}` (saved in the .a3d; project.migrate
+  normalises it); library parts (data.library, not a ✎ library edit) are always locked. web/js/ailock.js: lockOf /
+  setLock (one undo step through History.first, chained after the 𝑥 parameters'), the rows' 🔒 (project tree, assembly
+  list incl. inner rows; ⋯ menu), the project tree's Ctrl / Shift+click and its bar, the suggestions for 2+ chosen,
+  the panel row with reason chips; a gentle toast when the user edits a locked part by hand (never blocked). guard():
+  every AI call through startBridge is checked in the page — a locked part's steps / sketches / material / look /
+  paint / name / delete / rollback / undo, the parameters that drive it (set_parameter, through the parameters using
+  it), a locked assembly on screen (all but adding joints: snap_faces, fix_together, add_missing_joint), inside a
+  locked sub-assembly (place / move_free / remove / limits by "I2/I1"), bolt_parts drilling a locked part — refused
+  with "🔒 <part> je zamčený pro AI (…) — tohle se na něm měnit nesmí; vazby přidat lze." list_parts / get_model /
+  get_assembly (parts, inner parts, the assembly) say ai_locked + reason; no tool unlocks. SYSTEM_PROMPT and the
+  skills model-a-part / change-a-model / assemble-parts one line each. Not covered: gui_action (the AI clicking the
+  GUI as the user would) and restore_version / switch_variant (the whole project) are not checked. Tests:
+  test_project.test_ai_lock, test_agent.test_the_ai_respects_the_lock, tools/e2e_ai_lock.py.
 - **The AI designs like a mechanical engineer: engineering skills (2026-10-31)** (the owner builds ICT / FCT test
   fixtures). New skills in agent_plugin/skills: design-principles (datums, origin, step order, parameters, names,
   mirror / pattern, robust references), standard-parts (reuse the BOM's bought parts, a preferred set, fit the design

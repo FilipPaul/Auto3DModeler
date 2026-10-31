@@ -16,6 +16,7 @@ RealSWReports/*.gz
 RealSWReports/*.recording.json
 RealSWReports/*.png
 RealSWReports/*.webp
+RealSWReports/*-tool-errors.json
 
 # agents' own copies of the repository (git worktrees)
 .claude/worktrees/

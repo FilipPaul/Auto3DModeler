@@ -1474,6 +1474,19 @@ the app: every change appears in the 3D view at once and **↶ Undo AI change** 
 On a quick part the chat is the **✨ AI** tab of the left panel; in a 3D model or an assembly the **✨ AI** button in
 the top bar opens the same chat (the same conversation) at the right side — ✕ closes it.
 
+**🔒 Locked for the AI (Zamčeno pro AI)** — bought parts, parts already made, approved designs: the AI must not change
+them. Click the small 🔒 on a row of the ☰ Project tree or of an assembly's parts list (it shows on hover; a locked
+row keeps it), or choose several rows (Ctrl / Shift+click — in the project tree too) and use **🔒 Zamknout pro AI (n)**
+/ **🔓 Odemknout pro AI (n)** in the suggestions, the tree's bar or a row's **⋯** menu (one undo step). The part's /
+assembly's panel shows **🔒 Zamčeno pro AI** with a toggle and a reason: *koupený / vyrobený / schválený*. The lock is
+saved in the project. **Library parts are always locked for the AI.** The AI then cannot change a locked part's steps,
+sketches, material, colour, name, the 𝑥 parameters that drive it, nor delete it; in a locked (sub-)assembly it cannot
+move, remove or re-join the parts or edit its cables and mechanisms — it is told *"🔒 … je zamčený pro AI … vazby
+přidat lze"* and takes another way. It **may** still add joints to locked parts and into a locked sub-assembly, insert
+them, measure them and use them in drawings and the BOM; `list_parts` / `get_model` / `get_assembly` say
+`ai_locked`. Only you can lock or unlock (the AI has no tool for it), and you can still edit a locked part — a short
+note reminds you that it is locked for the AI.
+
 **🕘 Previous conversations** (the bar under the chat's head): every conversation is kept on the server
 (`data/chats/`, the last 200) with the project it was about. The list shows this project's conversations first (the
 others under "Other projects"), each with its date, its first message as the title and the number of messages;
@@ -1494,7 +1507,7 @@ once and is saved with the project (it travels in the `.a3d`).
 - **Behaviour**, each with what it costs: 📦 Standard parts, 🏭 Easy manufacture, 🔩 Easy assembly, 🔍 Design review
   (+3–6k tokens), 🎓 Teach me (+10–25k), 🐞 Bug hunter (+15–40k), 🌐 Search the internet for parts (on; off: Claude
   Code starts again without web search, kept for the server in `data/ai/settings.json`), ⚡ Lean mode
-  (−12–18k: Claude gets only the tools of the workspace on screen — e.g. 43 of 113 in a 3D model; switching the
+  (−12–18k: Claude gets only the tools of the workspace on screen — e.g. 44 of 114 in a 3D model; switching the
   workspace or the mode restarts Claude Code unseen, its session resumed). A meter shows the tokens per task and the speed.
 - **Use as default**: new projects (and older ones without settings) start with these.
 Claude gets them as one short line before your message (`[Nastavení: profil=…; výroba=…; …]`), only when they changed.
@@ -1602,6 +1615,12 @@ can open them.
   report under *Screenshots* (Markdown image links: VS Code's preview and GitHub show them).
   All are git-ignored (`RealSWReports/*.gz`, `*.recording.json`, `*.png`, `*.webp`); `A3D_REPORTS=<folder>` sends a
   (test) server's reports elsewhere.
+  **Tool errors are logged on their own**: every AI tool call that fails (the app's answer is an error) lands in one
+  digest a day, `RealSWReports/<date>-tool-errors.md` — the tool, the error, when, the app version, the workspace and
+  part, the conversation and the arguments (at most 2 kB, without pictures) — the most frequent first; the same error
+  again (other numbers or ids) only counts up, and a day holds at most 500 different ones. Deliberate refusals (🔒 the
+  AI may not change it, the internet switched off) are not errors and stay out. Nothing waits for it and it costs the
+  AI nothing; `list_reports` shows the top recurring ones with their counts (`kind: "tool errors"`: more of them).
 - **⟳ New version — restart the app**: a small mark in the top bar when the app's files were updated but its server
   still runs the code it started with (checked every minute and when the window comes to the front); its tooltip
   says what to do. *⟳ New version — reload the page*: the server was restarted under an older page (a click reloads
@@ -1681,17 +1700,33 @@ can open them.
   `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.
   It joins the parts so they move as in reality (`get_assembly` says what can still move, or `fully_held`) and checks
   `check_collisions`.
+- **"Use part number X"** (a Misumi, Festo, SMC, igus, INGUN, Würth … part not in the library): with 🌐 *Hledat díly na
+  internetu* on in the AI settings (the default), Claude searches the web (`WebSearch` only, it cannot read arbitrary
+  pages) for the maker's STEP and calls `fetch_cad {url, part_number, maker, to}`. The app downloads the file (https
+  only, up to 100 MB), accepts only CAD content — a STEP, IGES or STL, or a ZIP holding one — and refuses a web page
+  ("a login or configurator is probably needed"). It keeps the file in `data/cad_downloads/` with its source, makes it
+  your own library part (*My parts*, with its maker, part number and source link, so it is in the BOM) and places it
+  in the assembly or a new 3D model. The same part number or link again comes from that cache. Makers that need a
+  login or a configurator (TraceParts, CADENAS PARTcommunity, Misumi, Festo) are not bypassed: Claude gives you the
+  page link to download the file and drag it in. The makers' models are for use in your design, not to pass on. With
+  the setting off, Claude has no web search and `fetch_cad` is refused.
 - **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/). The workflows are model-a-part,
   change-a-model, from-picture, print-prep, assemble-parts and production-drawing. Claude designs like an experienced
   mechanical engineer: **design-principles** (datums, step order, parameters, names — a part easy to change),
   **standard-parts** (as few kinds of bought parts as possible; it reports their count at hand-over),
   **machined-part** (CNC rules, stock sizes, materials, finishes), **materials-and-strength** (mixed printed / metal /
   POM / FR4 parts, joints, a quick bending check), **ict-fixture** (ICT / FCT test fixtures: probe plate, carrier,
-  pressure pins, guide pins), **mechanical-design**, **automation-design** — and **design-review** before it says a
+  pressure pins, guide pins), **easy-assembly** (design for assembly: fewer parts and fasteners, self-locating pins and
+  lead-ins, one assembly direction, tool access, captive nuts, an assembly order and exploded view at hand-over),
+  **mechanical-design**, **automation-design** — and **design-review** before it says a
+  pressure pins, guide pins), **cable-routing** (when you say which cables run from where to where, or the design has
+  motors, sensors, valves: a cable list with Ø and bend radii, holes / channels / clip spots / glands in the made parts,
+  an energy chain or service loop on moving axes, checked at both limits), **mechanical-design**, **automation-design** — and **design-review** before it says a
   design is done (function, strength, ergonomics, economy, safety as one table, fixes offered). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
-- Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader), only this MCP
+- Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader; `WebSearch` is added
+  when 🌐 internet is on), only this MCP
   server is loaded (`--strict-mcp-config`), your global hooks and settings are not (`--setting-sources local`),
   and the session runs in the empty folder `data/agent/`.
 - How it fits together: the chat panel → `POST /api/chat/send` → one Claude Code process per chat (stream-json in

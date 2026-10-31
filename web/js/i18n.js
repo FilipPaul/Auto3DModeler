@@ -1581,7 +1581,7 @@ const CS = {
   '⬇ BOM (CSV)': '⬇ Kusovník (CSV)', 'The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too': 'Kusovník jako soubor CSV (Excel): každý díl s množstvím, výrobcem, objednacím číslem a hmotností — i díly v podsestavách',
   'BOM saved: {n} line(s).': 'Kusovník uložen: {n} řádků.',
   'steel': 'ocel', 'brass': 'mosaz', 'aluminium': 'hliník',
-  'searching the parts library': 'hledá v knihovně dílů', 'adding a library part': 'přidává díl z knihovny', 'adding what goes with a part': 'přidává, co k dílu patří', 'checking for collisions': 'kontroluje kolize',
+  'searching the parts library': 'hledá v knihovně dílů', 'downloading a CAD model': 'stahuje CAD model od výrobce', 'searching the internet': 'hledá na internetu', 'adding a library part': 'přidává díl z knihovny', 'adding what goes with a part': 'přidává, co k dílu patří', 'checking for collisions': 'kontroluje kolize',
   "The maker's model": 'Model výrobce', 'Use the drawn model again for this size': 'Pro tuto velikost znovu použít kreslený model',
   "Download the maker's 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on": 'Stáhněte 3D model výrobce (STEP) pro toto objednací číslo a vyberte ho zde — knihovna ho pro tuto velikost odteď použije (s jeho barvami)',
   "Use the maker's model (STEP)…": 'Použít model výrobce (STEP)…', '{file} is the model of {name} now (its own colours).': '{file} je teď modelem {name} (s jeho barvami).',
@@ -2430,6 +2430,19 @@ const CS = {
   '{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).':
     '{name}: {n} dílů pevně spojeno na {base} — pohybují se jako jeden (✕ v jejím řádku ji zruší; Ctrl+Z: zpět).',
   'fixing parts together': 'spojuje díly pevně',
+  // 🔒 locked for the AI (ailock.js)
+  'Lock it for the AI: the AI may add joints to it, but not change it': 'Zamknout pro AI: AI k němu smí přidat vazby, ale nesmí ho měnit',
+  'Library part — always locked for the AI': 'Díl z knihovny — pro AI vždy zamčený',
+  'Locked for the AI — click to unlock': 'Zamčeno pro AI — kliknutím odemknete',
+  'Locked for the AI': 'Zamčeno pro AI', 'bought': 'koupený', 'made': 'vyrobený', 'approved': 'schválený',
+  'Lock for the AI ({n})': 'Zamknout pro AI ({n})', 'Unlock for the AI ({n})': 'Odemknout pro AI ({n})',
+  'The AI may add joints to them, but not change them (bought, made or approved parts)': 'AI k nim smí přidat vazby, ale nesmí je měnit (koupené, vyrobené nebo schválené díly)',
+  'The AI may change them again': 'AI je smí zase měnit',
+  'Locked for the AI: {n}': 'Zamčeno pro AI: {n}', 'Unlocked for the AI: {n}': 'Odemčeno pro AI: {n}',
+  'The AI may add joints to it, but not change it — you can still change it': 'AI k němu smí přidat vazby, ale nesmí ho měnit — vy ho měnit můžete',
+  'The part is locked for the AI — you can still change it.': 'Díl je zamčený pro AI — vy ho měnit můžete.',
+  'The assembly is locked for the AI — you can still change it.': 'Sestava je zamčená pro AI — vy ji měnit můžete.',
+  'More: lock it for the AI …': 'Další: zamknout pro AI …', 'None chosen (Esc)': 'Nic nevybráno (Esc)',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)

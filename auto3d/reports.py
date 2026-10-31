@@ -4,6 +4,9 @@ and whether a new report says the same as one of them — so the AI does not fil
 Next to a report: the project on screen when it was written (<base>.a3d — the Save project file, compacted, so
 someone else can open it and reproduce the problem), a ⏺ recording of the user's moves (<base>.recording.json) and the
 screenshots the AI chose to show the state of the app (<base>.shot-1.png …, shown in the .md).
+
+The AI's tool calls that failed are logged on their own, one digest a day (<date>-tool-errors.md, auto3d/tool_errors.py):
+not reports — read() leaves them out, tool_errors.top() lists the most frequent.
 """
 from __future__ import annotations
 
@@ -12,7 +15,7 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from auto3d import package
+from auto3d import package, tool_errors
 
 # words that say nothing about which problem it is
 STOP = set("a an the of in on at to for and or with without is are be not no does do it its this that from by as when "
@@ -55,6 +58,8 @@ def read(folder: Path) -> list[dict]:
     if not folder.is_dir():
         return out
     for f in folder.glob("*.md"):
+        if f.stem.endswith(tool_errors.SUFFIX):  # (the day's tool-error log, not a report: tool_errors.top)
+            continue
         try:
             head = f.read_text(encoding="utf-8", errors="replace")[:2000]
         except OSError:

@@ -9,7 +9,7 @@ no sign-in; its session files under <claude config dir> hold the whole text it g
 3. "#u" typed -> the tags' list (#uc) -> Enter puts it in; "#cn" + Tab -> #cnc: sent, the bubble shows the text without
    them and the chips #uc #cnc, Claude's line has režimy=teach-me and výroba=CNC;
 4. ⚡ Úsporný režim: Claude's MCP server lists fewer tools (the stand-in asks it: "TOOLS?") — its process started again
-   unseen (no "stopped" note), the session resumed;
+   unseen (no "stopped" note), the session resumed; 🌐 off: started again without WebSearch, the line says internet=ne;
 5. 💾 Save (the Save dialog stubbed) -> the .a3d has ai_settings; reload, open it -> the same settings;
 6. 🎨 Dekorace + Použít jako výchozí -> a reload (a new project) starts with them; the saved project keeps its own; an
    older project without settings gets the default;
@@ -235,6 +235,16 @@ try:
     check("the session went on (resumed: its message #7)", r.startswith("Echo #7:") and "resumed: " in r and "resumed: no" not in r, r)
     check("unseen: no 'stopped' note", js("return document.querySelectorAll('#aiDrawer .ai-msg.note').length") == notes)
     check("the line says režimy=lean", "režimy=lean" in sent(), sent())
+    check("🌐 on: Claude may search the web", r.endswith("web: yes"), r)
+    panel(True)
+    toggle("internet")
+    panel(False)
+    r = say("TOOLS? bez internetu")
+    check("🌐 off: started again without web search, the session resumed", r.endswith("web: no") and "resumed: no" not in r, r)
+    check("the line says internet=ne", "internet=ne]" in sent(), sent())
+    panel(True)
+    toggle("internet")
+    panel(False)
     d.save_screenshot(str(OUT / "ai-settings-chat.png"))
 
     print("5. 💾 Save -> the .a3d keeps them; reload + open -> the same")

@@ -67,6 +67,19 @@ class TestMigrate(unittest.TestCase):
         with self.assertRaises(ProjectError):
             migrate(dw)
 
+    def test_ai_lock(self):
+        """🔒 Locked for the AI: kept on the part through a save and a reload — a reason (bought / made / approved) or
+        none; true reads as locked; false / junk / an unknown reason are dropped (an older file: no lock)."""
+        p = migrate(V2)
+        p["parts"] += [{"id": "P2", "kind": "model", "name": "Bearing", "model": {}, "ai_lock": {"reason": "bought"}},
+                       {"id": "P3", "kind": "model", "name": "Plate", "model": {}, "ai_lock": True},
+                       {"id": "P4", "kind": "assembly", "name": "Unit", "assembly": {}, "ai_lock": {"reason": "stolen"}},
+                       {"id": "P5", "kind": "model", "name": "Free", "model": {}, "ai_lock": False}]
+        out = migrate(json.loads(json.dumps(p)))
+        locks = {q["id"]: q.get("ai_lock") for q in out["parts"]}
+        self.assertEqual(locks, {"P1": None, "P2": {"reason": "bought"}, "P3": {}, "P4": {}, "P5": None})
+        self.assertEqual(migrate(json.loads(json.dumps(out)))["parts"], out["parts"])  # (a round trip keeps them)
+
     def test_active_part_fixed_up(self):
         p = migrate(V2)
         p["active"] = {"part": "P9"}

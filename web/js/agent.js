@@ -10,6 +10,7 @@ import { confirmIn } from './choose.js';
 import { recorder } from './recorder.js';
 import { pageBuild } from './stale.js';
 import { aiSettings, settingsPanel, TAGS } from './aisettings.js';
+import { guarded } from './ailock.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -55,8 +56,9 @@ export const CLIENT = windowClient();
 export function keepChatClient() { try { sessionStorage.setItem(KEEP_KEY, '1'); } catch { /* private window */ } }
 const withClient = (url) => `${url}${url.includes('?') ? '&' : '?'}client=${encodeURIComponent(CLIENT)}`;
 
-/** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
-export function startBridge(handlers) {
+/** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}; where() ->
+ * {workspace, part}: said with a failed call (the server logs every one for the developers). */
+export function startBridge(handlers, where = null) {
   let alive = true;
   // the calls of this window's chat come here only; an AI of its own (an MCP client without a window) works in the
   // window in use (visible)
@@ -96,13 +98,15 @@ export function startBridge(handlers) {
         // (a call that never ends must not stop this loop: the page would stop asking for calls and look closed)
         let late;
         const budget = new Promise((r) => { late = setTimeout(() => r({ text: `${cmd.cmd} took longer than ${CALL_BUDGET_S} s and was given up — the app goes on; check what it changed (get_model / gui_state).`, error: true }), CALL_BUDGET_S * 1000); });
-        result = fn ? await Promise.race([fn(cmd.args || {}), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        // (🔒 a call that would change a part locked for the AI: refused with the reason — ailock.js)
+        result = fn ? await Promise.race([guarded(cmd.cmd, cmd.args || {}, () => fn(cmd.args || {})), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
         clearTimeout(late);
         bridgeStats.calls++;
       } catch (e) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };
       }
       clearInterval(alive);
+      if (result?.error && where && !result.where) try { result = { ...result, where: where() }; } catch { /* (only for the log) */ }
       done.set(cmd.id, result);
       if (done.size > 100) done.delete(done.keys().next().value);
       try {
@@ -123,7 +127,7 @@ const TOOL_LABEL = {
   list_parts: 'looking at the parts', open_part: 'opening a part', duplicate_part: 'copying a part', new_model: 'starting a 3D model', get_model: 'reading the 3D model',
   find_refs: 'finding faces and edges', add_feature: 'adding a step', edit_feature: 'changing a step', delete_feature: 'deleting a step',
   turn_off_feature: 'turning a step off / on', rollback: 'moving the rollback bar', simplify_sketch: 'simplifying a sketch', get_sketch: 'reading a sketch', sketch_auto_dims: 'dimensioning a sketch', sketch_dim: 'setting a sketch dimension', get_parameters: 'reading the parameters', set_parameter: 'setting a parameter', list_versions: 'listing the versions', save_version: 'saving a version', restore_version: 'restoring a version', compare_versions: 'comparing versions', create_variant: 'making a variant', sketch_trim: 'trimming a sketch', sketch_union: 'uniting shapes in a sketch', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly', suggest_fasteners: 'finding where fasteners fit', add_fasteners: 'adding fasteners',
-  get_assembly: 'reading the assembly', add_harness: 'routing a cable', edit_harness: 'changing a cable', get_bom: 'reading the bill of materials', set_visibility: 'hiding parts', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', sheet_open: 'opening a drawing', get_sheet: 'reading the drawing', sheet_edit: 'editing the drawing', ask_user: 'asking you', gui_state: 'looking at the screen', gui_action: 'clicking in the app', gui_highlight: 'showing you where', list_reports: 'reading the problem reports', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', lock_motion: 'locking a motion', fix_together: 'fixing parts together', drive_mechanism: 'driving a mechanism', record_animation: 'recording an animation', name_motion: 'naming a motion', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', library_pair: 'adding what goes with a part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
+  get_assembly: 'reading the assembly', add_harness: 'routing a cable', edit_harness: 'changing a cable', get_bom: 'reading the bill of materials', set_visibility: 'hiding parts', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', sheet_open: 'opening a drawing', get_sheet: 'reading the drawing', sheet_edit: 'editing the drawing', ask_user: 'asking you', gui_state: 'looking at the screen', gui_action: 'clicking in the app', gui_highlight: 'showing you where', list_reports: 'reading the problem reports', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', lock_motion: 'locking a motion', fix_together: 'fixing parts together', drive_mechanism: 'driving a mechanism', record_animation: 'recording an animation', name_motion: 'naming a motion', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', fetch_cad: 'downloading a CAD model', WebSearch: 'searching the internet', library_pair: 'adding what goes with a part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
   switch_variant: 'switching the variant', take_part: 'taking a part from a variant', rename_variant: 'renaming a variant', delete_variant: 'deleting a variant',
   add_missing_joint: 'adding the missing joint', edit_chain: 'changing an energy chain', set_layout: 'arranging the widgets', new_project: 'starting a new project', close_project: 'closing the project',
   start_recording: 'starting to record your moves', stop_recording: 'stopping the recording', get_recording: 'reading your recorded moves', get_recording_screenshot: 'looking at a recorded screenshot',

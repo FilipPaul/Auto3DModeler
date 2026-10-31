@@ -8,6 +8,7 @@ import { t } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
 import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
+import { lockPanel } from '../ailock.js';
 import { choose, confirmIn } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame, snapPoints } from './view.js';
@@ -2100,6 +2101,7 @@ export class Modeler {
           ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}</div>` : ''}`; // (data-dock: its own widget — leftdock.js)
     }
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
+    lockPanel(box); // (🔒 Locked for the AI: this part)
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => this.setMaterial(e.target.value));
     box.querySelector('.mp-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; }); // (open stays open while the panel is drawn again)

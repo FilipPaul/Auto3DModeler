@@ -9,7 +9,7 @@ resume); `--resume <id>` of a session that is not there fails as Claude Code doe
 A message with "SLOW" in it is answered slowly: a piece of text every 0.5 s for a minute first (to press Stop in).
 The ✨ settings line before a message ("[Nastavení: …]") is left out of the echo (the session file has the whole text). A
 message with "TOOLS?" in it: the app's MCP server (as --mcp-config starts it) is asked for its tools, the echo ends with
-" | tools: <count>" (⚡ Lean mode lists fewer).
+" | tools: <count> | web: <yes / no>" (⚡ Lean mode lists fewer; 🌐 off: no WebSearch).
 """
 import json
 import os
@@ -63,7 +63,8 @@ def main():
         said = text.split("]\n\n", 1)[1] if summary == "yes" else text
         if said.startswith("[Nastavení:"):  # (the ✨ settings line)
             said = said.split("]", 1)[1].lstrip()
-        tools = f" | tools: {mcp_tool_count(args)}" if "TOOLS?" in said else ""
+        web = "yes" if "WebSearch" in (args[args.index("--tools") + 1] if "--tools" in args else "") else "no"
+        tools = f" | tools: {mcp_tool_count(args)} | web: {web}" if "TOOLS?" in said else ""
         out({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "mcp__auto3d__get_model", "input": {}}]}})
         out({"type": "user", "message": {"content": [{"type": "tool_result", "content": "a model"}]}})
         if "SLOW" in said:

@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import base64
 import io
+import os
 import re
 import threading
 import time
@@ -1935,15 +1936,21 @@ def tool_report_problem(args):
 
 
 def tool_list_reports(args):
-    """The problem reports written so far (newest first): those of a kind, those sharing a word with `search`."""
-    from auto3d import reports
+    """The problem reports written so far (newest first): those of a kind, those sharing a word with `search`; with
+    neither (or kind "tool errors"): the AI tool calls that failed most often lately too (logged on their own)."""
+    from auto3d import reports, tool_errors
     kind = str(args.get("kind") or "").strip().lower()
+    errs = tool_errors.top(REPORTS, limit=30 if kind == "tool errors" else 10) if kind == "tool errors" or not (kind or args.get("search")) else []
+    errs = (f"Tool errors (every failed tool call is logged on its own; the last 7 days, the most frequent first — "
+            f"RealSWReports/<date>{tool_errors.SUFFIX}.md): " + json.dumps(errs, ensure_ascii=False)) if errs else ""
+    if kind == "tool errors":
+        return {"text": errs or "No tool errors in the last 7 days."}
     rows = reports.search(REPORTS, str(args.get("search") or ""), kind if kind in ("bug", "tool request", "ui") else "")
     if not rows:
-        return {"text": "No reports" + (" match" if args.get("search") or kind else " yet") + "."}
+        return {"text": "No reports" + (" match" if args.get("search") or kind else " yet") + "." + (f"\n\n{errs}" if errs else "")}
     return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"], **({"project": r["project"]} if r["project"] else {}),
                                  **({"recording": r["recording"]} if r["recording"] else {}),
-                                 **({"screenshots": r["shots"]} if r["shots"] else {})} for r in rows], ensure_ascii=False)}
+                                 **({"screenshots": r["shots"]} if r["shots"] else {})} for r in rows], ensure_ascii=False) + (f"\n\n{errs}" if errs else "")}
 
 
 def _solid_from_path(args: dict) -> dict:
@@ -1963,8 +1970,49 @@ def _solid_from_path(args: dict) -> dict:
     return out
 
 
+CAD_CACHE = DATA / "cad_downloads"  # 🌐 the makers' CAD files fetch_cad downloaded (auto3d/fetchcad.py)
+
+
+def tool_fetch_cad(args):
+    """🌐 A maker's CAD file by its link (fetch_cad): downloaded (or from the cache), read like a dragged-in file, kept as
+    the user's own library part with its maker, part number and source — then put into the assembly / a new model."""
+    from auto3d import fetchcad
+    from auto3d.modeler import blobs
+    if not fetchcad.internet_on(DATA):
+        raise ValueError(fetchcad.OFF_TEXT)
+    pn, maker = str(args.get("part_number") or "").strip(), str(args.get("maker") or "").strip()
+    try:
+        got = fetchcad.fetch(CAD_CACHE, args.get("url"), pn, maker, args.get("name"), local=os.environ.get("A3D_FETCH_LOCAL") == "1")
+    except fetchcad.FetchError as exc:
+        raise ValueError(str(exc)) from exc
+    res, err = _model_call("import_solid", {"blob": blobs.put(Path(got["path"]).read_bytes()), "name": got["file"]}, timeout=600)
+    if err:
+        raise ValueError(err[0].get_json().get("error") or "The file could not be read.")
+    name = got["name"] or " ".join(x for x in (got["maker"], got["pn"]) if x) or Path(got["file"]).stem
+    slug = re.sub(r"[^a-z0-9]+", "-", f"{got['maker']} {got['pn'] or Path(got['file']).stem}".lower()).strip("-")[:60] or got["sha"][:12]
+    item = {"id": f"dl-{slug}", "name": name, "category": "My parts", "maker": got["maker"], "pn": got["pn"],
+            "description": name, "features": [{"id": "F1", "type": "solid", "name": Path(got["file"]).stem, "blob": res["blob"],
+                                               "file": got["file"], "op": res.get("op") or "add"}],
+            "source_url": got["url"], "licence": "The maker's model: for use in the design, not to pass on.",
+            **({"cad": got["url"]} if got["url"].startswith("https://") else {})}
+    parts_library.save_user_item(LIBRARY_USER, item)
+    facts = {"item": item["id"], "name": name, "maker": got["maker"] or None, "pn": got["pn"] or None, "file": got["file"], "kind": got["kind"],
+             "size_kb": round(got["size"] / 1024), "from_cache": got["cached"], "source": got["url"], "faces": res.get("faces"),
+             "volume_mm3": res.get("volume"), **({"warning": res["warning"]} if res.get("warning") else {}),
+             "licence": "the maker's model — for this design, not to pass on; its source is kept with the library part"}
+    facts = {k: v for k, v in facts.items() if v is not None}
+    if (args.get("to") or "") == "library":
+        return {"text": json.dumps({**facts, "in": "library", "hint": f'In the library (My parts). library_add {{item: "{item["id"]}"}} puts it in.'},
+                                   ensure_ascii=False)}
+    placed = RELAY.call("library_add", {"item": item["id"], **({"to": args["to"]} if args.get("to") else {})}, timeout=300)
+    if placed.get("error"):
+        raise ValueError(placed.get("text") or "The page could not put it in.")
+    return {"text": json.dumps({**facts, "placed": json.loads(placed.get("text") or "{}")}, ensure_ascii=False)}
+
+
 SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "list_reports": tool_list_reports, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
-                "use_outline": tool_use_outline, "export": tool_export, "list_demos": tool_list_demos, "open_demo": tool_open_demo}
+                "use_outline": tool_use_outline, "export": tool_export, "list_demos": tool_list_demos, "open_demo": tool_open_demo,
+                "fetch_cad": tool_fetch_cad}
 
 
 PAGE_BUILDS: dict[str, str] = {}  # window (client id) -> the commit its page was loaded with ("": the latest any said)
@@ -1985,6 +2033,8 @@ def api_agent_call():
     body = request.get_json(force=True)
     tool, args = body.get("tool", ""), body.get("args") or {}
     if tool not in TOOL_NAMES:  # listed: the MCP server (newer code, started by the chat) knows it — this server is older
+        if not body.get("listed"):
+            _log_tool_error(body, tool, args, f"Unknown tool {tool}.")
         return jsonify(_mcp_result(OLDER_SERVER.format(tool=tool) if body.get("listed") else f"Unknown tool {tool}.", error=True))
     route = ROUTE.set(str(body.get("client") or "") or None)
     try:
@@ -1992,13 +2042,35 @@ def api_agent_call():
             args = _solid_from_path(args)
         res = RELAY.call(tool, args) if tool in BROWSER_TOOLS else SERVER_TOOLS[tool](args)
     except Exception as exc:  # report to the agent instead of failing the call
+        _log_tool_error(body, tool, args, f"{tool} failed: {exc}")
         return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))
     finally:
         ROUTE.reset(route)
     text = res.get("text", "")
+    if res.get("error"):
+        _log_tool_error(body, tool, args, text, res)
     if tool == "get_screenshot" and res.get("image"):  # (kept: report_problem can attach it — "last" or its id)
         text += f"\n(Screenshot {_keep_shot(res['image'], str(body.get('client') or ''))}: report_problem screenshots can attach it.)"
     return jsonify(_mcp_result(text, res.get("image"), bool(res.get("error"))))
+
+
+LOG_TOOL_ERRORS = False  # set when the app serves (main / the launcher): unit tests' calls stay out of RealSWReports
+
+
+def _log_tool_error(body: dict, tool: str, args, text: str, res: dict | None = None):
+    """A failed AI tool call -> the day's tool-error log (auto3d/tool_errors.py; queued, never in the call's way): its
+    window's page build, the workspace / part the page said (res.where) and the chat's conversation."""
+    if not LOG_TOOL_ERRORS:
+        return
+    try:
+        from auto3d import tool_errors, version
+        client = str(body.get("client") or "")
+        chat = CHATS.get(client)
+        conv = (chat.conv or {}).get("id", "") if chat else ""
+        page = PAGE_BUILDS.get(client) or PAGE_BUILDS.get("", "")
+        tool_errors.record(REPORTS, tool, args, text, lambda: version.text(page), (res or {}).get("where"), conv, res)
+    except Exception:  # (the log never breaks the call)
+        pass
 
 
 def _hung_up(environ) -> bool:
@@ -2232,8 +2304,8 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
     url = f"http://127.0.0.1:{args.port}"
-    global APP_URL
-    APP_URL = url  # the MCP server started by the chat calls back here
+    global APP_URL, LOG_TOOL_ERRORS
+    APP_URL, LOG_TOOL_ERRORS = url, True  # the MCP server started by the chat calls back here; its failed calls are logged
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     print(f"Auto3DModeler running at {url}")

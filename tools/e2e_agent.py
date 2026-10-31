@@ -110,6 +110,13 @@ try:
     tool("edit_feature", id="F2", fields={"d": 8})
     m = json.loads(tool("get_model")[0])
     print("    after the plate got 8 thick:", m["body"]["size_mm"], "| all ok:", all(s["ok"] for s in m["steps"]))
+    # a failed call is logged on its own (RealSWReports/<date>-tool-errors.md), the same error counted: list_reports shows it
+    tool("edit_feature", id="F98", fields={"d": 3})
+    tool("edit_feature", id="F99", fields={"d": 3})
+    time.sleep(0.5)  # (written by a thread)
+    errs = tool("list_reports", kind="tool errors")[0]
+    hit = next((r for r in (json.loads(errs.rsplit(".md): ", 1)[1]) if ".md): " in errs else []) if r["tool"] == "edit_feature"), None)
+    print("    tool-error log: edit_feature ×", hit and hit["count"], "|", (hit or {}).get("error", "")[:80], "| counted:", bool(hit and hit["count"] >= 2))
     tool("turn_off_feature", id="F4", off=True)
     tool("delete_feature", id="F3")
     tool("undo")
@@ -470,6 +477,36 @@ try:
     from auto3d.agent_tools import BROWSER_TOOLS
     have = set(d.execute_script("return Object.keys(window.__app.agentHandlers)"))
     print(f"    the page's handlers: {len(have)} | browser tools without one: {sorted(BROWSER_TOOLS - have)}")
+    # 🌐 fetch_cad: a maker's STEP from a link (a local web server stands in; the test server runs with A3D_FETCH_LOCAL=1)
+    # -> a library part with its part number, placed in the assembly, in get_bom; the same part again from the cache
+    import http.server
+    import threading
+    step = (ROOT / "samples" / "ExportFromOurApp" / "part_base_plate.step").read_bytes()
+    pages = {"/cad/PLATE-77.STEP": step, "/login": b"<!DOCTYPE html><html><body>Sign in</body></html>"}
+
+    class Site(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = pages.get(self.path, b"")
+            self.send_response(200 if body else 404)
+            self.send_header("Content-Type", "text/html" if body.startswith(b"<") else "application/octet-stream")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+    site = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    threading.Thread(target=site.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{site.server_address[1]}"
+    tool("new_assembly", name="Bought parts")
+    f = json.loads(tool("fetch_cad", url=base + "/cad/PLATE-77.STEP", part_number="PLATE-77", maker="ACME", to="assembly")[0])
+    again = json.loads(tool("fetch_cad", part_number="PLATE-77", maker="ACME", to="assembly")[0])
+    rows = json.loads(tool("get_bom", mode="summary")[0])["rows"]
+    row = next((r for r in rows if r.get("pn") == "PLATE-77"), {})
+    print(f"    fetch_cad: placed {f.get('placed', {}).get('placed')} | again from the cache: {again.get('from_cache')} | BOM row:"
+          f" {row.get('name')} × {row.get('total')} maker {row.get('maker')} | ok: {row.get('total') == 2 and row.get('maker') == 'ACME'}")
+    print("    fetch_cad, a web page:", tool("fetch_cad", url=base + "/login", part_number="X", to="library")[0][:90])
+    site.shutdown()
     # 📄 a dimension's own tolerance and a reference dimension on a part's sheet (sheet_edit dims), shown by get_sheet
     tool("new_model", name="Toleranced")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])

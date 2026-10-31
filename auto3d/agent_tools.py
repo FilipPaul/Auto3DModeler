@@ -540,6 +540,18 @@ TOOLS = [
                     "becomes a chain C… (get_assembly `chains`; edit_chain sets its links, travel and the part it moves with). A "
                     "cable clip for a harness point: edit_harness clip (it picks and places one).",
      "inputSchema": _obj({"item": STR, "size": STR, "length": NUM, "to": {"type": "string", "enum": ["assembly", "model"]}}, ["item"])},
+    {"name": "fetch_cad", "where": "server",
+     "description": "🌐 A maker's real CAD model by its link (when the user names a part number that is not in the library): url — a "
+                    "DIRECT link to the file (https; a STEP, IGES, STL or a ZIP of one — found with WebSearch "
+                    "\"<maker> <part number> STEP download\"); part_number, maker, name for the parts list. The app downloads it "
+                    "(≤ 100 MB), refuses a web page (a login or a configurator is needed: give the user the link instead), keeps it "
+                    "in its CAD download cache (the same part number or url again: no download — then url may be left out) and "
+                    "makes it the user's own library part (My parts, its maker, part number and source: it is in get_bom). "
+                    "to: \"assembly\" (placed in the assembly on screen: its placed id and faces, as library_add), \"model\" (a new "
+                    "3D model tab) or \"library\" (only kept there); default: where the user works. Refused when 🌐 internet is off "
+                    "in the AI settings.",
+     "inputSchema": _obj({"url": STR, "part_number": STR, "maker": STR, "name": STR,
+                          "to": {"type": "string", "enum": ["model", "assembly", "library"]}})},
     {"name": "library_pair", "where": "browser",
      "description": "Put in what goes with a placed library part (library_search lists it as goes_with): a screw's nut / washer / "
                     "heat-set insert (the same thread), a standoff's screw, a test probe's receptacle or a receptacle's probe, a "
@@ -722,7 +734,7 @@ TOOLS = [
      "inputSchema": _obj({"name": STR, "category": STR, "maker": STR, "pn": STR})},
     {"name": "report_problem", "where": "server",
      "description": "Report to the app's developers (a dated report in RealSWReports, with the app's version): kind \"bug\" — "
-                    "something does not behave as expected (a tool error that should not happen, a wrong result); \"tool request\" — "
+                    "something does not behave as expected (a wrong result — tool errors are logged on their own); \"tool request\" — "
                     "no tool fits what you or the user needed, or you had to work around one (say the tool you would want: its "
                     "name, inputs, what it returns); \"ui\" — something in the app is not intuitive for the user (they could not "
                     "find it, or it did what they did not expect). title (short), what (what happened / what is missing), "
@@ -743,8 +755,9 @@ TOOLS = [
     {"name": "list_reports", "where": "server",
      "description": "The problem reports written so far (RealSWReports, newest first): their title, kind and date (and the project, recording and screenshots attached) — all, those of "
                     "a kind (bug / tool request / ui), or those about `search` (words of a title, the most alike first). Look "
-                    "before you report or suggest something, so nothing is filed twice.",
-     "inputSchema": _obj({"search": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}})},
+                    "before you report or suggest something, so nothing is filed twice. All (or kind \"tool errors\"): also the "
+                    "tool calls that failed most often in the last 7 days, with their counts (every failed call is logged on its own).",
+     "inputSchema": _obj({"search": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui", "tool errors"]}})},
     {"name": "get_drawing", "where": "browser",
      "description": "The 2D drawing on screen (a DXF / DWG, or a PCB: Gerber / ODB++ opened as a 📐 drawing): its layers (shown, "
                     "how many shapes, PCB kind), the kinds of shapes, its size in mm, the selection and the filters.",
@@ -977,13 +990,13 @@ TOOLS = [
                     "questions before a new design), model-a-part, change-a-model, from-picture, use-a-drawing (a DXF / Gerber), "
                     "assemble-parts, print-prep, design-principles (design intent: datums, order, parameters), standard-parts (few kinds "
                     "of bought parts), machined-part (CNC rules, stock, materials), materials-and-strength (loads, mixed materials, "
-                    "joints), mechanical-design, automation-design, ict-fixture (ICT / FCT test fixtures), fits-and-tolerances, "
+                    "joints), easy-assembly (design for assembly), mechanical-design, automation-design, ict-fixture (ICT / FCT test fixtures), cable-routing (cables, glands, clips, energy chains), fits-and-tolerances, "
                     "print-functional, print-graphics, production-drawing (a drawing for the workshop), design-review (the check before "
                     "hand-over), teach-me (guide the user step by step with gui_highlight), bug-hunter (/uiTester: do it through the GUI, "
                     "report problems), suggest-features (/suggest).",
      "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "change-a-model", "from-picture", "use-a-drawing",
                                                               "assemble-parts", "print-prep", "design-principles", "standard-parts", "machined-part",
-                                                              "materials-and-strength", "mechanical-design", "automation-design", "ict-fixture",
+                                                              "materials-and-strength", "easy-assembly", "mechanical-design", "automation-design", "ict-fixture", "cable-routing",
                                                               "fits-and-tolerances", "print-functional", "print-graphics", "production-drawing",
                                                               "design-review", "teach-me", "bug-hunter", "suggest-features"]}}, ["topic"])},
 ]
@@ -995,7 +1008,7 @@ LOCAL_TOOLS = {t["name"] for t in TOOLS if t["where"] == "local"}  # answered by
 
 # ⚡ Lean mode (✨ AI settings): the chat's Claude gets only the tools of the workspace on screen (+ the general ones)
 TOOL_GROUPS = {
-    "general": ["get_screenshot", "list_parts", "open_part", "new_model", "new_assembly", "open_file", "undo", "export",
+    "general": ["get_screenshot", "list_parts", "open_part", "new_model", "new_assembly", "open_file", "undo", "export", "fetch_cad",
                 "get_parameters", "set_parameter", "save_version", "ask_user", "gui_state", "gui_action", "gui_highlight",
                 "set_view", "get_guide", "report_problem"],
     "quick": ["get_part", "trace_picture", "use_outline", "set_dimensions", "set_make", "set_part_options", "add_object",
@@ -1039,13 +1052,14 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **The screen**: set_layout (the widgets docked left / right / floating, folded, their heights and rows; the suggestions table closed / opening by itself) and set_view joints (the joint symbols) — only when the user asks; new_project starts an empty project, close_project closes it to the start screen (only when asked; the one on screen is kept).
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-**The user's settings:** a message may start with a line `[Nastavení: …]` (✨ AI settings; sent when they change — they hold until the next line). Honour it: profil (automatizace → + automation-design, tisk → print-functional, dekorace → print-graphics) and výroba answer those brief questions; load the skills listed under zásady (auto3d:<name>; easy-assembly = few fastener kinds, assembled from one side, self-locating parts; easy-manufacture = simple shapes for the chosen výroba); design-review in zásady: run it before you say a design is done (not listed: only when asked). ptát=klíčové: ask_user only for key sizes; vše: ask about every open choice; neptat: do not call ask_user (decide, say what you chose) — except for safety. odpovědi: stručně / normálně / vysvětlit (say why). režimy=teach-me / bug-hunter: load that skill and work in that mode; lean: only the workspace's tools are listed — one you need is missing: say so (the user turns ⚡ Lean mode off). internet=ne: do not search the internet.
+**The user's settings:** a message may start with a line `[Nastavení: …]` (✨ AI settings; sent when they change — they hold until the next line). Honour it: profil (automatizace → + automation-design, tisk → print-functional, dekorace → print-graphics) and výroba answer those brief questions; load the skills listed under zásady (auto3d:<name>; easy-manufacture = simple shapes for the chosen výroba, no skill of its own); design-review in zásady: run it before you say a design is done (not listed: only when asked). ptát=klíčové: ask_user only for key sizes; vše: ask about every open choice; neptat: do not call ask_user (decide, say what you chose) — except for safety. odpovědi: stručně / normálně / vysvětlit (say why). režimy=teach-me / bug-hunter: load that skill and work in that mode; lean: only the workspace's tools are listed — one you need is missing: say so (the user turns ⚡ Lean mode off). internet=ne: do not search the internet.
 
 **Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user (or the settings line) has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
 
 **Skills** (auto3d:<name>; get_guide(topic) when skills are not available) — load the matching ones before the task:
 - Tasks: model-a-part, change-a-model, from-picture, use-a-drawing, assemble-parts, print-prep, production-drawing (a drawing for the workshop).
-- Design like an experienced mechanical engineer — a device, machine, bracket for bought parts or fixture: design-principles, standard-parts (before adding any bought part) and mechanical-design; machined parts: machined-part (automation: + automation-design, fits-and-tolerances); an ICT / FCT test fixture: + ict-fixture; load-carrying or joining parts, mixed materials: materials-and-strength; a functional print: print-functional; a decorative print: print-graphics.
+- Design like an experienced mechanical engineer — a device, machine, bracket for bought parts or fixture: design-principles, standard-parts (before adding any bought part) and mechanical-design; machined parts: machined-part (automation: + automation-design, fits-and-tolerances); an ICT / FCT test fixture: + ict-fixture; load-carrying or joining parts, mixed materials: materials-and-strength; a functional print: print-functional; a decorative print: print-graphics; easy to assemble (automation, fixtures, multi-part prints): easy-assembly.
+- Cables / wiring / a harness mentioned, or powered moving parts (motors, sensors, valves on an axis): auto3d:cable-routing at concept time.
 - **Before you say a design is done**, run auto3d:design-review and show its table.
 - Modes, only when the user asks (or the settings line lists them under režimy): "how do I / where is / show me / teach me" or /teachMe → auto3d:teach-me (you guide with gui_highlight {control, text, step, wait: true}, the user clicks — do not do it for them); /uiTester or /bugHunter → auto3d:bug-hunter (the task through the GUI only, every problem reported); /suggest → auto3d:suggest-features.
 
@@ -1055,6 +1069,10 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 
 **Use the parts library first:** every bought part (screws, bearings, cylinders, sensors, probes …) comes from library_search / library_add with its part number — as few different kinds as possible; draw only the made parts, around the bought ones. Not in the library: say so, draw a stand-in of its outside sizes.
 
+**A part number the user names** ("use Misumi SFJ8-100", "Festo DSNU-16-50-P-A") and library_search does not have it, nor the project (list_parts / get_bom): when you have WebSearch (🌐 internet on in the AI settings), search "<maker> <part number> STEP download" and call fetch_cad {url (a direct file link), part_number, maker} — it lands with its part number in the BOM. Many makers want a login or a configurator (TraceParts, CADENAS PARTcommunity, Misumi, Festo): then give the user the page link and ask them to download the STEP and drag it in — never get round a login. The makers' models are for use in the design, not to pass on. Without WebSearch (internet off): ask the user for the file. Details: auto3d:standard-parts.
+
+**🔒 Locked for the AI** (`ai_locked` in list_parts / get_model / get_assembly; library parts always): bought, made or approved — never change them (steps, look, name, the parameters driving them, a locked assembly's parts and joints); you may add joints to them (also into a locked sub-assembly), insert, measure and draw them. A refused call says so: take another way — change the other part, add a joint. Never work around a lock (no copy to edit unless the user asks for one); only the user unlocks.
+
 Rules: pick faces and edges with find_refs, never by guessing. **Model from simple shapes**, one idea per sketch, fillets and chamfers last (design-principles); a complex sketch only when the user said it may be built any way. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
@@ -1063,6 +1081,6 @@ Never open a file or the sample on your own: work on the part that is open. If n
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
 
-If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. A problem you can see (a control missing, a layout or rendering glitch): look with get_screenshot {ui: true}, then attach it — report_problem screenshots: ["last"] (with a caption); only when it helps. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
+Tool errors are logged on their own — do not report them. Report only what a tool cannot see: a wrong result (sizes, positions, a joint, a colour that does not show) — report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. A problem you can see (a control missing, a layout or rendering glitch): look with get_screenshot {ui: true}, then attach it — report_problem screenshots: ["last"] (with a caption); only when it helps. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
 
-Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""
+Answer in the user's language, briefly. You can only use the tools listed — no files or shell (WebSearch only when 🌐 internet is on)."""

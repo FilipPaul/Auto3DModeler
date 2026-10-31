@@ -47,14 +47,15 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_settings.py <url> <dir> <claude config dir>` covers ✨ Nastavení AI with the stand-in Claude Code (its own
    server as for e2e_chat_send): the panel in Czech, profiles set the toggles, a change → ✎ Vlastní, the meter; the
    settings line reaches Claude with the first message and not with an unchanged second; `#u` + Enter / `#cn` + Tab
-   from the tags' list, chips, the line overridden for that message; ⚡ Úsporný režim: the MCP server lists 43 of 113
-   tools (the process restarted unseen, the session resumed); 💾 Save → the .a3d keeps them, reopened; Použít jako
+   from the tags' list, chips, the line overridden for that message; ⚡ Úsporný režim: the MCP server lists 44 of 114
+   tools (the process restarted unseen, the session resumed); 🌐 off: no WebSearch; 💾 Save → the .a3d keeps them, reopened; Použít jako
    výchozí → a new project / an older one gets them; no console errors, no native dialogs.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).
    `tools/e2e_agent.py` drives every AI tool through the real MCP server process (no model needed), incl. the 3D model
-   tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print);
+   tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print)
+   and the tool-error log (edit_feature on a missing step twice -> one entry ×2 in list_reports "tool errors");
    `tools/e2e_chat.py <url> <dir> "message"` sends a real chat message through the installed Claude Code —
    it uses the Claude account Claude Code is signed in with, so run it sparingly.
    `tools/e2e_ai_access.py <url> <dir>` covers the AI's set-up screen (no sign-in, no key: Sign in with Claude, the key
@@ -921,6 +922,15 @@ Never report "works" without having run it; report failures with their output.
    set = the view's lit parts; no page text selected; "Vybráno dílů: 3" and the suggestions Vyjmout je (3) / Skrýt;
    Ctrl+click in the view adds; H hides / shows them all; Vyjmout je (3) and one undo; Esc and a click beside the rows
    clear; the 500-part demo: each click's handlers < 100 ms, a real Shift+click 56 rows).
+   `tools/e2e_ai_lock.py <url> <dir>` covers 🔒 Locked for the AI (Czech; the AI through /api/agent/call): the project
+   tree's 🔒 (hidden until hover, shown when locked), Ctrl+click two rows -> "Zamknout pro AI (2)", a row's ⋯ unlocks
+   both; Stroj's list Shift+click 3 rows -> "🔒 Zamknout pro AI (3)" (one Ctrl+Z / redo), the icons; list_parts /
+   get_assembly / get_model `ai_locked` (the library screw: reason library, no flag); snap_faces to a locked part and
+   into the locked sub-assembly allowed; set_look / paint_faces / move_free / remove_from_assembly inside it refused;
+   edit_feature / add_feature / set_material / delete_part / rename_part refused with "je zamčený pro AI … vazby
+   přidat lze", the library screw too; set_parameter driving a locked part refused and names it; the user's own edit
+   of a locked part done with the note; the reason chip; save + reload keeps the locks; "🔓 Odemknout pro AI (3)"; no
+   console errors, no native dialogs (exit code 1 on a failure).
    `tools/e2e_assembly_groups.py <url> <dir>` covers 🔗 a rigid group (Czech: five flags and the inner crank of
    "Pohon" chosen with Shift / Ctrl+click -> "Spojit pevně (6 dílů)": nothing moved, one undo step, get_assembly
    `groups` (base I2, the flags; not in `joints`), one row "Klika (6 dílů)"; driven 10° / 45° every flag turns with the

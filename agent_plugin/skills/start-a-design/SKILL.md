@@ -35,9 +35,11 @@ does it hold?" with the usual sizes as options).
 |---|---|
 | Automation / machine | design-principles, standard-parts, machined-part, mechanical-design, automation-design, fits-and-tolerances (+ print-functional for printed parts) |
 | ICT / FCT test fixture | the automation row + ict-fixture |
+| Cables / wiring named, or powered moving parts | + cable-routing (plan the cables with the concept) |
 | Functional print | design-principles, standard-parts, mechanical-design, print-functional (+ fits-and-tolerances for bearings, pins, shafts) |
 | Graphic / decorative | print-graphics (if printed); model-a-part for the modelling |
 | Load-carrying or joining parts, mixed materials | + materials-and-strength |
+| Automation, ICT / FCT, functional prints of several parts | + easy-assembly (with machined-part / print-functional): fewer parts, self-locating, one direction, tool access |
 | Always | model-a-part to build it, assemble-parts for several parts, print-prep before printing, production-drawing for made parts; **design-review before you say it is done** |
 
 A test fixture (ICT / FCT, bed of nails, probes on a PCB) counts as automation — do not ask question 1 then.
