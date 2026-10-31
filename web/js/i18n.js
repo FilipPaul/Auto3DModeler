@@ -1663,6 +1663,7 @@ const CS = {
   'Reading the project…': 'Čtu projekt…', 'Opening the parts…': 'Otevírám díly…', 'Opening {name}…': 'Otevírám {name}…', 'the demo': 'ukázku',
   'Exporting {fmt}…': 'Exportuji {fmt}…', 'Preparing the print…': 'Připravuji tisk…', 'Checking collisions: {n} parts…': 'Kontroluji kolize: {n} dílů…',
   'Opening the assembly: {n} placed parts…': 'Otevírám sestavu: {n} vložených dílů…',
+  'Loading {name}…': 'Načítám {name}…', '{n} placed parts — building and drawing them…': '{n} vložených dílů — sestavuji a kreslím je…', 'the assembly': 'sestavu',
   'Reading the file — the CAD kernel makes it a solid': 'Čtu soubor — CAD jádro z něj dělá těleso', "Reading the assembly's parts": 'Čtu díly sestavy', 'The server did not answer — is it running?': 'Server neodpověděl — běží?',
   'Making the drawings…': 'Dělám výkresy…', '{n} pages: {pages}': 'Stran: {n} — {pages}', 'The assembly has no parts to draw.': 'Sestava nemá díly ke kreslení.',
   'Sub-assembly': 'Podsestava', in: 'v', 'Pos.': 'Poz.', Sheet: 'List', 'Part number': 'Objednací číslo', bought: 'nakupovaný', more: 'další',

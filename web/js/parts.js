@@ -104,6 +104,14 @@ export class Project {
 
   get current() { return this.parts.find((p) => p.id === this.active) || null; }
 
+  /** A part by its id — a map kept while the list is the same (a big assembly asks for its parts thousands of times). */
+  byId(id) {
+    const list = this.parts;
+    if (this.idMap?.list !== list || this.idMap.n !== list.length) this.idMap = { list, n: list.length, map: new Map(list.map((p) => [p.id, p])) };
+    const p = this.idMap.map.get(id);
+    return p?.id === id ? p : this.parts.find((q) => q.id === id); // (a part given another id in place: the list asked)
+  }
+
   /** A file is being opened: the part on screen (if any) is kept as its own tab and a new tab is made. */
   beginOpen() {
     const cur = this.current;
@@ -590,6 +598,16 @@ export class Project {
     };
     const top = this.parts.filter((p) => !used.has(p.id) && !(p.kind === 'sheet' && byId.has(data.get(p.id)?.source)));
     for (const p of [...top.filter((q) => q.kind === 'assembly'), ...top.filter((q) => q.kind !== 'assembly')]) add(p, 0, 1, new Set());
+    // the same rows as drawn (only another part on screen — a tab switch): its row lit, the list kept (a big imported
+    // assembly's tree has a thousand rows: drawn again on every switch, before the switch's own work)
+    const sig = [popup, this.lastDeleted?.p.id, this.parts.length > 1, [...(this.picked || [])].join(), ...rows.map(({ p, depth, qty }) => `${p.id}:${depth}:${qty || ''}:${p.kind}:${p.closed ? 1 : ''}:${p.name}:${lockBtn(p.id)}:${this.libraryPart(p) ? 1 : 0}`)].join('|');
+    const list0 = box.querySelector('.tr-list');
+    if (list0 && sig === this.treeSig && rows.length === this.treeRows?.length && rows.every((r, k) => r.p === this.treeRows[k].p)) {
+      for (const row of list0.children) row.classList.toggle('on', row.dataset.part === this.active && !this.none);
+      return;
+    }
+    this.treeSig = sig;
+    this.treeRows = rows;
     const undo = this.lastDeleted ? `<button class="btn small tr-undo" title="${t('Bring back the part deleted last')}">↶ ${t('Undo')}: <span data-no-i18n></span></button>` : '';
     box.innerHTML = popup ? `<div class="tr-head" title="${t('Drag the header into the left panel to dock it there, or onto the view to float it')}"><b>☰ ${t('Project')}</b>${undo}<button class="mini tr-pin" title="${t('Dock it in the left panel — always in sight, in every workspace (or drag its header there)')}">📌</button><button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
       <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`

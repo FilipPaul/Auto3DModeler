@@ -1,15 +1,15 @@
 // Smart suggestions: what a placed part most likely goes onto, found by geometry so one click in the Suggested table
 // does it — ◎ a pin into a hole of the same Ø in another part (or a hole onto a pin), ⧉ a part put down on the top of
 // the fixed part (its underside onto it). Plain geometry over the assembly's bodies, no UI (assembly.js shows them).
-import { isPin } from './missing.js';
+import { isPin, facesOf } from './missing.js';
 
 /** A body's round faces with an axis, once per body (kept on it): [{name, d, pin}] — pin null (neither) left out. */
 function roundsOf(body) {
   if (body._rounds) return body._rounds;
-  const out = [];
+  const out = [], { own } = facesOf(body);
   for (const name of new Set(body.faces.filter((f) => f.type === 'cylinder' && f.radius && f.axis).map((f) => f.name))) {
     const pin = isPin(body, name);
-    if (pin !== null) out.push({ name, d: 2 * body.faces.find((f) => f.name === name && f.radius).radius, pin });
+    if (pin !== null) out.push({ name, d: 2 * own.get(name).find((f) => f.radius).radius, pin });
   }
   return (body._rounds = out);
 }
@@ -45,12 +45,23 @@ export function pinFits(asm, id, max = 2) {
   const used = usedRounds(asm), mine = freeRounds(asm, a, used);
   if (!mine.length) return [];
   const moving = new Set((asm.doc.mates || []).map((m) => m.move)), joined = (x) => moving.has(x);
-  const fitsMine = (d, pin) => mine.some((p) => p.pin !== pin && fits(p.pin ? p.d : d, p.pin ? d : p.d)); // (by Ø first: only those placed)
+  // its pins and holes by Ø: a round face of another part meets only those of a fitting Ø (a merged sub-assembly has
+  // thousands of round faces — not each against each)
+  const byD = (pin) => mine.filter((p) => p.pin === pin).sort((x, y) => x.d - y.d), pins = byD(true), holes = byD(false);
+  const near = (d, pin) => { // (mine that may fit a round face of Ø d: its holes for a pin, its pins for a hole)
+    const list = pin ? holes : pins, lo = pin ? d - 2e-3 : d - 0.601, hi = pin ? d + 0.601 : d + 2e-3;
+    let a = 0, b = list.length;
+    while (a < b) { const m = (a + b) >> 1; if (list[m].d < lo) a = m + 1; else b = m; }
+    const out = [];
+    for (let k = a; k < list.length && list[k].d <= hi; k++) out.push(list[k]);
+    return out;
+  };
+  const fitsMine = (d, pin) => near(d, pin).some((p) => fits(p.pin ? p.d : d, p.pin ? d : p.d)); // (by Ø first: only those placed)
   const best = new Map();
   for (const b of asm.doc.instances) {
     if (b.id === id || b.fastener) continue;
     for (const q of freeRounds(asm, b, used, fitsMine)) {
-      for (const p of mine) {
+      for (const p of near(q.d, q.pin)) {
         if (p.pin === q.pin || !fits(p.pin ? p.d : q.d, p.pin ? q.d : p.d)) continue;
         const apart = p.face.axis.o.distanceTo(q.face.axis.o);
         // the better target: a fixed part, or one already in place (joined); then the nearer one

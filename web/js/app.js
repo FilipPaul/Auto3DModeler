@@ -2065,7 +2065,7 @@ window.addEventListener('a3d:changed', () => {
 const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), right: $('asmRight') }, {
   toast, download, safeName: () => tabName(),
   parts: () => project.parts,
-  partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
+  partData: (id) => { const p = project.byId(id); return p && typeof p.data === 'object' ? p.data : null; },
   addModelPart: (name, data) => project.addBackground(name, data),
   // a STEP / STL / OBJ to insert: a solid step, or (a STEP assembly, if wanted) a new sub-assembly of the project
   importFile: async (file) => {

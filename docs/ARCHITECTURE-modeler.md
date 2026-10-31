@@ -7,6 +7,39 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⇆ A big imported STEP assembly switched top ⇄ sub-assembly at once (2026-10-31)** (the owner: "Sestava ICT
+  M1556.stp", 25 MB, opened as an assembly — 254 parts, 44 sub-assemblies —; the top assembly, "Sestava základní
+  desky", the top again: an enormous wait, the window frozen with no sign of work). Measured in a real Edge window (GPU,
+  Czech, a project-tree row clicked, to the switch done and its frame painted; tools/e2e_ict_switch.py --profile):
+  top → sub 575 ms (its card at 378 ms, after the work), back to the top 34 668 ms, sub again 431 ms, top again
+  29 528 ms — one long task each way back, no card. The CDP profile: 95 % in the Suggested table of the whole assembly
+  (suggestAssembly → pinFits → freeRounds → missing.js isPin / Assembly.cylSpan). The top holds 9 placements, all
+  sub-assemblies drawn as merged bodies of up to 13 000 faces / 1.3 M triangles; isPin and cylSpan went through every
+  triangle of the body for each round face name (thousands): quadratic. Its result (`_smart`) was one per Assembly, so
+  each other assembly on screen dropped the top's. Also on the first way back: every merged body made again
+  (mergeAssembly's key took its nested sub-assemblies' keys before they were merged — '' the first time, theirs the
+  next), and the project tree (~1 000 rows) drawn twice per switch, before the work. Done:
+  - missing.js facesOf(body): the triangles sorted by face once per body (start / tris arrays) and each name's faces
+    (own / any); isPin, cylSpan and smart.js roundsOf look a face's triangles up — cold suggestions 22 s → 1.5 s.
+  - smart.js pinFits: the chosen part's pins and holes sorted by Ø, a round face of another part meets only those of a
+    fitting Ø (binary search), not each against each; fasteners.js holes: a split cylinder's other half looked for among
+    the part's own holes (not all so far), the line test without new vectors.
+  - The whole assembly's suggestions kept with the assembly put aside (park / unpark: `smart`), and on a big one
+    (placed faces > SMART_LATER = 5000) worked out after the frame is on screen, a loose part per task (smartSoon), the
+    table drawn again when done — never inside the click or switch that shows it.
+  - mergeAssembly merges its own sub-assemblies first and keys on them as they are now, and on its parts and their
+    places only (data.instances — not its joints or display, which the first visit tidies: `mates: []`).
+  - kindOf and app.js partData by a map kept while the project's list is the same (Project.byId; was a find over 298
+    parts, thousands of times per render); Project.renderTree keeps its rows when they are the same (a tab switch: only
+    the lit row changes).
+  - Assembly.load: an assembly not kept warm with more than BIG_OPEN placed parts, its sub-assemblies' counted in
+    (placedCount), shows the loading card "Načítám ‹název›…" — "{n} vložených dílů — sestavuji a kreslím je…" — painted
+    before any of its work (the list, the suggestions, the bodies); the old card came after the first render.
+  After (the same runs): top → sub 207–315 ms (its card at 46–124 ms), back to the top 35–125 ms, sub 45–137 ms, top
+  33–115 ms. tools/e2e_ict_switch.py: top → sub → top → sub → top timed, the card within 100 ms of the click on any
+  step over 300 ms, budgets (the first visit < 1.5 s, every return < 0.5 s), no console errors; without the owner's
+  file (CI) the 150-part demo exported as a STEP assembly and opened the same way.
+
 - **📂 Open ▾ / Export ▾ in sections (2026-10-31)** (the owner: "split the imports for easier finding"). web/js/filemenus.js:
   both top-bar menus as panels of two columns (one in a narrow window), section headers, an icon tile, a name and a
   muted hint per item; Open: 📁 any file on top, Projekt (🕘 the last three inline with pictures), Ukázky, Import · CAD a
