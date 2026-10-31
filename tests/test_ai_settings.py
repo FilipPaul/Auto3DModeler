@@ -165,6 +165,23 @@ class ChatTest(unittest.TestCase):
         from auto3d import chat_history
         self.assertEqual(chat_history.keep({"type": "user", "text": "x", "tags": ["uc"]})["tags"], ["uc"])
 
+    def test_tags_with_attached_files(self):
+        """📎 a file and #tags in one message: the line, the text, the file's text; the event (and the kept
+        conversation) has both the files and the tags."""
+        from auto3d import chat_history
+        s = self.chat()
+        s.send("Podívej #cnc", files=[{"name": "a.csv", "size": 12, "path": "C:\\x\\a.csv", "text": "[Attached file a.csv]\nx,y"}],
+               settings={})
+        got = s.proc.text()
+        self.assertTrue(got.startswith("[Nastavení: profil=automatizace; výroba=CNC;"), got)
+        self.assertIn("\n\nPodívej\n\n[Attached file a.csv]\nx,y", got)
+        ev = [e for e in s.history if e["type"] == "user"][-1]
+        self.assertEqual((ev["text"], ev["tags"], ev["files"][0]["name"]), ("Podívej", ["cnc"], "a.csv"))
+        kept = chat_history.keep(ev)
+        self.assertEqual((kept["tags"], kept["files"]), (["cnc"], [{"name": "a.csv", "size": 12, "path": "C:\\x\\a.csv"}]))
+        s.send("#cnc", files=[{"name": "b.txt", "size": 1, "path": "C:\\x\\b.txt", "text": "[Attached file b.txt]"}], settings={})
+        self.assertEqual(s.proc.text(), "[Attached file b.txt]")  # (the line unchanged: not again, the file goes)
+
     def test_lean_mode_restarts_with_the_workspace_group(self):
         s = self.chat()
         s.send("Ahoj", settings={}, workspace="model")
@@ -216,7 +233,7 @@ class ChatTest(unittest.TestCase):
         sent = []
 
         class Stub:
-            def send(self, text, photos, settings=None, workspace=None):
+            def send(self, text, photos, files=None, settings=None, workspace=None):
                 sent.append((text, settings, workspace))
 
         orig = server._chat

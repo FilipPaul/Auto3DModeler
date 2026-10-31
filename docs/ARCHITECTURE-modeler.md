@@ -20,6 +20,14 @@ Date: 2026-10-25. Written by the architect agent.
   assembly 54 ≈ 15.1k (−13.9k), sheet ≈ 7.7k, drawing ≈ 5.7k, quick ≈ 7.4k, start screen ≈ 4.8k. SYSTEM_PROMPT routes
   the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter / lean).
   Tests: test_ai_settings (line, tags, groups, the chat's line / restart, the project file), tools/e2e_ai_settings.py.
+- **📎 Příloha: text, CAD files and drawings in the AI chat (2026-10-31).** The chat's 📎 Photo became 📎 Attachment
+  (picker, paste, drop; at most 10 per message; photos as before). auto3d/chat_attach.py: a text file (.txt .md .csv
+  .json .xml .yaml .log .ini, code …) goes into the message as a fenced block with its name — whole up to 60 kB, at
+  most 150 kB per message, else its first 200 lines (≤ 16 kB) and "[Attached file: <path>, N kB, first 200 lines
+  included]"; decoded as UTF-8 (BOM, UTF-16), else cp1250 / cp1252 by rare letters (the STEP names idea). CAD files
+  and drawings (.step .igs .stl .obj .3mf .dxf .dwg .pdf .zip .a3d .svg, ≤ 50 MB) are saved to data/agent/attachments
+  and named; SYSTEM_PROMPT: an attached file counts as asked to open. Chips (icon, name, size, ✕) in the box and in
+  the sent bubble; kept conversations keep names, sizes and paths. Tests: test_chat_attach, tools/e2e_chat_attach.py.
 
 - **The AI designs parts that are easy to assemble: easy-assembly skill (2026-10-31)** (DFA, later a setting
   "🔩 Snadná montáž"). agent_plugin/skills/easy-assembly: Boothroyd's three questions to merge parts, fewer

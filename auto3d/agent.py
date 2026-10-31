@@ -388,12 +388,14 @@ class ChatSession:
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
         return prime
 
-    def send(self, text: str, photos: list | None = None, settings: dict | None = None, workspace: str | None = None):
+    def send(self, text: str, photos: list | None = None, files: list | None = None, settings: dict | None = None,
+             workspace: str | None = None):
         """A user message, optionally with photos: [{"name", "media_type", "data" (base64), "path"}]. Claude
-        sees each photo and is told where it was saved (so it can trace it with trace_picture). settings: the project's
-        ✨ AI settings (their line goes first when it changed; the message's #tags change it for this message);
-        workspace: the one on screen (⚡ Lean mode: only its tools)."""
-        photos = photos or []
+        sees each photo and is told where it was saved (so it can trace it with trace_picture). files: other
+        attachments (chat_attach.attach: [{"name", "size", "path", "text"}]) — their `text` goes into the message.
+        settings: the project's ✨ AI settings (their line goes first when it changed; the message's #tags change it for
+        this message); workspace: the one on screen (⚡ Lean mode: only its tools)."""
+        photos, files = photos or [], files or []
         text, tags = ai_settings.parse_tags(text)
         group = ai_settings.tool_group(workspace) if (settings is not None or tags) and ai_settings.lean(settings, tags) else None
         if self.conv is None:
@@ -406,15 +408,16 @@ class ChatSession:
         self.group, self.internet = group, internet
         prime = "" if self.running() else self.start()
         line = ai_settings.settings_line(settings, tags) if settings is not None or tags else ""
-        if line and line == self.sent_line and (text or photos):
+        if line and line == self.sent_line and (text or photos or files):
             line = ""  # (the AI has it already)
         elif line:
             self.sent_line = line
         self.busy = True
         self.emit({"type": "user", "text": text, **({"tags": tags} if tags else {}),
-                   "photos": [{"name": p["name"], "url": p["url"]} for p in photos]})
+                   "photos": [{"name": p["name"], "url": p["url"]} for p in photos],
+                   **({"files": [{k: f[k] for k in ("name", "size", "path")} for f in files]} if files else {})})
         content = [{"type": "image", "source": {"type": "base64", "media_type": p["media_type"], "data": p["data"]}} for p in photos]
-        note = "\n".join(f"[Attached photo: {p['path']}]" for p in photos)
+        note = "\n".join([*(f"[Attached photo: {p['path']}]" for p in photos), *(f["text"] for f in files)])
         content.append({"type": "text", "text": "\n\n".join(x for x in (line, expand_command(text), note) if x)})
         self.pending = content
         self._write(content, prime)
