@@ -200,6 +200,37 @@ Date: 2026-10-25. Written by the architect agent.
   normal faces up / down before placing them. After: top a part 47–58 ms, another 31–63, a row 31–59, empty space 25–42;
   the sub-assembly 33–53 ms. e2e_ict_switch: a part (its face picked with it), another, a list row and empty space,
   twice, in the top assembly and in the sub-assembly — painted under 100 ms each, each choosing what it should.
+- **🕘 A project opened from Recent projects says so from the click (2026-10-31)** (the owner: "loading a project from
+  the intro screen from recent projects, the screen freezes without informing the user"). Autosave.open fetched the
+  project, kept the one on screen, migrated it and filled the project before anything showed; the only card was the
+  assembly's own "Načítám ‹sestava›…" (over BIG_OPEN placed parts), put up inside loadAll — 87–155 ms after the click
+  (cold server, real window, the ICT assembly), gone before the first frame was painted, nothing for a smaller active
+  part; a 🎬 demo fetched its file before its card. And a reload (or a closed tab) left the last page's collision check
+  running in the kernel: the project opened next waited for it — 120 s on the ICT assembly, "Čekám na CAD jádro". Done:
+  busy.js `busyOpen(text, work)` — the card up and painted before work(), done after a painted frame once it returns —
+  used by Autosave.open (the start screen's pictures, 🕘 Recent projects…, Open ▾'s last three, the "continue where you
+  left off" strip, ↶ the previous project, a ⧉ window's project: "Otevírám ‹name›…"), openProject (a .a3d opened or
+  dropped) and openDemo (demos.js hands it a loader: the fetch inside the card). Assembly.load puts no card of its own
+  over one already up (its "{n} vložených dílů…" becomes that card's step); buildBodies counts the parts on it —
+  busyCount "Sestaveno 120 z 254 dílů…" with its bar, the kernel's stage after it ("· Čekám na CAD jádro…") — and
+  refresh says "Kreslím…" (painted) before merging and drawing. Assembly: on pagehide the collision check still running
+  is cancelled (sendBeacon /api/progress/<rid>/cancel). After (real window, Czech): the card 6–9 ms after the click, a
+  frame of it at 11–12 ms, the ICT project's first frame 2.6–3.9 s (cold server 3.2–3.9 s; was 3.6 s, the card gone 260
+  ms before it), the card gone 5–20 ms after it; the 500-part demo's 0.44–0.55 s headless; opened again after a reload
+  2.8–4.0 s (was 120 s). A project whose every tab was closed (none) leaves the start screen at loadAll's first render,
+  not after its first part is built. Left: one 1.3–1.4 s long task while the ICT assembly is merged and drawn (under
+  "Kreslím…", the spinner turning on the compositor). tools/e2e_open_recent.py.
+- **The ICT project reopened, measured cold and warm (2026-10-31)** (another job saw ~91 s reopening the saved ICT
+  .a3d). A real Edge window, Czech, the top assembly on screen (1 719 placements of 254 parts, 44 assemblies), from the
+  click to its first frame / the collision check's end: a fresh data folder (no part cache, no file cache — as after any
+  change of auto3d/modeler/*.py: partcache's stamp is the whole modeler's code, filecache's kernel.py + doc.py) 14.8 s
+  to the first frame (255 /api/model/rebuild, 44.6 s in the kernel processes, the longest part 8.0 s), then the
+  collision check 120 s — the kernel call's timeout, no answer, one kernel process busy all along; the same project
+  after a server restart, caches warm: 4.5 s (526 rebuilds from the part cache, 18.9 s kernel), opened again after a
+  reload 4.1 s (the last page's check cancelled at pagehide: 165 ms). Before that cancel a reopen inside those 2 min
+  waited for the check — 120 s here, the likely ~91 s. No regression found in the opening itself (j-ictswitch's 4.1 s
+  warm holds). Still to do (known): the big assembly's collision check (quick boxes first, no timeout), the part cache
+  kept across code changes that do not touch a part's build.
 - **Snap points under the mouse in an assembly, 📏 Measure too — 🪶 simplified parts included (2026-10-31)** (the owner:
   "why don't I see snapping points in assembly?" — in the ICT STEP assembly none, not even in 📏 Measure). Causes: (1) a
   STEP tree over 150 parts + sub-assemblies opens with every part 🪶 simplified (stepfile.js addTree) and a light mesh

@@ -933,6 +933,14 @@ Never report "works" without having run it; report failures with their output.
    a parts-list row and empty space, twice, each painted under 100 ms and choosing what it should; the project's
    picture drawn with no part built again on the server; --profile prints
    each step's and click's top functions.
+   `tools/e2e_open_recent.py <url> <dir> [--file a.a3d] [--step a.stp] [--id <kept id>] [--window]` covers opening a big
+   project from the start screen's 🕘 Recent projects (the 500-part demo kept as an autosaved project; --step: a STEP
+   assembly such as the owner's ICT file opened and kept first; --id: one kept already, e.g. on a cold server): the page
+   reloaded to the start screen in Czech, its picture clicked by a real mouse — the card "Otevírám ‹name›…" within
+   150 ms and a frame of it before any long task, "Sestaveno n z m dílů…" on it, up until the project's first frame
+   (the time to it printed), gone after; reloaded again (the last page's collision check stopped with it), 🕘 Nedávné
+   projekty… › Otevřít: the card at once and no wait for that kernel job; a 🎬 demo from the start screen: its card
+   from the click; no console errors, no native dialogs.
    `tools/e2e_asm_snaps.py <url> <dir> [--ict] [--window]` covers the snap points shown under the mouse in an assembly
    (real mouse moves, Czech, a clean localStorage — the Hover filters on): the 150-part demo — a part's face and a
    sub-assembly's merged body hovered show dots, a dot clicked is the snap picked, 📏 Measure shows the dots too and

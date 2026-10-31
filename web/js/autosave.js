@@ -3,6 +3,7 @@
 // each with its picture (drawn after a save, at most every few minutes: THUMB_EVERY).
 import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
+import { busyOpen } from './busy.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -96,13 +97,18 @@ export class Autosave {
   /** first: the id of the project ✕ closed in this window — first in 🕘 Recent projects (one click opens it again). */
   async recent() { return (await (await fetch('/api/projects')).json()).projects || []; }
 
-  async open(id) {
-    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`), proj = await res.json();
-    if (!res.ok || proj.error) throw new Error(proj.error || res.statusText);
-    await this.saveNow(); // (the one on screen kept first)
-    await this.hooks.restore(proj);
-    this.fresh(id);
-    this.last = JSON.stringify(this.hooks.project() || {});
+  /** A kept project on screen (name: its name, for the loading card "Opening ‹name›…" — up at the click, before the
+   *  file is fetched, until the project's first frame). */
+  async open(id, name = '') {
+    await busyOpen(tv('Opening {name}…', { name: name || t('the project') }), async (b) => {
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}`), proj = await res.json();
+      if (!res.ok || proj.error) throw new Error(proj.error || res.statusText);
+      await this.saveNow(); // (the one on screen kept first)
+      b.step('Opening the parts…');
+      await this.hooks.restore(proj);
+      this.fresh(id);
+      this.last = JSON.stringify(this.hooks.project() || {});
+    });
   }
 
   /** The user started working (a part opened or made): the offer of the last project goes away. */
@@ -124,7 +130,7 @@ export class Autosave {
     bar.className = 'restore-bar';
     bar.innerHTML = `<span>Continue where you left off:</span> ${thumbHtml(last, 'rb-thumb')} <b data-no-i18n>${esc(last.name)}</b> <i data-no-i18n>${esc(when(last.time))}</i> <i>${last.parts.length} part(s)</i>
       <button class="btn small primary" data-a="open">Open</button><button class="btn small" data-a="recent">🕘 Recent projects…</button><button class="mini" data-a="x" title="Close">✕</button>`;
-    bar.querySelector('[data-a=open]').addEventListener('click', async () => { bar.remove(); try { await this.open(last.id); this.hooks.toast(tv('“{name}” is open again.', { name: last.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); } });
+    bar.querySelector('[data-a=open]').addEventListener('click', async () => { bar.remove(); try { await this.open(last.id, last.name); this.hooks.toast(tv('“{name}” is open again.', { name: last.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); } });
     bar.querySelector('[data-a=recent]').addEventListener('click', () => { bar.remove(); this.showRecent(); });
     bar.querySelector('[data-a=x]').addEventListener('click', () => bar.remove());
     const top = document.querySelector('body > .topbar');
@@ -145,7 +151,7 @@ export class Autosave {
     for (const b of el.querySelectorAll('.st-proj')) {
       b.addEventListener('click', async () => {
         const p = list.find((x) => x.id === b.dataset.id);
-        try { await this.open(p.id); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
+        try { await this.open(p.id, p.name); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
       });
     }
   }
@@ -179,7 +185,7 @@ export class Autosave {
         const p = list.find((x) => x.id === row.dataset.id);
         row.querySelector('[data-open]').addEventListener('click', async () => {
           close();
-          try { await this.open(p.id); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
+          try { await this.open(p.id, p.name); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
         });
         row.querySelector('[data-del]').addEventListener('click', async () => {
           if (!(await confirmIn(tv('Forget “{name}”? Its file on the server is deleted.', { name: p.name }), { ok: 'Forget it', danger: true }))) return;

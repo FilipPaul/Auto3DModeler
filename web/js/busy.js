@@ -45,7 +45,10 @@ const top = () => cards.filter((c) => c.shown).pop();
 function draw() {
   const c = top(), box = card();
   if (!c) { box.hidden = true; clearInterval(ticker); ticker = null; return; }
-  const step = stage?.text ? t(stage.text) : c.step, frac = stage?.frac ?? c.pct; // (the server's stage over the card's own)
+  // (the server's stage over the card's own step — after a count of its own: "Built 12 of 254 parts… · Waiting for the
+  // CAD kernel…", its bar the count's; cancelling: only that)
+  const own = c.count && !stage?.cancelling, said = stage?.text ? t(stage.text) : '';
+  const step = own ? [c.step, said].filter(Boolean).join(' · ') : said || c.step, frac = own ? c.pct : stage?.frac ?? c.pct;
   box.querySelector('.load-text').textContent = c.text;
   box.querySelector('.load-step').textContent = step || '';
   const bar = box.querySelector('.load-bar');
@@ -77,13 +80,30 @@ export function busy(text, { delay = 0 } = {}) {
   draw();
   return {
     painted: delay ? Promise.resolve() : painted(),
-    step(s, frac = null) { if (!cards.includes(c)) return; c.step = s ? t(s) : ''; c.pct = frac; draw(); },
+    step(s, frac = null) { if (!cards.includes(c)) return; Object.assign(c, { step: s ? t(s) : '', pct: frac, count: false }); draw(); },
     done() { const i = cards.indexOf(c); if (i >= 0) { cards.splice(i, 1); if (!top()) stage = null; draw(); } },
   };
 }
 
 /** A card for a file (opened, dropped): "Loading part.step (12.4 MB)…". */
 export const busyFile = (file, text = 'Loading {name} ({size})…') => busy(t2(text, { name: file.name, size: sizeText(file.size) }));
+
+/** A project being opened (🕘 Recent projects, a project file, a 🎬 demo, the last one offered after a restart …):
+ *  its card (text, e.g. "Opening ‹name›…") on screen and painted before work(card) starts — the start screen never just
+ *  stands still — and up until the opened project's first frame is painted -> what work returns. */
+export async function busyOpen(text, work) {
+  const b = busy(text);
+  await b.painted;
+  try { return await work(b); } finally { await painted(); b.done(); }
+}
+
+/** With a card up: a count on it ("Built 12 of 254 parts…", frac 0…1 its bar), drawn at once (not waited for). */
+export function busyCount(text, frac) {
+  const c = top();
+  if (!c) return;
+  Object.assign(c, { step: t(text), pct: frac, count: true });
+  draw();
+}
 
 /** Is a card on screen? */
 export const busyShown = () => !!top();
@@ -99,8 +119,7 @@ export function busyAside() {
 export async function busyStep(text) {
   const c = top();
   if (!c) return;
-  c.step = t(text);
-  c.pct = null;
+  Object.assign(c, { step: t(text), pct: null, count: false });
   draw();
   await painted();
 }

@@ -106,7 +106,7 @@ async function fillRecent(hooks, el) {
   for (const b of el.querySelectorAll('.fm-proj')) {
     b.addEventListener('click', async () => {
       const p = list.find((x) => x.id === b.dataset.id);
-      try { await a.open(p.id); hooks.toast(t('“{name}” is open again.').replace('{name}', p.name), 'ok'); } catch (e) { hooks.toast(e.message, 'error'); }
+      try { await a.open(p.id, p.name); hooks.toast(t('“{name}” is open again.').replace('{name}', p.name), 'ok'); } catch (e) { hooks.toast(e.message, 'error'); }
     });
   }
 }

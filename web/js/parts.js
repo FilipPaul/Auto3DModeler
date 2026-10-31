@@ -388,6 +388,7 @@ export class Project {
     const act = this.parts.find((p) => p.id === proj.active?.part) || this.parts.find((p) => !p.closed) || this.parts[0];
     delete act.closed;
     this.active = act.id;
+    if (this.none) this.setNone(false); // (every tab of the last project closed: the start screen goes now, as with an empty one)
     this.render();
     await this.show(act);
     this.render();

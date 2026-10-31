@@ -39,7 +39,7 @@ import { ModelView } from '../modeler/view.js';
 import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
-import { busy, painted } from '../busy.js';
+import { busy, busyCount, busyShown, busyStep, painted } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
 import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
@@ -463,6 +463,9 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.subTouched = new Set(); // (sub-assemblies given joints from here: their documents are in the undo steps — subCommit)
+    // the page closed or reloaded with a collision check running: its kernel job stopped — no one waits for its answer,
+    // and the project opened next (🕘 Recent projects) would wait for the CAD kernel until it ended (a big assembly: minutes)
+    window.addEventListener('pagehide', () => { if (this.clashRid) navigator.sendBeacon?.(`/api/progress/${encodeURIComponent(this.clashRid)}/cancel`); });
     this.history = new History({
       capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}), ...(this.doc.groups?.length ? { groups: this.doc.groups } : {}), ...(this.subTouched?.size ? { subs: this.subStates() } : {}) }),
       restore: async (s) => {
@@ -2968,6 +2971,7 @@ export class Assembly {
     };
     subs.forEach((pid) => walk(pid));
     const cancelled = await this.buildBodies([...new Set([...need.filter((pid) => !subs.includes(pid)), ...inner])]);
+    if (busyShown() && !warm) await busyStep('Drawing…'); // (the loading card up: its step on screen before the drawing's long task)
     for (const pid of subs) this.mergeAssembly(pid);
     for (const it of this.doc.instances) if (it.inner && subs.includes(it.part)) this.settleInner(it);
     const used = new Set([this.doc, ...[...this.parked.values()].map((s) => s.doc)].flatMap((d) => d.instances.filter((it) => it.inner).map((it) => this.bodyKey(it)))); // (an assembly put aside: its too)
@@ -3051,7 +3055,10 @@ export class Assembly {
   /** The 3D model / quick parts' bodies, from the kernel (unchanged ones are kept) -> whether any was cancelled (the
    *  busy box's Cancel: that part keeps the body it had, built again on the next change). */
   async buildBodies(need) {
-    let cancelled = false;
+    let cancelled = false, built = 0;
+    // the loading card up (a project or a big assembly opening): the parts built so far on it — "Built 12 of 254 parts…"
+    const count = () => { if (need.length > 1 && busyShown()) busyCount(t2('Built {n} of {m} parts…', { n: built, m: need.length }), built / need.length); };
+    count();
     await Promise.all(need.map(async (pid) => {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
@@ -3072,7 +3079,7 @@ export class Assembly {
         if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; } finally { stop(); }
-    }));
+    }).map((job) => job.finally(() => { built++; count(); })));
     this.hooks.onChange?.(); // (Export ▾: the bodies are there — a demo just opened enables it)
     return cancelled;
   }
@@ -5463,9 +5470,11 @@ export class Assembly {
       if (slot.json !== json) { this.view.release(slot.view); slot = null; } // (changed meanwhile: opened anew)
     }
     // not kept warm and big (its sub-assemblies' parts counted in): the loading card on screen before any of the work —
-    // the list, the suggestions, the bodies built and drawn — so the window never just stands still
-    const n = slot ? 0 : this.placedCount(data), card = n > BIG_OPEN ? busy(t2('Loading {name}…', { name: this.partName(id) || t('the assembly') })) : null;
+    // the list, the suggestions, the bodies built and drawn — so the window never just stands still (a project being
+    // opened has its card up already: "Opening ‹project›…" says it, with this step)
+    const n = slot ? 0 : this.placedCount(data), up = busyShown(), card = n > BIG_OPEN && !up ? busy(t2('Loading {name}…', { name: this.partName(id) || t('the assembly') })) : null;
     if (card) { card.step(t2('{n} placed parts — building and drawing them…', { n })); await card.painted; }
+    if (up && n > BIG_OPEN) await busyStep(t2('{n} placed parts — building and drawing them…', { n }));
     try { await this.open(data, id, slot); } finally { card?.done(); }
   }
 

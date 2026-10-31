@@ -6,7 +6,8 @@ import { t, getLang } from './i18n.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
-/** The list as a dialog. hooks: {open(project) — puts it on screen as a new project, toast}. */
+/** The list as a dialog. hooks: {open(load, name) — puts the project load() fetches on screen as a new project (its
+ *  loading card up from the click), toast}. */
 export async function showDemos({ open, toast }) {
   const back = document.createElement('div');
   back.className = 'choose-back';
@@ -35,9 +36,11 @@ export async function showDemos({ open, toast }) {
       const d = list.find((x) => x.file === row.dataset.demo);
       close();
       try {
-        const res = await fetch(`/api/demos/${encodeURIComponent(d.file)}`), proj = await res.json();
-        if (!res.ok || proj.error) throw new Error(proj.error || res.statusText);
-        await open(proj);
+        await open(async () => {
+          const res = await fetch(`/api/demos/${encodeURIComponent(d.file)}`), proj = await res.json();
+          if (!res.ok || proj.error) throw new Error(proj.error || res.statusText);
+          return proj;
+        }, cs ? d.name_cs : d.name);
         toast(tv('Demo “{name}” opened as a new project — try ⚙ Mechanism ▶.', { name: cs ? d.name_cs : d.name }), 'ok', 5000);
       } catch (e) { toast(e.message, 'error'); }
     });
