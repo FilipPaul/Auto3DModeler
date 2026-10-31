@@ -74,6 +74,7 @@ const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const BIG_OPEN = 30; // (an assembly of more placed parts opens with the loading card: building and drawing them takes a while)
+const WARM = 3; // (assemblies of the project kept drawn while another is on screen: their meshes ready for the way back)
 const ID = () => new THREE.Matrix4().identity().toArray();
 const facingAway = (a, b) => !!(a.face?.normal && b.face?.normal && a.face.normal.dot(b.face.normal) < 0); // (two picked faces: {face} each)
 const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
@@ -180,15 +181,42 @@ class AsmView extends ModelView {
     let n = 0;
     for (const x of kids) { if (keep.has(x)) kids[n++] = x; else x.parent = null; }
     kids.length = n;
-    for (const [body, sh] of was) { // (bodies no longer drawn: their shapes freed)
-      if (this.shapes.has(body)) continue;
-      for (const g of [sh.base, sh.edges, sh.threads, ...sh.coloured.values()]) g?.dispose();
+    for (const [body, sh] of was) { // (bodies no longer drawn: their shapes freed — unless an assembly put aside holds them)
+      if (this.shapes.has(body) || this.aside(body)) continue;
+      this.freeShape(sh);
     }
     this.mesh = this.meshes[0] || null; // fitting the view, the origin size
     this.clearHoverMarks(); // (the parts drawn anew: the hover marks were on the old ones)
     if (box) { const s = box.getSize(new THREE.Vector3()); this.size = Math.max(s.x, s.y, s.z, 1); this.sizeOrigin(); }
     this.showDatums(!this.meshes.length);
     this.invalidate();
+  }
+
+  freeShape(sh) { for (const g of [sh.base, sh.edges, sh.threads, ...sh.coloured.values()]) g?.dispose(); }
+
+  /** Whether an assembly put aside (park) holds this body's shape. */
+  aside(body) { return [...(this.slots || [])].some((s) => s.shapes.has(body)); }
+
+  /** The parts drawn now put aside (another assembly goes on screen): their meshes (with their BVH) and shapes kept
+   *  -> the kept set, for unpark (back on screen) or release (let go). */
+  park() {
+    const slot = { placed: this.placed || new Map(), shapes: new Map(this.shapes || []) };
+    (this.slots ||= new Set()).add(slot);
+    this.placed = new Map(); // (the next setBodies makes its own meshes; the shapes it shares are taken from this.shapes)
+    return slot;
+  }
+
+  /** A set put aside back on screen: the next setBodies finds its meshes and shapes (draws only what changed). */
+  unpark(slot) {
+    this.slots?.delete(slot);
+    for (const [body, sh] of slot.shapes) if (!this.shapes.has(body)) this.shapes.set(body, sh);
+    this.placed = slot.placed;
+  }
+
+  /** A set put aside let go: the shapes nothing else draws or holds freed. */
+  release(slot) {
+    if (!this.slots?.delete(slot)) return;
+    for (const [body, sh] of slot.shapes) if (!this.shapes?.has(body) && !this.aside(body)) this.freeShape(sh);
   }
 
   /** The parts whose lines light up (a row of the parts tree under the mouse: its part, a sub-assembly's whole) — only
@@ -417,6 +445,8 @@ export class Assembly {
     this.hooks = hooks;
     this.doc = { instances: [], mates: [] }; // mates: snaps that hold — {move, face, onto, ontoFace}
     this.bodies = {}; // part id -> {key, body, error}
+    this.parked = new Map(); // assembly id -> {json, doc, view, cam, clashes, drawn}: put aside warm (park), the last WARM
+    this.loadedId = null; // (the project's id of the assembly loaded last)
     this.sel = null;
     this.mode = 'idle'; // 'idle' | 'joint-from' | 'joint-to' (picking the two faces of a new joint)
     this.jointType = 'touch';
@@ -449,6 +479,7 @@ export class Assembly {
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
+    window.addEventListener('a3d:project-loading', () => this.forgetWarm()); // (another project: its ids are other parts)
   }
 
   build() {
@@ -2713,7 +2744,7 @@ export class Assembly {
   }
 
   // ------------------------------------------------------------------ bodies of the parts
-  async refresh() {
+  async refresh({ warm = false, draw = false } = {}) {
     this.flexCache = null;
     this.flatCache = null;
     const need = [...new Set(this.doc.instances.map((i) => i.part))];
@@ -2729,8 +2760,21 @@ export class Assembly {
     const cancelled = await this.buildBodies([...new Set([...need.filter((pid) => !subs.includes(pid)), ...inner])]);
     for (const pid of subs) this.mergeAssembly(pid);
     for (const it of this.doc.instances) if (it.inner && subs.includes(it.part)) this.settleInner(it);
-    const used = new Set(this.doc.instances.filter((it) => it.inner).map((it) => this.bodyKey(it)));
+    const used = new Set([this.doc, ...[...this.parked.values()].map((s) => s.doc)].flatMap((d) => d.instances.filter((it) => it.inner).map((it) => this.bodyKey(it)))); // (an assembly put aside: its too)
     for (const k of Object.keys(this.bodies)) if (k.includes('@') && !used.has(k)) delete this.bodies[k]; // (moved inside no more)
+    // what each placed part was drawn with: its body (built from its part as it is now) and look — kept warm and back
+    // with none of them changed, it stays as it was drawn: no joints solved, no panels or clash check again
+    const drawn = this.doc.instances.map((it) => [this.bodyOf(it)?.body, JSON.stringify(this.lookOf(it)), this.hooks.partData(it.part)?.threads]);
+    const same = warm && !cancelled && this.drawn?.length === drawn.length && drawn.every((d, k) => d.every((x, j) => x === this.drawn[k][j]));
+    this.drawn = drawn;
+    if (same) {
+      if (draw) this.draw(); // (put back from aside: its kept meshes on screen again — none made anew)
+      this.view.invalidate();
+      this.renderBar();
+      this.renderList();
+      if (this.clashes === undefined) this.scheduleClashes(); // (left before its first check came back)
+      return;
+    }
     this.applyMates();
     this.draw();
     this.mech?.render(); // (the loops are known now: ⚙ Mechanism and its button)
@@ -4948,8 +4992,21 @@ export class Assembly {
   // ------------------------------------------------------------------ the assembly as a project tab
   async load(data) {
     this.mech?.stop(false);
+    // a tab of the project back on screen: the assembly kept warm while another tab was open — the same one with nothing
+    // in it changed: its choice, camera, meshes and clash list as they were; another assembly: this one put aside (the
+    // last WARM of them, each with its meshes, camera and clash list) and, if kept, put back. Either way refresh builds
+    // and draws only the parts whose 3D model changed meanwhile (a dimension changed in its tab)
+    const id = this.hooks.selfId?.() || null, json = JSON.stringify(data || { instances: [] });
+    if (id && id === this.loadedId && json === JSON.stringify(this.doc)) { await this.refresh({ warm: true }); return; }
+    if (this.loadedId && this.loadedId !== id) this.park();
+    let slot = id ? this.parked.get(id) : null;
+    if (slot) {
+      this.parked.delete(id);
+      if (slot.json !== json) { this.view.release(slot.view); slot = null; } // (changed meanwhile: opened anew)
+    }
+    this.loadedId = id;
     if (this.section) this.toggleSection(); // (another assembly: not cut where the last one was)
-    this.doc = structuredClone(data || { instances: [] });
+    this.doc = slot ? slot.doc : structuredClone(data || { instances: [] });
     this.doc.instances = this.doc.instances || [];
     this.doc.mates = (this.doc.mates || []).map((m, i) => ({ id: m.id || `J${i + 1}`, type: m.type || 'touch', gap: m.gap || 0, ...m }));
     this.sel = null;
@@ -4959,11 +5016,44 @@ export class Assembly {
     settleEntries(this); // (⛓ an older file's cable through a chain: the end it enters decided once, now)
     this.history.reset();
     this.ms.reset(); // (its measurements: this assembly's)
+    if (slot) { // put back as it was left: its meshes, the clash check's answer, the camera
+      this.view.unpark(slot.view);
+      Object.assign(this, { clashes: slot.clashes, drawn: slot.drawn });
+      this.render();
+      await this.refresh({ warm: true, draw: true });
+      this.view.setCamera({ ...slot.cam, aspect: this.view.camera.aspect }); // (the view's shape as it is now)
+      return;
+    }
+    this.drawn = null;
+    this.clashes = undefined; // (not checked yet)
     this.render();
     const n = this.doc.instances.length, card = n > BIG_OPEN ? busy(t2('Opening the assembly: {n} placed parts…', { n })) : null;
     if (card) { card.step('Building the parts…'); await card.painted; }
     try { await this.refresh(); } finally { card?.done(); }
     this.view.setView('iso');
+  }
+
+  /** The assembly on screen put aside, warm (another assembly of the project goes on screen): its doc, drawn meshes,
+   *  camera and clash list kept for its return — the last WARM of them; an older one let go (its meshes freed). */
+  park() {
+    clearTimeout(this.clashTimer);
+    const checking = this.clashBusy; // (a check on its way: its answer is this one's — dropped, checked again on return)
+    if (checking) { this.clashRun = (this.clashRun || 0) + 1; this.clashBusy = false; }
+    this.parked.set(this.loadedId, { json: JSON.stringify(this.doc), doc: this.doc, view: this.view.park(), cam: this.view.cameraState(),
+      clashes: checking ? undefined : this.clashes, drawn: this.drawn });
+    this.clashes = undefined;
+    while (this.parked.size > WARM) {
+      const [old, s] = this.parked.entries().next().value;
+      this.parked.delete(old);
+      this.view.release(s.view);
+    }
+  }
+
+  /** Another project opened: nothing kept from this one (its ids name other parts there). */
+  forgetWarm() {
+    for (const s of this.parked.values()) this.view.release(s.view);
+    this.parked.clear();
+    this.loadedId = null;
   }
 
   payload() { return structuredClone(this.doc); }

@@ -278,6 +278,10 @@ export class ModelView {
   resize() {
     const { clientWidth: w, clientHeight: h } = this.container;
     if (!w || !h) return;
+    // the same size as drawn (a tab of the same workspace back): the canvas kept — setSize clears and reallocates it
+    const size = `${w}x${h}@${this.renderer.getPixelRatio()}`;
+    if (size === this.drawnSize && this.camera.aspect === w / h) { this.dirty = true; return; }
+    this.drawnSize = size;
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
     this.camera.aspect = w / h;
@@ -760,6 +764,7 @@ export class ModelView {
         this.camera.aspect = sw / sh;
         this.camera.updateProjectionMatrix();
       }
+      this.drawnSize = null; // (the next resize sets its size whatever it was)
       if (fit) this.fit();
       this.labels.render(this.scene, this.camera);
       this.invalidate();
