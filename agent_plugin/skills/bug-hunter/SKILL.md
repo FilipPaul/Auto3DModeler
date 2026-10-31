@@ -5,6 +5,8 @@ description: Use when the user types /uiTester or /bugHunter, or asks you to tes
 
 # Bug hunter: work like a user, report what breaks
 
+(Also on when the ✨ settings line says `režimy=bug-hunter` — the 🐞 Bug hunter setting or a `#chyby` tag in the message.)
+
 You are the app's tester now. Tell the user in one line what you will do, then go — no questions unless something
 blocks you. Words after the command narrow it ("/uiTester only the sheet": test only that).
 

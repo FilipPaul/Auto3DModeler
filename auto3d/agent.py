@@ -11,6 +11,8 @@ through the app's MCP server.
   chat events for the page (Server-Sent Events). Each app window has its own chat (and process, started with its
   first message), whose tool calls act in that window. Its conversation is kept (auto3d/chat_history.py) and can be
   opened again and continued: Claude Code's own session resumed (`--resume`), or a new one told the conversation in short.
+  The ✨ AI settings go with a message as one short line when they changed (auto3d/ai_settings.py); ⚡ Lean mode lists only
+  the workspace's tools — another list: the process starts again, its session resumed, unseen.
 
 The app never sees the user's Claude credentials: Claude Code signs in through Anthropic's own flow.
 """
@@ -31,7 +33,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import chat_history
+from . import ai_settings, chat_history
 from .agent_tools import SYSTEM_PROMPT
 from .guides import PLUGIN_DIR
 
@@ -265,6 +267,9 @@ class ChatSession:
         self.lock = threading.Lock()
         self.stderr_tail: list[str] = []
         self.busy = False
+        self.group = None                  # ⚡ the tool group its process lists (agent_tools.TOOL_GROUPS; None: all)
+        self.internet = None               # 🌐 its process may search the internet (the ✨ setting it started with)
+        self.sent_line = None              # the ✨ settings line the AI got last (sent again only when it changes)
         self._seq = itertools.count(1)
 
     # ---------------------------------------------------------------- events
@@ -301,6 +306,7 @@ class ChatSession:
         with self.lock:
             self.history = []
         self.conv = conv
+        self.sent_line = None
         self.emit({"type": "reset"})
         for ev in conv["events"]:
             self.emit({**ev, "old": True})
@@ -328,7 +334,8 @@ class ChatSession:
         script = ["--mcp-server"] if getattr(sys, "frozen", False) else [str(MCP_SCRIPT)]
         mcp = {"mcpServers": {"auto3d": {"type": "stdio", "command": sys.executable,
                                          "args": [*script, "--url", self.app_url,
-                                                  *(["--client", self.client] if self.client else [])]}}}
+                                                  *(["--client", self.client] if self.client else []),
+                                                  *(["--group", self.group] if self.group else [])]}}}
         from .fetchcad import internet_on
         web = ",WebSearch" if internet_on(WORKDIR.parent) else ""  # 🌐 parts on the internet (AI settings): search only
         cmd = [*run_claude(exe), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
@@ -361,6 +368,8 @@ class ChatSession:
         conv = self.conv
         sid = conv.get("session") if conv else None
         self.resumed = sid if resume and session_exists(sid) else None
+        if not self.resumed:
+            self.sent_line = None  # (a new session: it gets the settings line again)
         prime = ""
         if conv and conv["messages"] and not self.resumed:
             told = conv["events"]
@@ -379,22 +388,37 @@ class ChatSession:
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
         return prime
 
-    def send(self, text: str, photos: list | None = None, files: list | None = None):
+    def send(self, text: str, photos: list | None = None, files: list | None = None, settings: dict | None = None,
+             workspace: str | None = None):
         """A user message, optionally with photos: [{"name", "media_type", "data" (base64), "path"}]. Claude
         sees each photo and is told where it was saved (so it can trace it with trace_picture). files: other
-        attachments (chat_attach.attach: [{"name", "size", "path", "text"}]) — their `text` goes into the message."""
+        attachments (chat_attach.attach: [{"name", "size", "path", "text"}]) — their `text` goes into the message.
+        settings: the project's ✨ AI settings (their line goes first when it changed; the message's #tags change it for
+        this message); workspace: the one on screen (⚡ Lean mode: only its tools)."""
         photos, files = photos or [], files or []
+        text, tags = ai_settings.parse_tags(text)
+        group = ai_settings.tool_group(workspace) if (settings is not None or tags) and ai_settings.lean(settings, tags) else None
         if self.conv is None:
             self.conv = chat_history.new(self.project.get("id", ""), self.project.get("name", ""))
             self.emit({"type": "conv", **self.conv_meta()})
         self.pending = None
+        internet = ai_settings.clean(settings)["internet"] if settings is not None else self.internet
+        if self.running() and (group != self.group or None not in (internet, self.internet) and internet != self.internet):
+            self._restart()  # (⚡ another tool list, 🌐 the internet on / off: a new process, the same session)
+        self.group, self.internet = group, internet
         prime = "" if self.running() else self.start()
+        line = ai_settings.settings_line(settings, tags) if settings is not None or tags else ""
+        if line and line == self.sent_line and (text or photos or files):
+            line = ""  # (the AI has it already)
+        elif line:
+            self.sent_line = line
         self.busy = True
-        self.emit({"type": "user", "text": text, "photos": [{"name": p["name"], "url": p["url"]} for p in photos],
+        self.emit({"type": "user", "text": text, **({"tags": tags} if tags else {}),
+                   "photos": [{"name": p["name"], "url": p["url"]} for p in photos],
                    **({"files": [{k: f[k] for k in ("name", "size", "path")} for f in files]} if files else {})})
         content = [{"type": "image", "source": {"type": "base64", "media_type": p["media_type"], "data": p["data"]}} for p in photos]
         note = "\n".join([*(f"[Attached photo: {p['path']}]" for p in photos), *(f["text"] for f in files)])
-        content.append({"type": "text", "text": "\n\n".join(x for x in (expand_command(text), note) if x)})
+        content.append({"type": "text", "text": "\n\n".join(x for x in (line, expand_command(text), note) if x)})
         self.pending = content
         self._write(content, prime)
 
@@ -426,9 +450,24 @@ class ChatSession:
             r.join(5)
         self.busy = False
 
+    def _restart(self):
+        """The process ends unseen (no 'exit' in the chat): the next start resumes its session (⚡ another tool list)."""
+        p, self.proc = self.proc, None  # (first: its reader then ends without an event)
+        self.pending = self.resumed = None
+        if p and p.poll() is None:
+            p.terminate()
+            try:
+                p.wait(5)
+            except subprocess.TimeoutExpired:
+                p.kill()
+        r = self.reader
+        if r and r is not threading.current_thread():
+            r.join(5)
+
     def reset(self):
         """＋ New conversation: the process ends, the next message starts a new one (the old one stays kept)."""
         self.conv = None  # (first: the process's end must not keep it again — it may have just been deleted)
+        self.sent_line = None
         self.stop()
         with self.lock:
             self.history = []

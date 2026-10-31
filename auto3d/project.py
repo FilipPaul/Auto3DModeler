@@ -68,6 +68,8 @@ def migrate(proj):
     out.setdefault("assemblies", [])
     if not isinstance(out.setdefault("parameters", []), list):
         raise ProjectError("The project's parameters are not a list.")
+    if not isinstance(out.get("ai_settings", {}), dict):
+        del out["ai_settings"]  # (✨ the AI settings: not readable -> the app's default)
     parts = out.get("parts")
     if not isinstance(parts, list) or not parts:
         raise ProjectError("The project file has no part in it.")

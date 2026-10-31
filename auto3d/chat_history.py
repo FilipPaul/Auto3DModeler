@@ -41,6 +41,7 @@ def keep(ev: dict) -> dict | None:
     t = ev.get("type")
     if t == "user":
         return {"type": "user", "text": ev.get("text") or "", "photos": ev.get("photos") or [],
+                **({"tags": ev["tags"]} if ev.get("tags") else {}),  # (#uc #cnc …: the message's ✨ setting tags)
                 **({"files": ev["files"]} if ev.get("files") else {})}  # (📎 attached files: name, size, path)
     if t == "text" and (ev.get("text") or "").strip():
         return {"type": "text", "text": ev["text"]}

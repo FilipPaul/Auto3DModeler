@@ -4,6 +4,7 @@ import { leftDock } from './leftdock.js';
 import { suggestMenu } from './suggest.js';
 import { params } from './params.js';
 import { loadParams } from './paramsui.js';
+import { aiSettings } from './aisettings.js';
 import { lockBtn, lockItems } from './ailock.js';
 
 // A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
@@ -358,6 +359,7 @@ export class Project {
     if (this.current) this.stash();
     const out = {
       parameters: params.toJSON(), // (𝑥 the project's parameters)
+      ai_settings: aiSettings.toJSON(), // (✨ how the AI works on this project)
       active: { part: this.active },
       parts: this.parts.filter((p) => p.data && p.data !== 'live')
         .map((p) => ({ id: p.id, kind: p.kind, name: p.name, [p.kind === 'classic' ? 'classic' : p.kind]: p.data, ...(p.closed ? { closed: true } : {}), ...(p.ai_lock ? { ai_lock: p.ai_lock } : {}) })),
@@ -370,6 +372,7 @@ export class Project {
   async loadAll(proj) {
     window.dispatchEvent(new Event('a3d:project-loading'));
     loadParams(proj.parameters); // (its numbers agree with them already: project.migrate)
+    aiSettings.load(proj.ai_settings); // (none: a new or older project — the app's default)
     this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null, ...(p.closed ? { closed: true } : {}), ...(p.ai_lock ? { ai_lock: p.ai_lock } : {}) }));
     this.picked = new Set();
     this.next = 1 + Math.max(0, ...this.parts.map((p) => parseInt(String(p.id).replace(/\D/g, ''), 10) || 0));

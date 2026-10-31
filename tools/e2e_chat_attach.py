@@ -120,6 +120,7 @@ try:
           js("return [...document.querySelectorAll('.ai-msg')].map(m => m.innerText)"))
     logs = sorted((CLAUDE / "projects" / "fake").glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
     msg = json.loads(logs[-1].read_text(encoding="utf-8").splitlines()[-1])["text"] if logs else ""
+    msg = msg.split("]\n\n", 1)[1] if msg.startswith("[Nastavení:") else msg  # (the ✨ settings line goes first)
     check("the message has the typed text", msg.startswith("Read these files"), msg[:200])
     check("the UTF-8 text in a fence with its name", f"poznamka.txt:\n```txt\n{UTF}\n```" in msg, msg[:800])
     check("the cp1250 text right (no mojibake)", CZ in msg and "Druhý řádek: čep průměr 6" in msg and "cp1250" in msg, msg[:1500])

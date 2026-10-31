@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✨ AI settings: profile, manufacturing, asking, answers, rules and modes per project (2026-10-31)** (the owner's
+  approved design). web/js/aisettings.js: the panel (✨ Settings in the chat's head, in place of the log; profiles set
+  make / standard / dfm / dfa / review, a change → ✎ Custom; a tokens-per-task meter), kept in the project file
+  (`ai_settings`, Project.toJSON / loadAll; none → the app's default in localStorage, "Use as default"); the chat's
+  # autocomplete and chips. auto3d/ai_settings.py: clean, parse_tags (#uc #chyby #kontrola #rychle #cnc #tisk
+  #bez-otazek, Czech letters too), settings_line (≈ 190 chars); ChatSession.send(settings, workspace) prepends it only
+  when it changed (sent_line; reset by a new conversation / a session not resumed). ⚡ Lean mode: agent_tools.TOOL_GROUPS
+  (general + quick / model / assembly / sheet / drawing), mcp_server `--group`; another group → the process restarts
+  unseen (_restart, `--resume`); 🌐 internet: the server writes <data>/ai/settings.json {"internet"} (read by
+  fetchcad.internet_on at the chat's start), a change restarts the process the same way. Schemas (chars / 4): all 114 tools ≈ 29.0k tokens; model 44 ≈ 12.1k (−16.9k),
+  assembly 54 ≈ 15.1k (−13.9k), sheet ≈ 7.7k, drawing ≈ 5.7k, quick ≈ 7.4k, start screen ≈ 4.8k. SYSTEM_PROMPT routes
+  the line (skills under zásady, ptát=neptat: no ask_user but for safety, režimy teach-me / bug-hunter / lean).
+  Tests: test_ai_settings (line, tags, groups, the chat's line / restart, the project file), tools/e2e_ai_settings.py.
 - **📎 Příloha: text, CAD files and drawings in the AI chat (2026-10-31).** The chat's 📎 Photo became 📎 Attachment
   (picker, paste, drop; at most 10 per message; photos as before). auto3d/chat_attach.py: a text file (.txt .md .csv
   .json .xml .yaml .log .ini, code …) goes into the message as a fenced block with its name — whole up to 60 kB, at

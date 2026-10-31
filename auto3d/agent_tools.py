@@ -1010,9 +1010,34 @@ BROWSER_TOOLS = {t["name"] for t in TOOLS if t["where"] == "browser"}
 LOCAL_TOOLS = {t["name"] for t in TOOLS if t["where"] == "local"}  # answered by the MCP server itself (guides)
 
 
-def mcp_tool_list():
-    """The tools as MCP describes them (without our routing fields; the server's own, hidden ones left out)."""
-    return [{k: v for k, v in t.items() if k not in ("where", "hidden")} for t in TOOLS if not t.get("hidden")]
+# ⚡ Lean mode (✨ AI settings): the chat's Claude gets only the tools of the workspace on screen (+ the general ones)
+TOOL_GROUPS = {
+    "general": ["get_screenshot", "list_parts", "open_part", "new_model", "new_assembly", "open_file", "undo", "export", "fetch_cad",
+                "get_parameters", "set_parameter", "save_version", "ask_user", "gui_state", "gui_action", "gui_highlight",
+                "set_view", "get_guide", "report_problem"],
+    "quick": ["get_part", "trace_picture", "use_outline", "set_dimensions", "set_make", "set_part_options", "add_object",
+              "add_shape", "add_design_layer", "update_item", "remove_item", "add_dimension", "check_print", "open_sample"],
+    "model": ["get_model", "find_refs", "add_feature", "edit_feature", "delete_feature", "turn_off_feature", "rollback",
+              "get_sketch", "sketch_auto_dims", "sketch_dim", "sketch_trim", "sketch_union", "simplify_sketch", "set_material",
+              "prepare_print", "check_print", "set_look", "paint_faces", "measure", "list_measurements", "clear_measurements",
+              "duplicate_part", "save_to_library", "sheet_open", "library_search"],
+    "assembly": ["get_assembly", "find_refs", "set_visibility", "get_bom", "insert_part", "snap_faces", "bolt_parts", "place_part",
+                 "add_missing_joint", "suggest_fasteners", "add_fasteners", "library_search", "library_add", "library_pair",
+                 "check_collisions", "set_look", "paint_faces", "move_free", "set_travel", "fix_together", "lock_motion",
+                 "drive_mechanism", "record_animation", "name_motion", "check_travel", "add_harness", "edit_harness", "edit_chain",
+                 "edit_joint", "remove_joint", "remove_from_assembly", "measure", "list_measurements", "clear_measurements", "sheet_open"],
+    "sheet": ["sheet_open", "get_sheet", "sheet_edit", "get_model", "get_assembly", "get_bom"],
+    "drawing": ["get_drawing", "drawing_find", "drawing_layers", "drawing_delete", "drawing_add", "drawing_units", "drawing_set_size",
+                "drawing_use"],
+}
+
+
+def mcp_tool_list(group: str | None = None):
+    """The tools as MCP describes them (without our routing fields; the server's own, hidden ones left out). group: a
+    workspace's (TOOL_GROUPS, ⚡ Lean mode) — only its tools and the general ones; None / unknown: all."""
+    keep = set(TOOL_GROUPS["general"]) | set(TOOL_GROUPS[group]) if group in TOOL_GROUPS else None
+    return [{k: v for k, v in t.items() if k not in ("where", "hidden")} for t in TOOLS
+            if not t.get("hidden") and (keep is None or t["name"] in keep)]
 
 
 SYSTEM_PROMPT = """You are the design assistant inside Auto3DModeler, a local app for quick 3D-printable parts. The user sees the app next to this chat; every change you make through the tools shows up there at once and can be undone (tool `undo`, or the app's Undo button).
@@ -1031,14 +1056,16 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **The screen**: set_layout (the widgets docked left / right / floating, folded, their heights and rows; the suggestions table closed / opening by itself) and set_view joints (the joint symbols) — only when the user asks; new_project starts an empty project, close_project closes it to the start screen (only when asked; the one on screen is kept).
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-**Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
+**The user's settings:** a message may start with a line `[Nastavení: …]` (✨ AI settings; sent when they change — they hold until the next line). Honour it: profil (automatizace → + automation-design, tisk → print-functional, dekorace → print-graphics) and výroba answer those brief questions; load the skills listed under zásady (auto3d:<name>; easy-manufacture = simple shapes for the chosen výroba, no skill of its own); design-review in zásady: run it before you say a design is done (not listed: only when asked). ptát=klíčové: ask_user only for key sizes; vše: ask about every open choice; neptat: do not call ask_user (decide, say what you chose) — except for safety. odpovědi: stručně / normálně / vysvětlit (say why). režimy=teach-me / bug-hunter: load that skill and work in that mode; lean: only the workspace's tools are listed — one you need is missing: say so (the user turns ⚡ Lean mode off). internet=ne: do not search the internet.
+
+**Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user (or the settings line) has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
 
 **Skills** (auto3d:<name>; get_guide(topic) when skills are not available) — load the matching ones before the task:
 - Tasks: model-a-part, change-a-model, from-picture, use-a-drawing, assemble-parts, print-prep, production-drawing (a drawing for the workshop).
 - Design like an experienced mechanical engineer — a device, machine, bracket for bought parts or fixture: design-principles, standard-parts (before adding any bought part) and mechanical-design; machined parts: machined-part (automation: + automation-design, fits-and-tolerances); an ICT / FCT test fixture: + ict-fixture; load-carrying or joining parts, mixed materials: materials-and-strength; a functional print: print-functional; a decorative print: print-graphics; easy to assemble (automation, fixtures, multi-part prints): easy-assembly.
 - Cables / wiring / a harness mentioned, or powered moving parts (motors, sensors, valves on an axis): auto3d:cable-routing at concept time.
 - **Before you say a design is done**, run auto3d:design-review and show its table.
-- Modes, only when the user asks: "how do I / where is / show me / teach me" or /teachMe → auto3d:teach-me (you guide with gui_highlight {control, text, step, wait: true}, the user clicks — do not do it for them); /uiTester or /bugHunter → auto3d:bug-hunter (the task through the GUI only, every problem reported); /suggest → auto3d:suggest-features.
+- Modes, only when the user asks (or the settings line lists them under režimy): "how do I / where is / show me / teach me" or /teachMe → auto3d:teach-me (you guide with gui_highlight {control, text, step, wait: true}, the user clicks — do not do it for them); /uiTester or /bugHunter → auto3d:bug-hunter (the task through the GUI only, every problem reported); /suggest → auto3d:suggest-features.
 
 **Watching the user:** when the user says "look what I'm doing" / "watch me" / "podívej se, co dělám", call start_recording and tell them to go ahead; when they say they are done, get_recording (stop_recording if it still runs; get_recording_screenshot for its shots) and answer from what they did — the toasts' texts and the last clicks before them are usually the problem. A message may come with a recording attached (its events as lines). Never start it unasked.
 
