@@ -113,13 +113,18 @@ def in_sight(key):
       if (!r) return false; const a = l.getBoundingClientRect(), b = r.getBoundingClientRect(); return b.top >= a.top - 1 && b.bottom <= a.bottom + 1;""", key)
 
 
+# a row's text, its drawn icon (the trees' icon of a part / an assembly, in its kind's colour) read as ◆ / ◇
+ROW_TEXT = """const rowText = (b) => { const i = b.querySelector('.vs-i'), k = i?.querySelector('.ico');
+      return k ? `${k.classList.contains('ico-assembly') && i.classList.contains('k-asm') ? '◇' : i.classList.contains('k-part') ? '◆' : '?'} ${b.textContent.trim()}` : b.textContent.trim(); };"""
+
+
 def choose_rows():
-    return [x.strip() for x in js("return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(b => b.textContent)") or [] if x.strip().startswith(("◆ Choose", "◇ Choose"))]
+    return [x.strip() for x in js(ROW_TEXT + "return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(rowText)") or [] if x.strip().startswith(("◆ Choose", "◇ Choose"))]
 
 
 def choose_row(label, ctrl=False):
     """A row of the suggestions (folded away in this test: clicked by the script, Ctrl held or not)."""
-    js("""const b = [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].find(x => x.textContent.trim() === arguments[0]);
+    js(ROW_TEXT + """const b = [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].find(x => rowText(x) === arguments[0]);
       b.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: arguments[1], detail: 1 }));""", label, ctrl)
     time.sleep(0.4)
 

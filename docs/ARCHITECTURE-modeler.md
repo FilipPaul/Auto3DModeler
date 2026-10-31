@@ -26,6 +26,49 @@ Date: 2026-10-25. Written by the architect agent.
   else the top's joint on "I1/<face>"; get_assembly lists `parts_inside` per sub-assembly (40 at most). A sub-assembly's
   panel says how many joints it keeps (read only here). No per-click cost on big assemblies: innerFace walks the key's
   levels only; the engine copies one sub-assembly's document when two faces are picked. tools/e2e_nested_join.py.
+- **☰ The project tree folds and finds (2026-10-31)** (the owner: "the project tree should be expandable / collapsible
+  and have the same search as the assembly menu"). parts.js renderTree: each row knows its key (the path of part ids
+  from its top row) and its parent's; a row with rows under it (an assembly's parts, a part's drawing sheets) gets
+  ▸ / ▾ before its icon (a leaf the same empty room — only when the tree has any), a click folds it — remembered per
+  project in localStorage a3d.projFold, not in the file; the name's click still opens the part. 🔍 the same find as
+  the assembly's list, now web/js/treesearch.js for both (plainText: no case, no accents — "zakladni" finds
+  "Základní deska"; findInTree: the hits, the rows they are in, those opened for them while it is typed only;
+  bindFind: 150 ms after the last key, Esc / ✕ clears): the rows found lit, the others hidden, "No part has that in
+  its name." when none. The field sits in the tree's header — docked: the widget's ☰ Projekt header, the popup: its
+  own — so the tree keeps its height. The fast path stays: the rows drawn again only when the visible rows (with
+  their fold and hit) change; a tab switch only lights its row. No Sbalit vše / Rozbalit vše (not needed so far).
+  Assembly.findRows / its field use treesearch.js. tools/e2e_project_tree.py now checks (fold, remembered, 🔍
+  "zakladni" through a folded sub-assembly, a click on the found row opens it, Esc).
+- **The Suggested table in categories; icons coloured by what they are about (2026-10-31)** (the owner: "the
+  suggestion table structured into categories — joints, part operations, cabling …; opening assemblies with a green
+  icon, opening and manipulating a part purple, joints blue"; then: the icons the same as the trees' for that kind of
+  object). suggest.js: a row may have a `group`; when the rows shown are in two or more, each category gets a small
+  muted header (Vazby, Díl, Sestava, Kabeláž, Spojovací materiál, Pohyb, Vložit díly, Ostatní), the one holding the
+  most relevant row first, its rows by rank; the top-N limit and ⋯ Ukázat vše as before (Show all: still grouped);
+  the sections (This face, the part's name) go then, their text into their rows' tooltips; one category (or none —
+  the 3D model's, the sketch's tables): as before. A row's icon: `ico` (HTML) or its glyph, with k-part / k-asm /
+  k-joint by its category — a tint of the kind's colour behind it (emoji keep their colours), the colours the trees'
+  (:root --k-part #a371f7 = .ico-model, --k-asm #7ee787 = .ico-assembly, --k-joint #58a6ff). assembly/sggroups.js:
+  the assembly's showSuggest (assembly.js imports it) — each row's category from its icon (JOINT_TYPES' icons, 🔗 ◎ ▤:
+  Vazby; ◆ ✎ ✏ 📌 ↻ ⤵ 🏷 👁 🔒: Díl; ◇ 🧱: Sestava; 🔌 📎 ➰ ⛓: Kabeláž; 🔩; ⚙ ⇤⇥: Pohyb; ＋ 📚 📂: Vložit díly), set
+  where the icon means two things (✕ Take it out, ⧉ Copy its coordinates / Make it its own part, a gear pair ⚙ /
+  belt ⛓, Moving sub-assembly ⚙, ＋ New part on this face, a library part's companions → Spojovací materiál);
+  placedRows: a placed sub-assembly's own rows (fix, rename, hide, take out …) under Sestava, green; the harness's
+  tables all Kabeláž. One icon per kind of object everywhere: ◆ / ◇ rows (Choose ‹…›, Select the whole part, Only …,
+  Open its part) draw the trees' icon of that part (partIcon: a 3D model's block, a quick part's layers, a library
+  part's, an assembly's two blocks), as do ＋ Insert part ▾'s items and the part panel's buttons — Open its part
+  purple / green (k-part / k-asm, no longer the blue primary), Open ‹sub›, Choose the whole ‹sub› green — and an
+  inner part's heading. The AI's suggestTables rows carry their `group`. tools/e2e_suggest_groups.py (new);
+  e2e_nested_select reads a drawn icon as ◆ / ◇ by its kind.
+- **The assembly's parts list as compact as the project tree (2026-10-31)** (the owner: "make the assembly menu more
+  compact, like the project's"). styles.css only, plus 👁 moved: rows one line, 24 px (were 35; the project tree's
+  25), 12.5 px names of normal weight, ellipsis; 12 px a level (was 16), the guide line under the parent's ▾, a small
+  ▸ / ▾ with no frame, a top row with no ▸ in line with the sub-assemblies' icons; every row button (👁 🔒 ⋯ 🏷 ⧉ ✕ 💥)
+  over the row's right end on hover, 18 px each — 👁 joined them there (the last: it stays put as the others come in;
+  a hidden / see-through 👁, a 🔒 and a kept 💥 stay in sight without the mouse). Docked in its widget (whose header
+  says Sestava already), the list's head is the 🔍 field alone (gone with no parts); the panel's padding smaller.
+  e2e: assembly_tree (buttons at the right end, middle and name free), hide_parts (👁 twice), assembly_multiselect
+  (a click under the rows), nested_select, ux_assembly, big_assembly.
 - **◆ Choose ‹part› / ◇ Choose ‹sub-assembly› in a clicked face's suggestions (2026-10-31)** (the owner: clicking
   an object should offer choosing the part or — only when there is one — the sub-assembly). `chooseItems(q, a)` in
   suggestFaces' part section: for a face of a part inside the placed sub-assembly a (innerFace), the part's key, the

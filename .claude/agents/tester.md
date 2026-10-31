@@ -224,6 +224,11 @@ Never report "works" without having run it; report failures with their output.
    in the sub-assembly's document, the axes on one line in both copies, the toast; Ctrl+Z; the AI's snap_faces with
    nested keys, get_assembly parts_inside; 🔒 locked: nothing joined, said; two copies' parts: the top's joint; the
    sub-assembly's panel: 🔓 / 🔒 and its joints counted).
+   `tools/e2e_suggest_groups.py <url> <dir>` covers the Suggested table in categories (Czech, the 150-part demo):
+   showSuggest's rules on a bare box (one category: no header; several: the most relevant row's first, ranked inside,
+   top 8 + ⋯, sections into tooltips, Show all still grouped), the whole assembly's table, a part's (◆ Open its part:
+   the trees' part icon on purple, 🔗 joints blue, the panel's button the same) and a sub-assembly's (its rows under
+   Sestava, green, the assembly icon) and the parts list's rows no taller than the project tree's.
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
@@ -724,9 +729,9 @@ Never report "works" without having run it; report failures with their output.
    length; 🪄: dof 0, Finish green, 🪄 gone; a triangle: two crossing lines -> an angle 36.87, 45 typed; a corner and the
    slanted side -> its distance). Needs a server restarted after constraints.py changes.
    `tools/e2e_project_tree.py <url> <dir>` covers ☰ the project tree (over the left panel: Machine › Base › its sheet,
-   Lid unit › Lid, Pin ×2, then Spare; a click opens a part, marked, the tree stays; a part put in the Machine shows at
-   once; its ✕ arms a red "Delete?" for 3 s, a second click / Enter deletes, ↶ Undo brings it back; ✕ closes, ☰ opens,
-   remembered).
+   Lid unit › Lid, Pin ×2, Základní deska, then Spare; a click opens a part, marked, the tree stays; a part put in the
+   Machine shows at once; its ✕ arms a red "Delete?" for 3 s, a second click / Enter deletes, ↶ Undo brings it back;
+   ▸ / ▾ fold (remembered), 🔍 "zakladni" through a folded row, a found row opens, Esc; ✕ closes, ☰ opens, remembered).
    `tools/e2e_left_pins.py <url> <dir>` covers the widgets of the left column at 1280×800 with real drags (at first
    the project tree docked on top, compact: 5–8 rows; ☰ folds / unfolds it; ⋯ ☰ back behind the button; ☰'s header
    dragged into the column: docked on top of the step tree, the same rows / icons / ⧉ / ✕, a double-click renames; in

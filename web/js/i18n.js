@@ -735,6 +735,9 @@ const CS = {
   'Click a straight edge running left / right on this face, or another hole.': 'Klikněte na rovnou vodorovnou hranu této plochy nebo na jinou díru.',
   'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další díry). Enter = OK, Esc = Zrušit.',
   'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)': 'Přidat díl projektu: 3D model ◆, rychlý díl ▤ (výkres, obrázek, import) nebo jinou sestavu ◇ (jako celek)',
+  'Add a part of this project: a 3D model, a quick part (drawing, picture, import) or another assembly (as one unit)': 'Přidat díl projektu: 3D model, rychlý díl (výkres, obrázek, import) nebo jinou sestavu (jako celek)',
+  // the Suggested table's categories (suggest.js grouped)
+  Cabling: 'Kabeláž', Motion: 'Pohyb', 'Insert parts': 'Vložit díly',
   'This assembly has no parts with a solid yet.': 'Tato sestava zatím nemá díly s tělesem.',
   'Make a part first (＋ New 3D model, or open a drawing / picture)': 'Nejdřív vytvořte díl (＋ Nový 3D model, nebo otevřete výkres / obrázek)', 'No parts yet': 'Zatím žádné díly',
   'Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.': 'Vložte díly projektu (3D modely i rychlé díly) přes ＋ Vložit díl a pak je přichyťte plochou k ploše.',
@@ -2547,6 +2550,10 @@ const CS = {
   'Find a part…': 'Hledat díl…','No part has that in its name.': 'Žádný díl to nemá v názvu.',
   'Only the rows whose name has this in it (and the sub-assemblies they are in) — Esc clears it':
     'Jen řádky, které to mají v názvu (a podsestavy, ve kterých jsou) — Esc hledání zruší',
+  // ☰ the project tree: ▸ / ▾ and 🔍 (parts.js)
+  'Only the rows whose name has this in it (and the assemblies they are in) — Esc clears it':
+    'Jen řádky, které to mají v názvu (a sestavy, ve kterých jsou) — Esc hledání zruší',
+  'Hide what is in it': 'Skrýt, co je v něm', 'Show what is in it': 'Ukázat, co je v něm',
   // 🔗 a rigid group of many parts
   'Fix together ({n} parts)': 'Spojit pevně ({n} dílů)', '{name} ({n} parts)': '{name} ({n} dílů)', 'fixed together on': 'pevně spojeno na',
   'Choose its parts': 'Vybrat jeho díly', 'Dissolve the group: its parts stay where they are, each free again': 'Zrušit skupinu: díly zůstanou, kde jsou, každý zase volný',

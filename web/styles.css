@@ -12,6 +12,10 @@
   --err: #f85149;
   --user: #a371f7;
   --ref: #8b95a3;
+  /* the kinds of thing an action is about — the trees' icons and the Suggested table's: a part, an assembly, a joint */
+  --k-part: #a371f7;
+  --k-asm: #7ee787;
+  --k-joint: #58a6ff;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 13px;
   color-scheme: dark;
@@ -59,8 +63,8 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
   max-width: 200px; min-width: calc(5ch + 42px); flex: 0 1 auto; }
 .part-tab.on, .part-tab.editing { max-width: 420px; }
 .part-tab .ico { flex: none; margin-right: 4px; }
-.ico-model { color: #a371f7; }
-.ico-assembly { color: #7ee787; }
+.ico-model { color: var(--k-part); }
+.ico-assembly { color: var(--k-asm); }
 .ico-drawing { color: #58a6ff; }
 .ico-sheet { color: #e3b341; }
 .ico-classic { color: #8b949e; }
@@ -999,6 +1003,11 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .bom-asm { color: #d2a8ff; }
 .bom-note { margin: 6px 0 4px; font-size: 11.5px; }
 .btn.accent2 { background: #6e40c9; border-color: #8957e5; color: white; }
+/* a button that opens / chooses a part (purple) or an assembly (green): the trees' icon, a tint of its colour */
+.btn.k-part { border-color: color-mix(in srgb, var(--k-part) 55%, var(--line)); background: color-mix(in srgb, var(--k-part) 16%, var(--panel-2)); }
+.btn.k-asm { border-color: color-mix(in srgb, var(--k-asm) 50%, var(--line)); background: color-mix(in srgb, var(--k-asm) 12%, var(--panel-2)); }
+.btn.k-part:hover { border-color: var(--k-part); } .btn.k-asm:hover { border-color: var(--k-asm); }
+.btn .ico { vertical-align: -2px; }
 
 /* feature tree */
 #modelLeft { padding: 10px 10px 14px; }
@@ -1108,6 +1117,29 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-inner-row .mt-name { font-weight: 500; }
 .as-inner-row .mt-icon { width: 14px; }
 .mt-item.has-inner { border-color: #3b82f655; background: transparent; }
+/* the assembly's list as compact as the project tree: one-line rows (24 px), 12 px a level, its head on one short line */
+#asmLeft { padding: 6px 8px 14px; } /* (room under the rows: a click there chooses none) */
+#asmLeft > .mt-head { padding: 0 2px 4px; margin-bottom: 4px; gap: 6px; align-items: center; }
+#asmLeft > .mt-head b { font-size: 12.5px; }
+/* docked in its widget (its header already says Sestava): the head is the 🔍 field alone, gone with no parts */
+.lw-widget #asmLeft > .mt-head > b, .lw-widget #asmLeft > .mt-head > .mt-sub, .lw-widget #asmLeft > .mt-head:has(.as-find[hidden]) { display: none; }
+.lw-widget #asmLeft > .mt-head .as-find { flex: 1 1 auto; margin-left: 0; }
+.as-list .mt-item { gap: 5px; min-height: 24px; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; white-space: nowrap; }
+.as-list .mt-item .mt-name { font-weight: 400; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; }
+.as-list .mt-item .mt-what { font-size: 11px; flex: 1 1 0; min-width: 0; }
+.as-list .mt-item .mt-icon { flex: none; width: 14px; }
+.as-list .as-twist { width: 14px; height: 18px; margin-right: -3px; border: 0; background: none; font-size: 10px; color: var(--muted); }
+.as-list .as-twist:hover { color: var(--text); }
+.as-list .as-inner-row { padding: 1px 6px 1px calc(18px + var(--depth) * 12px); }
+.as-list .as-inner-row.as-node { padding-left: calc(2px + var(--depth) * 12px); }
+.as-list .as-inner-row::before { left: calc(var(--depth) * 12px - 3px); } /* (under its sub-assembly's ▾) */
+.as-list .as-node:not(.as-inner-row) { padding-left: 2px; }
+.as-list:has(.as-node) .mt-item:not(.as-node):not(.as-inner-row) { padding-left: 18px; } /* (in line with a sub-assembly's icon, after its ▸) */
+.as-list .as-right { gap: 1px; padding-left: 6px; }
+.as-list .as-right .mini, .as-list .as-right .mt-acts { gap: 1px; }
+.as-list .as-right .mini { padding: 0 2px; min-width: 18px; text-align: center; }
+.as-list .as-right .as-eye { order: 9; } /* (the last: it stays where it is when the hover's buttons come in before it) */
+.as-right:has(.as-eye.hidden, .as-eye.clear) { background: linear-gradient(90deg, transparent, var(--panel) 8px); }
 .as-jtag { pointer-events: auto; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 5px; border-radius: 6px; background: #1d2633e6;
   border: 1px solid #3fb950; color: #c9f5d1; box-shadow: 0 2px 6px #0008; }
 .as-jtag:hover { background: #2a3a2e; }
@@ -1382,6 +1414,14 @@ body.view-acts .toast-stack { bottom: 84px; }
 .tr-preview img { max-width: 100%; max-height: 100%; }
 .ico-library { color: #f0883e; }
 .tr-row[draggable=true] { cursor: grab; }
+/* ▸ / ▾ before a row with rows under it (a leaf: the same room, empty), 🔍 found rows lit — as the assembly's list */
+.tr-tw { flex: none; width: 14px; align-self: stretch; padding: 0; border: 0; background: none; color: var(--muted); font-size: 10px; line-height: 1; cursor: pointer; }
+span.tr-tw { cursor: default; }
+button.tr-tw:hover { color: var(--text); }
+.pt-row.tr-hit .pt-rname { color: var(--accent); font-weight: 600; }
+.tr-find { flex: 0 1 140px; min-width: 64px; height: 20px; padding: 1px 6px; font-size: 11.5px; box-sizing: border-box; }
+.tr-head .tr-find { margin-left: 8px; }
+.lw-head .tr-find { margin: 0 2px; }
 .viewport.drop-in { outline: 2px dashed var(--accent); outline-offset: -6px; }
 /* the sketch's selection filters: bottom left of the view (the suggestions and the size box above them) */
 .viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick, .viewport:has(> .snap-filters) .m-editctx { bottom: calc(34px + var(--skf-h, 28px)); }
@@ -1459,6 +1499,16 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sg-menu .vs-head { cursor: default; }
 .sg-menu .vs-key { margin-left: auto; font-size: 10.5px; color: var(--muted); }
 .vs-list .vs-i { width: 18px; flex: none; text-align: center; color: var(--accent); }
+/* what a row is about: its icon on a tint of its kind's colour (an emoji keeps its own colours: the tint says it) */
+.vs-list .vs-i.k-part, .vs-list .vs-i.k-asm, .vs-list .vs-i.k-joint { height: 18px; line-height: 18px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; }
+.vs-list .vs-i.k-part { color: var(--k-part); background: color-mix(in srgb, var(--k-part) 20%, transparent); }
+.vs-list .vs-i.k-asm { color: var(--k-asm); background: color-mix(in srgb, var(--k-asm) 17%, transparent); }
+.vs-list .vs-i.k-joint { color: var(--k-joint); background: color-mix(in srgb, var(--k-joint) 18%, transparent); }
+.vs-list button.danger .vs-i.k-part, .vs-list button.danger .vs-i.k-asm { background: none; } /* (✕ Take it out: red, as every delete) */
+.vs-list .vs-i .ico { display: block; }
+/* the categories of a table (suggest.js grouped): a small muted header, no line above the first */
+.view-suggest .vs-sec.vs-grp, .sg-menu .vs-sec.vs-grp { font-size: 10px; letter-spacing: .06em; padding: 5px 8px 1px; border-top: 0; }
+.view-suggest .vs-sec.vs-grp:not(:first-child) { margin-top: 2px; border-top: 1px solid #ffffff10; }
 .vs-list button.danger, .vs-list button.danger .vs-i { color: #ff8c84; }
 .vs-hint { margin: 0; padding: 0 11px 8px; font-size: 11px; color: var(--muted); }
 /* a row of values in the suggestions (a tolerance, a fit, a roughness): one click each, no popup */
