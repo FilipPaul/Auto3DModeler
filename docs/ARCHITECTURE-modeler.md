@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📏 Right-click ends a measurement (2026-10-31)** (the owner: "right click to finish the current measurement; if
+  nothing is selected, the right click can cancel the measurement tool"). Through actiondock.js's `rclick` hook (a click:
+  < 4 px, < 0.4 s; a right-drag still orbits / pans; its contextmenu cancelled, the cursor hint says the word):
+  `MeasureTool.rclick()` -> a first pick waiting: *Ukončit měření* (endPend: the single pick's own row stays — area,
+  length, Ø; a whole part in Parts mode measures nothing, its row goes as before), else *Zavřít měření* (o.stop, as
+  Esc). Hooked in modeler.rclickAction (part mode, before the sketch's), assembly.rclickAction, and the 📐 drawing
+  editor's own Measure (drawing2d.rclickAction: the first spot dropped, else back to Select); app.js passes the asm /
+  dwg hooks. The tool's hint line ends with "Pravé tlačítko: ukončit měření." / "… zavřít nástroj.".
+  tools/e2e_measure_rclick.py (22 checks: model, assembly, drawing; real context_click and right-drag).
 - **▭ Docked widgets as cards (2026-10-31)** (the owner: "a little hard at first look to see where a pinned widget starts
   and ends"). The side columns (`.lw-col`) are a darker gutter (`--dock-gutter`: the page's `--bg`) with a 4 px padding
   (`--dock-gap`); each docked widget is a card on it — `--dock-card` surface, a 1 px `--dock-edge` hairline,

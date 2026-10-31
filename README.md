@@ -294,7 +294,9 @@ face (its area; a round one Ø and its axis), and between two things: a point an
 between two whole parts (the kernel's least distance). Each result is a row of the **📏 Measurements** table (a widget
 of the left column — dock it or float it) and stays marked in the view (a thin line and a small label); the tool stays
 on for the next one (a click on empty space starts anew), Esc ends it and the table stays — saved with the part /
-assembly. One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
+assembly. A **right-click** in the view ends the measurement in progress (the first pick waits no more; its own row — a face's
+area, an edge's length, a hole's Ø — stays); with nothing picked it closes the tool. A right-drag still turns / pans
+the view (a right-click is a press let go within 4 px and 0.4 s); the same in a 📐 drawing's Measure. One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
 rest muted; the mouse on a row lights its mark, a click offers copy / hide / delete; 👁 all marks, 📋 copy all (paste
 into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `measure` adds a row too; it can
 `list_measurements` / `clear_measurements`.

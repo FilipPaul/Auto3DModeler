@@ -261,6 +261,15 @@ export class MeasureTool {
     this.pick(ent);
   }
 
+  /** What a right-click in the view does while the tool is on (actiondock.js: { word, run }): a first pick waiting —
+   *  the measurement ends there (its own row stays: a face's area, an edge's length, a hole's Ø), the next click starts
+   *  anew; nothing waiting — the tool closes (as Esc / ✕). Off: undefined (the view's usual right-click). */
+  rclick() {
+    if (!this.on) return undefined;
+    if (this.pend) return { word: 'End measurement', run: () => { this.endPend(); this.render(); } };
+    return { word: 'Close Measure', run: () => this.o.stop() };
+  }
+
   // ------------------------------------------------------------------ the mouse
   /** A click in the view while the tool is on. */
   click(e) {
@@ -441,8 +450,8 @@ export class MeasureTool {
     this.eye.style.opacity = this.marks ? '' : '0.45';
     this.table(list); // (hidden too: no rows left behind in it)
     if (this.on) {
-      this.o.hint?.(t(this.pend ? 'Click another item: the distance or angle to it — or empty space for a new measurement. Esc ends.'
-        : this.mode === 'parts' ? 'Click two parts: the clearance between them. Esc ends.' : 'Click an edge, a face or a corner — then another one for the distance or angle. Esc ends.'));
+      this.o.hint?.(`${t(this.pend ? 'Click another item: the distance or angle to it — or empty space for a new measurement. Esc ends.'
+        : this.mode === 'parts' ? 'Click two parts: the clearance between them. Esc ends.' : 'Click an edge, a face or a corner — then another one for the distance or angle. Esc ends.')} ${t(this.pend ? 'Right-click: end the measurement.' : 'Right-click: close the tool.')}`);
     }
     this.draw();
   }

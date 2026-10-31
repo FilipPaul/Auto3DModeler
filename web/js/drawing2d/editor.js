@@ -452,7 +452,7 @@ export class DrawingEditor {
     this.measure = null;
     this.$('.dw-measure').hidden = true;
     this.hint({ line: 'Line: click where it starts, then where it ends (it goes on from there; Esc = stop).', circle: 'Circle: click the centre, then a point on it.',
-      measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø.', select: '' }[tool] || '');
+      measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø. Right-click: close the tool.', select: '' }[tool] || '');
     this.renderBar();
     this.renderSuggest();
     this.draw();
@@ -523,6 +523,14 @@ export class DrawingEditor {
     const [a, b] = [this.measure.a, s.p];
     box.innerHTML = `<b>${fmt(Math.hypot(b[0] - a[0], b[1] - a[1]))} mm</b> · Δx ${fmt(Math.abs(b[0] - a[0]))} · Δy ${fmt(Math.abs(b[1] - a[1]))} · ${fmt((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI)}°`;
     this.draw();
+  }
+
+  /** What a right-click in the view does now (actiondock.js): Measure — a first spot waiting: that measurement ends
+   *  (the next click starts anew); else the tool closes (back to Select). Else undefined (the OK button). */
+  rclickAction() {
+    if (!this.active || this.tool !== 'measure') return undefined;
+    if (this.measure?.a && !this.measure.b) return { word: 'End measurement', run: () => { this.measure = null; this.$('.dw-measure').hidden = true; this.setTool('measure'); } };
+    return { word: 'Close Measure', run: () => this.setTool('select') };
   }
 
   /** The file's units were not what it was read as: rescale everything (one file unit = UNIT_MM[u] mm). */
