@@ -53,8 +53,9 @@ export const CLIENT = windowClient();
 export function keepChatClient() { try { sessionStorage.setItem(KEEP_KEY, '1'); } catch { /* private window */ } }
 const withClient = (url) => `${url}${url.includes('?') ? '&' : '?'}client=${encodeURIComponent(CLIENT)}`;
 
-/** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
-export function startBridge(handlers) {
+/** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}; where() ->
+ * {workspace, part}: said with a failed call (the server logs every one for the developers). */
+export function startBridge(handlers, where = null) {
   let alive = true;
   // the calls of this window's chat come here only; an AI of its own (an MCP client without a window) works in the
   // window in use (visible)
@@ -101,6 +102,7 @@ export function startBridge(handlers) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };
       }
       clearInterval(alive);
+      if (result?.error && where && !result.where) try { result = { ...result, where: where() }; } catch { /* (only for the log) */ }
       done.set(cmd.id, result);
       if (done.size > 100) done.delete(done.keys().next().value);
       try {

@@ -58,6 +58,8 @@ Undo test clicks you do not need so the designs stay clean.
 
 ## 4. Report each finding — once
 - First `list_reports {search: "<main words>"}`: there → do not file it again ("known" in your table).
+- A tool call that failed is logged on its own (`list_reports {kind: "tool errors"}`: the frequent ones, counted) —
+  report it only when the failure hides a wrong result or a GUI problem the log cannot show.
 - Wrong result, an error that should not happen, a control that does nothing → `report_problem {kind: "bug", title,
   what, expected, steps}` — steps = your gui_action calls, so a developer can repeat it.
 - Hard to find, English in Czech, surprising behaviour, no good default → `report_problem {kind: "ui", …}`.

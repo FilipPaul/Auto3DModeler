@@ -110,6 +110,13 @@ try:
     tool("edit_feature", id="F2", fields={"d": 8})
     m = json.loads(tool("get_model")[0])
     print("    after the plate got 8 thick:", m["body"]["size_mm"], "| all ok:", all(s["ok"] for s in m["steps"]))
+    # a failed call is logged on its own (RealSWReports/<date>-tool-errors.md), the same error counted: list_reports shows it
+    tool("edit_feature", id="F98", fields={"d": 3})
+    tool("edit_feature", id="F99", fields={"d": 3})
+    time.sleep(0.5)  # (written by a thread)
+    errs = tool("list_reports", kind="tool errors")[0]
+    hit = next((r for r in (json.loads(errs.rsplit(".md): ", 1)[1]) if ".md): " in errs else []) if r["tool"] == "edit_feature"), None)
+    print("    tool-error log: edit_feature ×", hit and hit["count"], "|", (hit or {}).get("error", "")[:80], "| counted:", bool(hit and hit["count"] >= 2))
     tool("turn_off_feature", id="F4", off=True)
     tool("delete_feature", id="F3")
     tool("undo")
