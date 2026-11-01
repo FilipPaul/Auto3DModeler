@@ -179,6 +179,10 @@ try:
         d.get(f"{URL}/?project={pid}")
         b.wait(f"return !!window.__app && {P}.parts.some((p) => p.name === 'Sestava ICT M1556')", 900)
         go("Sestava ICT M1556")
+        gate = js(f"const s = {P}.parts.find((p) => p.name === 'Sestava brány'); return !!(s && (s.data?.mechs || []).length)")
+    if owner and not gate:
+        print("(a \"Sestava ICT M1556\" without the owner's gate mechanism — a plain STEP import: skipped)")
+    elif owner:
         it = js(f"const a = {A}, sub = {P}.parts.find((p) => p.name === 'Sestava brány'); return a.doc.instances.find((i) => i.part === sub.id).id")
         ms = mech()
         m = next((x for x in ms if x["name"].startswith("Otevírání brány")), None)
