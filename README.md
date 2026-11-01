@@ -306,7 +306,8 @@ into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `m
 clicking it again: two parts chosen → *📏 Measure between them* — the clearance row is there; two faces picked
 (Ctrl+click) → the same row in their table — the gap or the angle; in the 3D model two spots picked → *📏 Distance*
 or *↕ Gap between the faces* adds its row; one face or a corner → *📏 Measure from here* — it is the first pick, the
-next click gives the distance. The tool stays on for more.
+next click gives the distance; an edge picked in the 3D model → its *📏 Length* / *Ø* row adds that row (it
+was a toast). The tool stays on for more.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 

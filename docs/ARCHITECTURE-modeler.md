@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Suggestion rows audited: do it when the inputs are picked (2026-11-01)** (the owner's rule after 📏, "that
+  applies to tools in general"). Changed: the 3D model's edge 📏 Length / Ø row (edgeItems) adds its row to 📏
+  Measurements (measureEnt edge, the tool on, the edge the first pick) instead of a toast. Already doing it, kept:
+  ◜ Fillet / ◸ Chamfer this edge (the command opens with the edges chosen at 1 mm, previewed; Esc / Enter keep it),
+  a face's ◎ Hole here / ▢ Hollow out / ⇋ Mirror / ✂ Split / 🎨 Paint / 📏 Measure it (placed at the click), ⁂ Pattern
+  (made at once with 3 / 6, the box live), the assembly's two-face joint rows and a face's joint rows (the first face
+  set), 🔌 Route a cable from here (its first point), the sheet's ↔ Distance from it… (the first pick set). Left
+  as is, a real input missing: 🔗 Join them on two whole parts (which faces — the pin / rest rows above it do the
+  clear cases), 🔌 Route a cable between them (where on each part), 🔗 Join it to another part, ✥ Move… / ⟳ Rotate… /
+  ⤢ Scale… and ⇤⇥ Limits… (a value), the hole's 📏 Measure it: Ø (shows its result already). e2e_direct_suggest +3.
 - **📏 A measure suggestion measures at once (2026-11-01)** (the owner: "if I choose 'Změřit mezi nimi', the value
   should be measured right away, not just the measure tool chosen — that applies to tools in general"). measure.js
   `MeasureTool.between(A, B)` (on, a waiting pick dropped, A then B picked: the pair's row — two parts: the clearance

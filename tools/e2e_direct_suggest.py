@@ -4,7 +4,8 @@ just turns 📏 on), in the Czech UI, rows clicked with the mouse: a base and a 
   two faces picked -> 📏 Změřit mezi nimi: their gap (5) at once;
   one face picked -> 📏 Měřit odtud: its row (the area) and the first pick waiting — one click on the plate's top: 10;
   a corner of a part -> 📏 Měřit odtud: waiting from that point;
-  the 3D model: two spots picked (Ctrl+click) -> 📏 Vzdálenost: its row in 📏 Měření, the tool on.
+  the 3D model: two spots picked (Ctrl+click) -> 📏 Vzdálenost: its row in 📏 Měření, the tool on;
+  the 3D model: an edge picked -> 📏 Délka 80 mm (was a toast): its length row, 📏 on, the edge the first pick.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_direct_suggest.py http://127.0.0.1:5199 <out dir>
 """
@@ -177,6 +178,17 @@ try:
     check("model: the distance row (80) at once", got and got[-1]["kind"] == "dist" and abs((got[-1]["v"] or -1) - 80) < 1e-3, got)
     check("model: 📏 on", js(f"return !!{M}.measuring"))
     d.save_screenshot(f"{OUT}/direct_5_model.png")
+    esc()
+
+    # 6 the 3D model: an edge picked -> 📏 Délka 80 mm: its row (L 80) in 📏 Měření at once, the tool on
+    ei = js(f"""const m = {M}, b = m.result.body; return b.edges.findIndex((e, i) => {{ const s = m.edgeSize(i); return s && !s.round && Math.abs(s.L - 80) < 1e-6 && m.edgeRef(i); }})""")
+    js(f"const m = {M}; m.picks = []; m.pickEdge(arguments[0], m.edgeRef(arguments[0]))", ei)
+    time.sleep(0.4)
+    n0 = len(rows("model"))
+    check("model: an edge -> 📏 Délka 80 mm in the table", ei >= 0 and row("modelViewport", "📏 Délka 80"))
+    got = rows("model")
+    check("model: its length row (80) at once", len(got) == n0 + 1 and got[-1]["kind"] == "len" and abs((got[-1]["v"] or -1) - 80) < 1e-3, got)
+    check("model: 📏 on, the edge waiting as the first pick", js(f"return !!{M}.measuring && {M}.ms.pend?.ent.kind === 'edge'"))
     esc()
 except Exception as e:  # noqa: BLE001
     import traceback

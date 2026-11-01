@@ -993,7 +993,8 @@ export class Modeler {
       { icon: '◜', label: t(one ? 'Fillet this edge' : 'Fillet these edges'), rank: 0, title: t('Round it off — the radius in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('fillet', refs); } },
       { icon: '◸', label: t(one ? 'Chamfer this edge' : 'Chamfer these edges'), rank: 1, title: t('Bevel it — the size in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('chamfer', refs); } },
       { icon: '⇱', label: t('Take the edges into a sketch'), rank: 4.5, title: t('A sketch on their flat face with these edges as lines, arcs and circles held to the part'), run: () => { this.dropSuggest(); this.sketchFromEdges(refs); } },
-      ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size — 📏 Measure for more'), run: () => this.hooks.toast(sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, 'info', 3000) }] : []),
+      ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size as a row of 📏 Measurements — the next click: the distance from it'),
+        run: () => { const A = this.measureEnt({ kind: 'edge', ei: idx }); this.dropSuggest(); this.measureNow(A); } }] : []), // (measured at once: its row, the tool on)
     ];
   }
 

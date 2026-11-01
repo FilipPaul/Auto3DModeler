@@ -1251,6 +1251,7 @@ const CS = {
   'The clearance between the two parts, measured now (📏 stays on for more)': 'Vůle mezi oběma díly, změřená hned (📏 zůstane zapnuté pro další)',
   'The distance or the angle between the two faces, measured now (📏 stays on for more)': 'Vzdálenost nebo úhel mezi oběma plochami, změřené hned (📏 zůstane zapnuté pro další)',
   'This face is the first: click another spot — the distance': 'Tato plocha je první: klikněte na další místo — vzdálenost',
+  'Its size as a row of 📏 Measurements — the next click: the distance from it': 'Její rozměr jako řádek 📏 Měření — další klik: vzdálenost od ní',
   'Change it in its own tab (the assembly follows)': 'Změnit ho v jeho záložce (sestava se přizpůsobí)', 'Join it to one more part': 'Spojit s dalším dílem',
   'Join it to another part': 'Spojit s jiným dílem', 'Show it in full': 'Zobrazit celý', 'Show it simplified': 'Zobrazit zjednodušeně',
   'Simplified: a coarser mesh and less data — quicker to load and show': 'Zjednodušeně: hrubší síť a méně dat — rychlejší načtení a zobrazení',
