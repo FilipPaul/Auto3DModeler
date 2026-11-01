@@ -358,7 +358,7 @@ export class MeasureTool {
     const r = vp.getBoundingClientRect();
     el.hidden = false;
     el.textContent = p.text;
-    Object.assign(el.style, { left: `${p.x - r.left + 14}px`, top: `${p.y - r.top + 14}px` });
+    Object.assign(el.style, { left: `${p.x - r.left + 14}px`, top: `${p.y - r.top + 36}px` }); // (under the cursor's "🖱 End measuring" hint: actiondock's .rc-hint, 15 px tall at +16)
   }
 
   // ------------------------------------------------------------------ rows

@@ -106,6 +106,12 @@ def flow(view, ws, sel, corner):
     n0 = rows(ws)
     click(view, sel, corner)
     check(pend() and rows(ws) == n0 + 1, f"{ws}: a corner picked — waiting for the second (rows {n0} -> {rows(ws)})")
+    ActionChains(d, duration=30).move_by_offset(6, 4).perform()  # (hovered: the measure label and the 🖱 hint by the cursor)
+    time.sleep(0.3)
+    boxes = js("""const r = (s) => { const e = [...document.querySelectorAll(s)].find(x => !x.hidden && x.offsetParent); if (!e) return null;
+      const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }; return [r('.rc-hint'), r('.ms-tip')]""")
+    a, b = boxes
+    check(a and b and (a[3] <= b[1] or b[3] <= a[1] or a[2] <= b[0] or b[2] <= a[0]), f"{ws}: the 🖱 hint and the measure label do not overlap ({boxes})")
     hint = js("return [...document.querySelectorAll('.m-hint')].filter(e => e.offsetParent).map(e => e.textContent).join(' | ')")
     check("Pravé tlačítko: ukončit měření" in hint, f"{ws}: the hint says the right-click: {hint!r}")
     ctx = rclick(sel)
