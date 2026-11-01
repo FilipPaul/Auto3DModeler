@@ -21,7 +21,7 @@ Read `docs/ARCHITECTURE-modeler.md` (the plan and its Progress section) before s
   `.claude/agents/tester.md` when a new e2e test is added.
 - Stage the files by name (`git add <paths>`), not `git add -A`; check `git status` for strays (screenshots,
   `*.a3d.json`, temp scripts) first. Test output goes to the scratchpad, not the repo.
-- `RealSWReports/*.md` (the app's AI writes them) go to the repo too (the owner, 2026-10-31): the main session
+- `RealSWReports/*.md` (the app's AI writes them; not its `*.a3d` project copies — the owner, 2026-11-01) go to the repo too (2026-10-31): the main session
   commits the new ones in a commit of their own ("Add the AI's RealSWReports …") and pushes. Agents leave them
   alone (not in their commits).
 - Message: a short imperative subject (≤ 72 chars, e.g. "Add ⁂ Pattern feature: repeat steps in a row or

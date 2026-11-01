@@ -30,3 +30,4 @@ RealSWReports/*-tool-errors.json
 *.exe
 *.msi
 *-portable.zip
+RealSWReports/*.a3d
