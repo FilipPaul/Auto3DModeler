@@ -857,7 +857,7 @@ const CS = {
   'No holes line up between parts yet.': 'Mezi díly zatím žádné díry nelícují.', Add: 'Přidat', Close: 'Zavřít',
   'Put a hole in each part where they are to be fastened — e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.': 'Udělejte díru v každém dílu, kde se mají spojit — např. Ø3,4 pro šroub M3 v horním dílu a Ø4,0 pro matici M3 ve spodním — spojte díly a podívejte se sem znovu.',
   'Slide to change it — the part follows': 'Posuňte pro změnu — díl se přizpůsobí',
-  'A locked joint 🔒 holds this part — unlock it in the joints list to move the part by hand.': 'Díl drží zamčená vazba 🔒 — odemkněte ji v seznamu vazeb, chcete-li díl posunout rukou.',
+  'A protected joint 🛡 holds this part — click its 🛡 in the joints list to move the part by hand.': 'Díl drží chráněná vazba 🛡 — chcete-li díl posunout rukou, klikněte na její 🛡 v seznamu vazeb.',
   'Its limits — click to take them off (it moves freely again)': 'Jeho meze — kliknutím je zrušíte (zase se pohybuje volně)',
   "Limits: how far it may go each way (a cylinder's stroke, a slide's ends, a door's swing)": 'Meze: kam až smí na každou stranu (zdvih válce, konce vedení, rozevření dveří)',
   // ⇤⇥ limits: the part panel, ⚙ Mechanism, the Suggested table

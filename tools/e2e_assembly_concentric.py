@@ -104,6 +104,8 @@ try:
     js(f"{A}.sel = 'I2'; {A}.render(); {A}.draw()")
     time.sleep(0.3)
     print("row:", d.find_element(By.CSS_SELECTOR, "#asmRight .as-jrow").text.replace("\n", " "))
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-jadd][data-kind=axial]").click()  # (+↕: a distance joint of its own)
+    time.sleep(0.5)
     box = d.find_element(By.CSS_SELECTOR, "#asmRight [data-jdist]")
     box.send_keys(Keys.CONTROL, "a")
     box.send_keys("30", Keys.ENTER)
@@ -123,11 +125,11 @@ try:
     # the turn: free, then locked where it is, then set by the slider
     js(f"{A}.sel = 'I2'; {A}.render(); {A}.draw()")
     time.sleep(0.3)
-    lock = d.find_element(By.CSS_SELECTOR, "#asmRight [data-jrot]")
+    lock = d.find_element(By.CSS_SELECTOR, "#asmRight [data-jadd][data-kind=spin]")
     print("rotation button:", lock.text)
     lock.click()
     time.sleep(0.5)
-    print("after the click:", d.find_element(By.CSS_SELECTOR, "#asmRight [data-jrot]").text, "| locked", json.loads(call("get_assembly"))["joints"][0]["rotation_locked"])
+    print("after the click: a ↻ row", len(d.find_elements(By.CSS_SELECTOR, "#asmRight [data-jspin]")), "| locked", json.loads(call("get_assembly"))["joints"][0]["rotation_locked"])
     num = d.find_element(By.CSS_SELECTOR, "#asmRight [data-jspinn]")
     num.send_keys(Keys.CONTROL, "a")
     num.send_keys("45", Keys.ENTER)
@@ -140,15 +142,14 @@ try:
     # clearing the distance: it slides again (stays where it is)
     js(f"{A}.sel = 'I2'; {A}.render(); {A}.draw()")
     time.sleep(0.3)
-    box = d.find_element(By.CSS_SELECTOR, "#asmRight [data-jdist]")
-    box.send_keys(Keys.CONTROL, "a", Keys.DELETE, Keys.ENTER)
+    js(f"const m = {A}.doc.mates.find(x => x.type === 'axial'); document.querySelector(`#asmRight [data-jrow='${{m.id}}'] [data-jdel]`).click()")  # (✕ the ↕ joint)
     time.sleep(0.5)
     print("distance cleared:", json.loads(call("get_assembly"))["joints"][0]["distance"], "| upper z", bbox("I2")[2])
 
     # the AI: a third plate 12 mm from the lower one (on top: they start inside each other), its turn locked
     call("insert_part", part="Upper")
     r = json.loads(call("snap_faces", type="axis", gap=12, lock_rotation=True, move={"part": "I3", "face": "F3:hole:0"}, onto={"part": "I1", "face": "F3:hole:0"}))
-    j = r["joints"][-1]
+    j = next(x for x in r["joints"] if x["part"] == "I3" and x["type"] == "axis")  # (its ↕ / ↻: joints of their own after it)
     print("AI:", j["type"], "distance", j["distance"], "locked", j["rotation_locked"], "| I3 z", bbox("I3")[2], bbox("I3")[5], "| on the axis", hole_axis("I3"))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])

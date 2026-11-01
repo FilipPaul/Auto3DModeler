@@ -127,7 +127,10 @@ try:
     time.sleep(0.8)
     print("undo -> joints", len(joints()), "| at", pin_pos())
 
-    # ↻ turning about the axis joint
+    # ↻ turning about the axis joint: +↻ on it, then its rotation joint's slider
+    select("I2")
+    d.find_elements(By.CSS_SELECTOR, "#asmRight [data-jadd][data-kind=spin]")[0].click()
+    time.sleep(0.5)
     select("I2")
     sl = d.find_elements(By.CSS_SELECTOR, "#asmRight input[data-jspin]")[0]
     print("spin now:", sl.get_attribute("value"), "| head's x direction", pin_x_dir())

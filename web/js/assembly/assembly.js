@@ -3473,7 +3473,7 @@ export class Assembly {
     const mine = (this.doc.mates || []).filter((m) => m.move === id);
     if (!mine.length) return true;
     if (mine.some((m) => m.locked)) {
-      this.hooks.toast('A locked joint 🔒 holds this part — unlock it in the joints list to move the part by hand.', 'warning', 5000);
+      this.hooks.toast('A protected joint 🛡 holds this part — click its 🛡 in the joints list to move the part by hand.', 'warning', 5000);
       return false;
     }
     if (ask) { this.askBreak(id, mine.length, again); return false; }

@@ -95,30 +95,24 @@ try:
     time.sleep(0.6)
     print("its slider +45°: bearing", turned("I2"), "| arm", turned("I3"))
 
+    # +↻ on the touch joint: a rotation joint of its own — the bearing fully held; ✕ on it: free again
     pick("I2")
-    b = row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]")
-    print("J2 (touch) turn:", b.text, "| bearing:", part("I2").get("free"))
+    b = row("J2").find_element(By.CSS_SELECTOR, "[data-jadd][data-kind=spin]")
+    print("J2 (touch) +↻:", b.is_enabled(), "| bearing:", part("I2").get("free"))
     pick("I2")
-    row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]").click()
+    row("J2").find_element(By.CSS_SELECTOR, "[data-jadd][data-kind=spin]").click()
     time.sleep(0.5)
-    txt = row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]").text
-    print("clicked:", txt, "| bearing fully held:", part("I2").get("fully_held", False))
+    sp = js(f"return {A}.doc.mates.find(m => m.type === 'spin' && m.move === 'I2')?.id")
+    print("clicked:", sp, "| bearing fully held:", part("I2").get("fully_held", False))
     pick("I2")
-    row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]").click()
+    row(sp).find_element(By.CSS_SELECTOR, "[data-jdel]").click()
     time.sleep(0.5)
-    txt = row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]").text
-    print("again:", txt, "| bearing:", part("I2").get("free"))
+    print("its ✕:", js(f"return {A}.doc.mates.some(m => m.id === '{sp}')"), "| bearing:", part("I2").get("free"))
 
-    # the ↻ slider of a free turn drives it (it stays free), also on a locked joint; ⇅ on a concentric joint once
-    pick("I2")
-    b1 = turned("I2")
-    js("const s = document.querySelector('#asmRight [data-jspin=J1]'); s.value = +s.value + 20; s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))")
-    time.sleep(0.6)
-    print("J1's ↻ +20: the bearing", b1, "->", turned("I2"), "| still free:", part("I2").get("free") is not None, "| angle stored:", js(f"return {A}.doc.mates.find(m => m.id === 'J1').angle ?? null"))
+    # ⇅ on a concentric joint once; a locked joint's ⇅ greyed
     call("edit_joint", id="J1", locked=True)
     pick("I2")
-    print("J1 locked 🔒: its free ↻ usable", row("J1").find_element(By.CSS_SELECTOR, "[data-jspin]").is_enabled(),
-          "| ⇅ greyed", not row("J1").find_element(By.CSS_SELECTOR, "[data-jflip]").is_enabled())
+    print("J1 locked 🛡: ⇅ greyed", not row("J1").find_element(By.CSS_SELECTOR, "[data-jflip]").is_enabled())
     call("edit_joint", id="J1", locked=False)
     print("gui_state parts:", [c["label"] for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "part"])
 
@@ -172,6 +166,7 @@ try:
     print("gui_action Collisions:", json.loads(call("gui_action", control="Collisions"))["done"], "| panel:", d.find_element(By.CSS_SELECTOR, "#asmRight h2").text)
     print("  gui_state panel:", [c["label"] for c in json.loads(call("gui_state", where="panel"))["controls"]][:6])
     call("gui_action", control="Close")
+    call("edit_joint", id=js(f"return {A}.doc.mates.find(m => m.type === 'spin' && m.move === 'I3').id"), locked=True)  # (the arm's ↻: a joint of its own, protected too)
     pick("I3")
     sp = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "J3" in c["label"] or c["kind"] == "slider" and "↻" in c["label"] and c.get("disabled"))
     print("  a greyed slider:", sp["label"][:50], "->", call("gui_action", control=sp["n"], value=20)[:60])
