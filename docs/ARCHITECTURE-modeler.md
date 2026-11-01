@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A sub-assembly's mechanism at any depth (2026-11-01)** (the owner: in "Sestava ICT M1556" the gate did not open —
+  "Otevírání brány" of "Sestava brány" is driven by the hinge's leaf inside "Sestava pant P", two levels down; the top's
+  ⚙ Mechanism offered only the struts' turns, drive_mechanism with "I5/I45/I4" found no such part). Cause: flatAsm
+  took in only one level — a sub-assembly's own moving sub-assemblies stayed whole, so its mechanism's driver and the
+  gate frame fixed on the leaf were not in the flat engine. Now flatPieces / subFlat recurse (a sub-assembly's document
+  flattened as its own tab's flat engine has it, prefixed again: "I5/I45/I4", joints "I5/I45/J31"); flexOf counts a
+  part joined onto a part moving inside a nested sub-assembly (the gate frame on the leaf); flexInside: a sub-assembly
+  only its nested ones move in; `inner` keeps a deeper part as "I45/I4" (in I45's frame; innerList hands it on to
+  I45's own `inner`, innerFrame walks it, keepFlat writes it, keepInner keeps it — 🧱 rigid / ⚙ moving again keeps
+  the pose). ICT: the gate opens 90° from the top in ~1 s, struts held. tools/e2e_deep_mechanism.py (synthetic
+  Machine → Gate → Hinge + Strut, the owner's project when the server's data has it).
+
 - **⚠ Collision check off for a part / a sub-assembly / the whole assembly (2026-11-01)** (the owner: a big STEP
   assembly collides in many places by design): a placed part's `noClash` leaves it (a sub-assembly: all its parts)
   out of flatParts({clash: true}) — the check, ⚠ the travel (mechclash) and the AI's check; its table: ⚠ No collision

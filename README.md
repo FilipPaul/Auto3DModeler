@@ -1286,7 +1286,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   slider, ▶ play them, ⚠ check their travel; choose the sub-assembly and **drag one of its parts** in the view (its
   crank turns, the rest follows). The parts move inside its placement; parts of this assembly joined to them follow,
   and a loop through both levels (a rod of this assembly on its crank's pin) is solved together. The moves are kept
-  on this placement only — the sub-assembly's own tab stays as it is. **⚙ Moving sub-assembly** in its panel (on by
+  on this placement only — the sub-assembly's own tab stays as it is. At **any depth**: a gate whose mechanism is
+  driven by a hinge's leaf inside its own hinge sub-assembly opens from the machine it is placed in — one slider
+  (*Otevírání brány (v Sestava brány)*), the leaf two levels down turns, the struts follow (the AI: `drive_mechanism
+  {driver: {part: "I5/I45/I4"}}`). **⚙ Moving sub-assembly** in its panel (on by
   default) switches it: off, it is 🧱 rigid — one body, no inner motion (offered back in its suggestions). The AI:
   get_assembly / gui_state `mechanisms` with `inside: "I3"`, `drive_mechanism {mechanism: "I3"}`, `move_free
   {part: "I3/I2"}`, `place_part {part: "I3", rigid: true}`.

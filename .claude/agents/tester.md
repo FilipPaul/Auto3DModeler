@@ -229,6 +229,11 @@ Never report "works" without having run it; report failures with their output.
    its tab; the parent's joint of the body's eye on the 2nd pin: the loop through both levels closed, all held; 🧱 / ⚙;
    the stroke locked in the strut's tab: on the axis, the pin joint ⚠ not held, the status says so; the owner's
    "Sestava ICT M1556" when the server's data has it).
+   `tools/e2e_deep_mechanism.py <url> <dir>` covers a mechanism two levels down driven from the top (Machine → Gate →
+   Hinge's leaf, a Strut sub-assembly between a bracket pin and the leaf: ⚙ Mechanism lists "Otevírání (v Gate)"
+   driven by I1/I1/I2, drive_mechanism with the nested driver / the slider turn the leaf by the step, the strut's joints
+   held, `inner` "I1/I2", the sub-assemblies' documents unchanged, undo, 🧱 / ⚙ keep the pose; the owner's
+   "Sestava ICT M1556" when the server's data has it: the gate frame turns 90° from the top in < 10 s, all held).
    `tools/e2e_suggest_groups.py <url> <dir>` covers the Suggested table in categories (Czech, the 150-part demo):
    showSuggest's rules on a bare box (one category: no header; several: the most relevant row's first, ranked inside,
    top 8 + ⋯, sections into tooltips, Show all still grouped), the whole assembly's table, a part's (◆ Open its part:

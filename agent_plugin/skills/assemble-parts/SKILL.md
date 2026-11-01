@@ -84,7 +84,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is. Its own
    mechanisms (a crank loop, gears) are in get_assembly `mechanisms` too (`inside: "I3"`, parts "I3/I2"):
    `drive_mechanism {mechanism: "I3", to}` drives the first inside it; the parts here joined to its parts follow and
-   a loop through both levels is solved together. `place_part {part: "I3", rigid: true}` = 🧱 one body, no inner motion.
+   a loop through both levels is solved together. At any depth: a gate's mechanism driven by a hinge's leaf inside its
+   own hinge sub-assembly is one mechanism here (driver "I5/I45/I4"; `drive_mechanism {mechanism: "I5", driver: {part:
+   "I5/I45/I4", motion: 0}, to}`). `place_part {part: "I3", rigid: true}` = 🧱 one body, no inner motion.
    **Joining parts inside sub-assemblies from the top**: get_assembly lists each sub-assembly's `parts_inside` by key
    ("I3/I1 Bushing", "I3/I2/I2 Pin"); `snap_faces {move: {part: "I3/I1", face: "F3:hole:0"}, onto: {part: "I3/I2/I2",
    face: "F2:side:c1"}, type: "axis"}` (each face named in its own part) — two parts inside one sub-assembly: the joint
