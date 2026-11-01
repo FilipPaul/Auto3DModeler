@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Concept kept, not on main: joints split by type (2026-11-01)** — branch `concept/split-joints` (196a87b, on
+  GitHub): one constraint per joint; ◎ Concentric without its own ↕ / ↻, new joint kinds `axial` ↕ (distance along
+  the axis) and `spin` ↻ (turn), added from a joint's row by small +↕ / +↻ / +◎ buttons at the current value (no
+  duplicates: greyed with the joint that keeps it), consistent [slider][value][lock] rows, the joint-level lock as
+  🛡, the AI's snap_faces / edit_joint making them, four demos rewritten, tools/e2e_joint_rows.py. All tests passed
+  there; the owner chose to keep today's inline joints for now. No migration of old projects was written.
 - **Suggestion rows audited: do it when the inputs are picked (2026-11-01)** (the owner's rule after 📏, "that
   applies to tools in general"). Changed: the 3D model's edge 📏 Length / Ø row (edgeItems) adds its row to 📏
   Measurements (measureEnt edge, the tool on, the edge the first pick) instead of a toast. Already doing it, kept:
