@@ -839,6 +839,7 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-status.bad { color: #f85149; }
 .as-jrow i { font-style: normal; color: var(--muted); font-size: 10.5px; }
 .as-jbtn { display: flex; gap: 3px; }
+.as-jvals { display: flex; align-items: center; gap: 4px; } /* (a joint's value and its ⇅: one cell, so 🔒 ✕ stay top right) */
 .as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) 52px auto auto; gap: 6px; align-items: center; color: var(--muted); }
 .as-jspin input[type=number] { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
 .as-jt { white-space: nowrap; color: var(--text); }

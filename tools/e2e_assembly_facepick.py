@@ -109,6 +109,10 @@ try:
     time.sleep(1)
     print("Concentric: the joints", js(f"return {A}.doc.mates.map(m => [m.type, m.move, m.onto])"), "| the pin on the hole's axis:",
           [round(v, 2) for v in world("I2", [0, 0, 0])[:2]], "vs", [hx, hy])
+    lay = js("""const r = document.querySelector('#asmRight [data-jrow]'); if (!r) return null;
+      const y = (s) => r.querySelector(s)?.getBoundingClientRect(); const a = y('.as-jt'), l = y('[data-jlock]'), w = y('.as-jw');
+      return a && l && w ? [Math.round(a.top), Math.round(l.top), Math.round(w.top)] : null""")
+    check(lay and abs(lay[0] - lay[1]) < 12 and lay[1] < lay[2], f"◎ Concentric's row: 🔓 ✕ on its top line by its name, not under its parts: {lay}")
     # the Base's top — at its far corner: the near one (front left in the iso view) sits under the Suggested table in
     # the view's bottom left once the pin is chosen (its rows in categories, with their headers, reach that high)
     click("I1", [bb[3] - 5, bb[4] - 5, bb[5]])  # the Base's top …
