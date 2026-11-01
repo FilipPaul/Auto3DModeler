@@ -2987,7 +2987,7 @@ const libraryTools = {
   check_collisions: async () => {
     if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');
     await assembly.refresh();
-    const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: assembly.flatParts() }) });
+    const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: assembly.flatParts({ clash: true }) }) });
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || res.statusText);
     const name = (id) => `${assembly.partName(assembly.inst(assembly.topOf(id))?.part)} ${id}`;

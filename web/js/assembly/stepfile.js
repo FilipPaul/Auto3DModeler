@@ -35,7 +35,7 @@ export function addTree(tree, hooks, fallbackName) {
   const big = Object.keys(tree.parts).length + Object.keys(tree.assemblies).length > BIG;
   const light = big ? { light: Object.fromEntries(Object.values(ids).map((id) => [id, true])) } : {};
   const doc = (a) => ({ instances: a.instances.filter((i) => ids[i.ref]).map((i, k) => ({ id: `I${k + 1}`, part: ids[i.ref], matrix: i.matrix,
-    ...(i.colour ? { colour: i.colour } : {}), ...(k ? {} : { fixed: true }) })), ...light }); // (the first part fixed in place, as on insert)
+    ...(i.colour ? { colour: i.colour } : {}), ...(k ? {} : { fixed: true }) })), ...light, clashOff: true }); // (⚠ a STEP's parts often touch by design: checked when asked) // (the first part fixed in place, as on insert)
   // sub-assemblies before the ones that hold them
   const done = new Set([tree.root]), order = [];
   const visit = (k) => {

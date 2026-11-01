@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚠ Collision check off for a part / a sub-assembly / the whole assembly (2026-11-01)** (the owner: a big STEP
+  assembly collides in many places by design): a placed part's `noClash` leaves it (a sub-assembly: all its parts)
+  out of flatParts({clash: true}) — the check, ⚠ the travel (mechclash) and the AI's check; its table: ⚠ No collision
+  check for it / Check its collisions again (rank 12, under ⋯). The assembly's `doc.clashOff`: no automatic check after
+  a change, the bar "⚠ Kolize vypnuté", ⚠ Check still asks once; Turn the collision check off / on in its table. A STEP
+  assembly import (stepfile.js) starts with it off. tools/e2e_clash_off.py.
 - **Concept kept, not on main: joints split by type (2026-11-01)** — branch `concept/split-joints` (196a87b, on
   GitHub): one constraint per joint; ◎ Concentric without its own ↕ / ↻, new joint kinds `axial` ↕ (distance along
   the axis) and `spin` ↻ (turn), added from a joint's row by small +↕ / +↻ / +◎ buttons at the current value (no

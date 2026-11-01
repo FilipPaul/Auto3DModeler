@@ -234,6 +234,9 @@ Never report "works" without having run it; report failures with their output.
    top 8 + ⋯, sections into tooltips, Show all still grouped), the whole assembly's table, a part's (◆ Open its part:
    the trees' part icon on purple, 🔗 joints blue, the panel's button the same) and a sub-assembly's (its rows under
    Sestava, green, the assembly icon) and the parts list's rows no taller than the project tree's.
+   `tools/e2e_clash_off.py <url> <dir>` covers ⚠ the collision check off for a placed part (No collision check for it /
+   Check its collisions again, under ⋯ Show all) and for the whole assembly (Turn the collision check off: the bar says
+   "Kolize vypnuté", no automatic check, ⚠ Check still asks once); a STEP import starts with it off.
    **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,

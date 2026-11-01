@@ -28,7 +28,7 @@ function stepsOf(m) {
 /** What a scan depends on: the parts that stand still (where, which shape), the joints and the driver's travel. */
 function sigOf(asm, m, moving) {
   const e = engOf(asm, m);
-  const still = e.flatParts().filter((f) => !moving?.has(f.id)).map((f) => [f.id, idOf(f.part.features), f.matrix.map((x) => +x.toFixed(4))]);
+  const still = e.flatParts({ clash: true }).filter((f) => !moving?.has(f.id)).map((f) => [f.id, idOf(f.part.features), f.matrix.map((x) => +x.toFixed(4))]);
   return JSON.stringify([m.min, m.max, m.driver?.part, m.driver?.mo.key, still, e.doc.mates || [], e.doc.couplings || [], (moving && [...moving]) || []]);
 }
 

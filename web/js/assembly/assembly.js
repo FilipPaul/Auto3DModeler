@@ -973,6 +973,8 @@ export class Assembly {
       ...(deep ? [] : [{ icon: '✕', group: 'part', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) }]),
       { icon: '◆', ico: this.partIcon(first.part), label: `${t('Only')} ${this.partName(first.part)} ${keys[0]}`, rank: 9, run: () => this.select([keys[0]]) },
       ...(deep && new Set(keys.map((k) => this.placedAt(k).it.part)).size === 1 && this.hooks.openPart ? [{ icon: '◆', ico: this.partIcon(first.part), label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(first.part) }] : []), // (copies of one part)
+      ...(deep ? [] : [{ icon: '⚠', group: 'part', label: t(ids.every((id) => this.inst(id)?.noClash) ? 'Check their collisions again' : 'No collision check for them'), rank: 12,
+        title: t('Left out of the collision check (e.g. parts that touch by design) — or checked again'), run: () => this.toggleNoClash(ids) }]),
       ...displayItems(this, deep ? [] : ids), // (👁 all of them hidden, see-through, isolated … — the placed parts: a part inside a sub-assembly is shown with it)
       ...lockItems(keysParts(this.selKeys())), // (🔒 the AI may add joints to them, not change them)
     ].map((x) => (x.sub ? x : { ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Ctrl+click adds or takes out a part'), refs);
@@ -1047,6 +1049,8 @@ export class Assembly {
         title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', group: 'part', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', group: 'part', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
+      { icon: '⚠', group: 'part', label: t(a.noClash ? 'Check its collisions again' : 'No collision check for it'), rank: 12,
+        title: t('Left out of the collision check (e.g. parts that touch by design) — or checked again'), run: () => this.toggleNoClash([a.id]) },
       ...displayItems(this, [a.id]), // (👁 Hide / show…: always in sight, its choices in a list beside it)
     ]);
   }
@@ -1137,6 +1141,8 @@ export class Assembly {
     items.push({ icon: '＋', label: t('Insert a part…'), rank: 2, title: t('A part of this project, from the library or from a file'), run: () => { this.$('.as-insert')?.classList.add('open'); } });
     if (n > 1) items.push({ icon: '💥', label: t(this.explode > 0 ? 'Put it back together' : 'Explode'), rank: 3, title: t('Pull the parts apart to see them (the placement does not change)'), run: () => this.setExplode(this.explode > 0 ? 0 : 0.6) });
     items.push({ icon: '✂', label: t(this.section ? 'Section off' : 'Section'), rank: 4, title: t('Look inside: cut the view along X, Y or Z'), run: () => this.toggleSection() });
+    if (n > 1) items.push({ icon: '⚠', label: t(this.doc.clashOff ? 'Turn the collision check on' : 'Turn the collision check off'), rank: 11,
+      title: t(this.doc.clashOff ? 'Collisions checked again after every change' : 'No automatic collision check (a big STEP assembly whose parts touch by design) — ⚠ Check still asks once'), run: () => this.toggleClashOff() });
     if (n > 1 && !clash) items.push({ icon: '⚠', label: t('Check for collisions'), rank: 5, title: t('Where parts overlap — the list, each one shown in the view'), run: () => this.toggleClashes() });
     items.push({ icon: '📏', label: t('Measure distances'), rank: 6, title: t('Click a spot, then another one — the distance'), run: () => this.toggleMeasure() });
     items.push({ icon: '📋', label: t('Bill of materials'), rank: 7, title: t('Every part with its quantity, material and mass'), run: () => this.openBom() });
@@ -1983,6 +1989,7 @@ export class Assembly {
   /** The ⚠ button's text: what the last check found. */
   clashLabel() {
     const n = this.clashes?.length;
+    if (this.doc.clashOff) return t('⚠ Collisions off');
     return this.doc.instances.length < 2 || !this.clashes ? '⚠ Collisions' : n ? `⚠ ${n} collision(s)` : '✓ No collisions';
   }
 
@@ -1999,8 +2006,24 @@ export class Assembly {
   /** Checked again a moment after a change (the ⚠ button counts them, the list when it is open). */
   scheduleClashes(ms = 700) {
     clearTimeout(this.clashTimer);
-    if (this.doc.instances.length < 2) { this.clashes = null; this.updateClashButton(); return; }
+    if (this.doc.instances.length < 2 || this.doc.clashOff) { this.clashes = null; this.updateClashButton(); return; } // (⚠ off for the assembly: only when asked)
     this.clashTimer = setTimeout(() => this.checkClashes(true), ms);
+  }
+
+  /** ⚠ The collision check for these placed parts / sub-assemblies off (a STEP's parts that touch by design) — or on. */
+  toggleNoClash(ids) {
+    const its = ids.map((id) => this.inst(id)).filter(Boolean), off = !its.every((it) => it.noClash);
+    for (const it of its) { if (off) it.noClash = true; else delete it.noClash; }
+    this.commit();
+    this.scheduleClashes(0);
+  }
+
+  /** ⚠ The whole assembly's automatic collision check off (a big STEP assembly) — or on; ⚠ Check asks once anyway. */
+  toggleClashOff() {
+    if (this.doc.clashOff) delete this.doc.clashOff; else this.doc.clashOff = true;
+    this.commit();
+    this.scheduleClashes(0);
+    this.updateClashButton();
   }
 
   toggleClashes() {
@@ -2013,10 +2036,11 @@ export class Assembly {
   }
 
   /** Every placed part (inside sub-assemblies too) for the kernel: [{id ('I3' or 'I3/I1'), part: {features}, matrix}]. */
-  flatParts() {
+  flatParts({ clash = false } = {}) { // (clash: the parts the collision check takes — ⚠ off on a part / sub-assembly: left out)
     const flat = [];
     const expand = (list, parent, pre) => {
       for (const it of list) {
+        if (clash && it.noClash) continue;
         const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
         if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M, id);
         else flat.push({ id, part: { features: this.bodies[it.part]?.features || stepsAtBar(this.hooks.partData(it.part)), threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
@@ -2035,7 +2059,7 @@ export class Assembly {
     if (this.clashPanel) this.renderProps(); // (in the background: the panel on screen stays as it is)
     const card = quick ? null : busy(t2('Checking collisions: {n} parts…', { n: this.doc.instances.length }), { delay: 500 }); // (asked for: said)
     try {
-      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts(), quick, rid }) });
+      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts({ clash: true }), quick, rid }) });
       const r = await res.json();
       if (run !== this.clashRun) return; // a newer check is on its way
       if (this.clashRid === rid) this.clashRid = null;
