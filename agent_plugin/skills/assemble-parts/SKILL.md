@@ -34,8 +34,11 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    the two flat faces touch, centred on each other. Face names are the part's own: `F2:end` is the top of the
    first extrude, `F2:start` its bottom; `find_refs` in the part (open_part it) tells the rest. A wrong name
    answers with the list of faces. `type` picks the joint: `touch` (default), `gap` (with `gap` mm), `flush`, `axis`
-   (concentric round faces — a pin / screw / shaft in a hole; with `gap` the distance along the axis between their
-   facing ends, e.g. two plates with holes 30 mm apart; `lock_rotation: true` keeps the turn), `axis_distance` (two round
+   (concentric round faces — a pin / screw / shaft in a hole; only that — it still slides and turns. One joint = one
+   constraint: `gap` adds the distance along the axis between their facing ends as a joint of its own (`axial` ↕, e.g.
+   two plates with holes 30 mm apart: gap 30), `lock_rotation: true` adds a `spin` ↻ joint keeping the turn; the user
+   adds them with +↕ / +↻ on the joint's row; one per motion — never a second distance / turn on the same parts, change
+   the one there with `edit_joint`), `axis_distance` (two round
    faces — pins, probes, holes, cones — with their axes parallel, `distance` mm apart, e.g. two test probes 20 mm apart;
    without `distance`: as far apart as they are now; its swing round the other axis is kept unless `lock_rotation:
    false`; a round face and a flat face: the axis along the face, `distance` mm from it; the same height: add a `flush`

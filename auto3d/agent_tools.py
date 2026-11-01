@@ -473,7 +473,7 @@ TOOLS = [
     {"name": "snap_faces", "where": "browser",
      "description": "Join a placed part to another one with a joint that holds: move = {part: <placed id I…>, face: <face name>}, "
                     "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
-                    "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
+                    "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole — only that: it still slides along the axis and turns. One joint = one constraint: gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30 — is added as a joint of its own (type axial, ↕), lock_rotation: true as another one (type spin, ↻, its turn kept where it is); get_assembly lists them as their own joints), "
                     "\"axis_distance\" (two round faces — cylinders, cones, holes — with their axes parallel, distance mm apart: two probes "
                     "side by side; without distance: as far apart as they are now; it still turns about its own axis and slides along it, "
                     "its swing round the other axis is kept as it stands unless lock_rotation: false; a round face and a flat face: the axis "
@@ -491,7 +491,7 @@ TOOLS = [
                     "an error when no such turn makes it hold (the part is left as it was). If onto's part already hangs on move's part, onto's part moves instead (the child). Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). "
                     "A part inside a placed sub-assembly: part = its nested key (\"I3/I1/I2\", get_assembly `parts_inside`), face = its name in that part — "
                     "both parts inside one sub-assembly: the joint is stored in that sub-assembly (the deepest one both are in; its parts move inside it, every copy of it follows); "
-                    "else it is this assembly's and moves the whole sub-assembly. name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face). "
+                    "else it is this assembly's and moves the whole sub-assembly. name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face: a spin joint of its own). Only one joint of a kind per motion: a second distance / turn on a motion its other joints hold already would fight — change the one there (edit_joint). "
                     "Couplings between two parts that each turn (or slide) on their own joints: \"gear\" (two round faces — the gears' pitch circles — on parallel axes: they turn opposite ways, a ring gear round the other the same way), \"belt\" (two pulleys / sprockets: the same way), "
                     "\"rack\" (move = the pinion's round face, onto = the rack's flat face along its axis: the rack slides π·Ø per turn); value = the ratio (gear / belt: turns of move's part per one turn of onto's, default Ø onto / Ø move; rack: mm per turn, default π·Ø). "
                     "Turning one (move_free, drive_mechanism) turns the other; the coupled parts are one mechanism. get_assembly lists them as `couplings` (ids G…; edit_joint {id, ratio, flip} / remove_joint).",
@@ -847,8 +847,9 @@ TOOLS = [
                           "bom_style": {"type": ["string", "null"], "enum": ["A", "B", "C", "D", "E", "modern", None]}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
-                    "the axis for a concentric joint, null = it slides freely; mm between the axes for an axis_distance joint), lock_rotation (true / false), angle (degrees: the "
-                    "turn about the joint, or for an angle joint the angle), flip (true: the other way round), locked (true: "
+                    "the axis for a concentric joint: sets its own axial joint — added if none —, null = that joint removed, it slides freely; on an axial joint its distance; mm between the axes for an axis_distance joint), "
+                    "lock_rotation (true: a spin joint of its own keeps its turn where it is; false: that joint removed), angle (degrees: the "
+                    "turn of a spin joint — on a concentric / flat joint its spin joint, added if none —, or for an angle joint the angle), flip (true: the other way round), locked (true: "
                     "moving by hand cannot break it), name (the user's own name of the joint, e.g. \"bearing on the shaft\"; "
                     "empty: none). A coupling (id G…: gear / belt / rack): ratio (its number), flip (true: the other way round), name.",
      "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
