@@ -488,6 +488,7 @@ export class Assembly {
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
     this.view.edgeSource = (mesh, fid) => this.edgesFor(mesh, fid); // (a 🪶 simplified part's edges: asked for when hovered)
+    this.view.keepClear = () => [...this.els.viewport.querySelectorAll(':scope > .view-suggest:not(.vs-closed), :scope > .m-cmdbar')].map((b) => b.getBoundingClientRect()); // (a fit leaves the floating Suggested table's corner free: the chosen part not under it; nor under the command bar)
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
     this.harnessTool = new HarnessTool(this); // (🔌 cable harnesses: its press on a point comes before the part's drag)
     this.ms = new MeasureTool({ ws: 'assembly', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.doc.measures ||= []) : this.doc.measures),

@@ -26,6 +26,14 @@ Date: 2026-10-25. Written by the architect agent.
   between them (rank 6); one face -> 📏 Measure from here now picks the face (before: only 📏 on). modeler.js
   `measureEnt(q)` / `measureNow`: two picks' 📏 Distance (between the clicked spots, as its label) and ↕ Gap (the
   two faces) add their row instead of a toast. tools/e2e_direct_suggest.py (16 checks).
+- **A fit leaves the Suggested table's corner free (2026-11-01)** (regression: the crank of e2e_assembly_mechanism /
+  e2e_demos could not be dragged — since 1b9bdc3 the grouped Suggested table is taller and covered the chosen crank
+  after a fit, so the press went to a table row). modeler/view.js `frameClear(box)`, at the end of `setView` and `fit`:
+  `keepClear()` (a hook, the assembly's: the floating `.view-suggest` and the `.m-cmdbar`) gives the client rects over
+  the view; a rect across the top (≥ 60 % wide, in its top 10 %) only trims the free area, the others are one obstacle.
+  When it covers the parts' projected box, they are framed in the largest free area beside / above / below it (the
+  smallest move back that fits them at 95 %, at most 2× as far, else as before), camera and target shifted sideways so
+  their middle is that area's middle. Not in `snapshot` (the AI's picture has no table: `shooting`).
 - **📏 A colour per measurement kind (2026-10-31)** (the owner: "distance, angles and area should have different
   colours"; "X, Y, Z deltas a slightly different colour each"). styles.css: `--m-dist` #f0a04b (orange: distances,
   ⊥ ⫽, clearance), `--m-size` #f2cc60 (the old mark yellow: L, Ø, R), `--m-angle` #67d4e8 (cyan), `--m-area` #f47fbf
