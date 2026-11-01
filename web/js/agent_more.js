@@ -10,6 +10,7 @@ import { tolText } from './sheet/sheetsuggest.js';
 import { otherViews, moveDim } from './sheet/dimcandidates.js';
 import { propagates } from './sheet/tbedit.js';
 import { animState } from './assembly/anim.js';
+import { subJointsFor } from './assembly/joints.js';
 import { suggestTables, runSuggestion, setShowKind, showSnapFilters, showKinds } from './suggest.js';
 import { t } from './i18n.js';
 
@@ -836,17 +837,29 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         throw new Error(`Joint ${id} is locked 🔒 — edit_joint {id, locked: false} first (only when the user wants it).`);
       }
       if (gap !== undefined) { m.gap = +gap; if (m.type === 'touch' && +gap) m.type = 'gap'; }
+      const own = (kind) => subJointsFor(m.type).includes(kind); // (◎ / a flat joint: its distance along the axis, its turn — joints of their own)
       if (distance !== undefined) {
         if (m.type === 'axis_distance') { // ↔ between the axes: always a distance
           if (!(+distance >= 0) || distance === null) throw new Error('distance of an axis_distance joint is a number of mm, 0 or more.');
           m.dist = +distance;
+        } else if (m.type === 'axial') { // ↕ its own value
+          if (distance === null) throw new Error(`${id} is a distance along the axis — remove_joint ${id} lets the part slide again.`);
+          m.dist = +distance;
         } else {
-          if (m.type !== 'axis') throw new Error('distance is for a concentric (axis) or axis_distance joint; flat joints take gap.');
-          if (distance === null) { delete m.dist; delete m.side; } else { if (!m.side) m.side = 1; m.dist = +distance; }
+          if (m.type !== 'axis') throw new Error('distance is for a concentric (axis), axial or axis_distance joint; flat joints take gap.');
+          a.applyMates();
+          a.setSubValue(m, 'axial', distance === null ? null : +distance); // (its ↕ joint: added, set or removed)
         }
       }
-      if (lock_rotation !== undefined) { if (lock_rotation) m.angle = Math.round(a.spinNow(m)); else delete m.angle; }
-      if (angle !== undefined) { if (m.type === 'angle') m.value = Math.max(0, Math.min(180, +angle)); else m.angle = +angle; }
+      if (lock_rotation !== undefined) {
+        if (own('spin')) { a.applyMates(); a.setSubValue(m, 'spin', lock_rotation ? Math.round(a.spinNow(m)) : null); } // (its ↻ joint)
+        else if (m.type !== 'spin') { if (lock_rotation) m.angle = Math.round(a.spinNow(m)); else delete m.angle; }
+      }
+      if (angle !== undefined) {
+        if (m.type === 'angle') m.value = Math.max(0, Math.min(180, +angle));
+        else if (own('spin')) a.setSubValue(m, 'spin', +angle);
+        else m.angle = +angle;
+      }
       if (flip) a.flipJoint(m);
       if (locked !== undefined) m.locked = !!locked;
       if (name !== undefined) { if (String(name || '').trim()) m.name = String(name).trim(); else delete m.name; }

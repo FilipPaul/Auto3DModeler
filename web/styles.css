@@ -840,8 +840,23 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .as-jrow i { font-style: normal; color: var(--muted); font-size: 10.5px; }
 .as-jbtn { display: flex; gap: 3px; }
 .as-jvals { display: flex; align-items: center; gap: 4px; } /* (a joint's value and its ⇅: one cell, so 🔒 ✕ stay top right) */
-.as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) 52px auto auto; gap: 6px; align-items: center; color: var(--muted); }
-.as-jspin input[type=number] { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
+.as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: 12px minmax(0, 1fr) 52px 18px 74px; gap: 5px; align-items: center; color: var(--muted); }
+/* every motion's row the same: [icon] [slider] [number] [unit] [its 🔓 free / 🔒 locked] — the locks in one column */
+.as-jspin .as-ju { text-align: left; }
+.as-jdof { width: 100%; padding: 1px 4px; white-space: nowrap; text-align: left; }
+.as-jspin .as-jdof.on { border-color: #d29922; color: #f2cc60; } /* (the ↕ / ↻ locks: one look) */
+.as-jdof:disabled { cursor: default; opacity: .7; }
+.as-jspin.as-jgap.free input:not([type=range]) { font-style: italic; color: var(--muted); }
+.as-jprot { filter: grayscale(1); opacity: .6; }
+/* +↕ +↻ +◎ — a joint of its own between the same parts: small, quiet until hovered */
+.as-jadd { padding: 0 4px; font-size: 10.5px; border-style: dashed; background: transparent; opacity: .75; }
+.as-jadd:hover:not(:disabled) { opacity: 1; color: #3fb950; border-color: #3fb950; border-style: solid; }
+.as-jadd:disabled { opacity: .3; cursor: default; }
+.as-jrow.as-jnew { animation: as-jnew 2.4s ease-out; }
+@keyframes as-jnew { 0%, 30% { border-color: #3fb950; background: #3fb95026; } 100% { background: transparent; } } /* 🛡 the joint's own protection: grey until on */
+.as-jprot:hover { opacity: 1; }
+.as-jprot.on { filter: none; opacity: 1; border-color: #d29922; background: #d299221f; }
+.as-jspin input[type=number], .as-jspin input.px-in { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
 .as-jt { white-space: nowrap; color: var(--text); }
 .as-jw { color: var(--muted); min-width: 0; }
 /* a joint: its kind, value and buttons on top; what holds what on a full line under them; the turn slider last */
@@ -1345,8 +1360,6 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 .mc-cstop { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11.5px; color: var(--muted); }
 .mc-clashnote { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
   background: #2a1214ee; border: 1px solid #f85149; color: #ffd7d5; border-radius: 8px; padding: 4px 12px; font-size: 12.5px; }
-.as-jspin .as-jrot { margin-left: 4px; white-space: nowrap; }
-.as-jspin .as-jrot.on { border-color: #d29922; color: #f2cc60; }
 .m-cmdbar .as-exrespect { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .as-clash.on { border-color: #f85149; background: #f8514926; }
 .m-mode { font-weight: 700; color: #f2cc60; margin-right: 6px; }

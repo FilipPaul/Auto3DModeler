@@ -41,7 +41,7 @@ import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
 import { busy, busyCount, busyShown, busyStep, painted } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
-import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
+import { JOINT_TYPES, SUB_JOINTS, jointKind, subJointsFor, spinDir, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
 import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
 import { showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { showSuggest, placedRows } from './sggroups.js'; // (the Suggested table with its rows in categories)
@@ -2577,24 +2577,21 @@ export class Assembly {
         <span class="as-jbtn"><button class="mini" data-gpick="${gid}" title="${esc(t('Choose its parts'))}">◆</button><button class="mini danger" data-gdel="${gid}" title="${esc(t('Dissolve the group: its parts stay where they are, each free again'))}">✕</button></span></div>`;
     };
     return `<h3>Joints</h3>${bad ? `<p class="mp-count bad as-jbad">⚠ ${esc(t2('{n} joint(s) do not hold — see the red ones.', { n: bad }))}</p>` : ''}<datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${rigids.map(gRow).join('')}${groups.map(fRow).join('')}${js.map((m) => {
-      const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
-      const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
-        ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
-        : m.type === 'axis' ? `<label class="as-jv" title="Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.">↕ <input type="number" step="any" data-jdist="${m.id}" value="${Number.isFinite(m.dist) ? fmt(m.dist) : ''}" placeholder="free"> mm</label>
-          <button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`
-        : m.type === 'axis_distance' ? `<label class="as-jv" title="The distance between the two axes (or of the axis from the flat face), mm">↔ <input type="number" step="any" min="0" data-jdist="${m.id}" value="${fmt(+m.dist || 0)}"> mm</label>`
-        : ['perp', 'ball', 'seat', 'rigid'].includes(m.type) ? '<span></span>'
-        : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
-      const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m), gone = m.broken && this.goneFace(m);
-      const turns = !['parallel', 'ball', 'seat', 'rigid', 'axis_distance'].includes(m.type) || this.swings(m), rot = Number.isFinite(m.angle); // (a ball turns any way: its moves in the part's panel; ↔ two axes: its swing round the other one)
-      return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
+      const jk = jointKind(m.type), a = this.inst(m.move), b = this.inst(m.onto);
+      const flip = m.type === 'axis' || ['parallel', 'angle', 'tangent'].includes(m.type) ? `<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>` : '';
+      const val = m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''; // (gap / distance / turn: in their own rows under it)
+      const why = this.whyNot(m), gone = m.broken && this.goneFace(m), rot = Number.isFinite(m.angle);
+      const swing = m.type === 'axis_distance' && this.swings(m), spinRow = m.type === 'spin' || swing, spin = Math.round(rot ? m.angle : this.spinNow(m));
+      return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''} ${this.newJoint === m.id ? 'as-jnew' : ''}" data-jrow="${m.id}"><span class="as-jt">${jk.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || jk.name)}</span> <i>${m.id}</i></span>
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ` — ⚠ ${esc(gone ? t2('face {face} is gone', { face: gone.face }) : t2('a face is gone', {}))}${gone ? ` <button class="mini" data-jfix="${m.id}" title="${esc(t2('Click the face that takes its place — the joint holds again', {}))}">🔧 ${esc(t2('Fix the joint', {}))}</button>` : ''}` : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
-        <span class="as-jvals">${val}</span><span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
+        <span class="as-jvals">${this.addsHtml(m)}${val}${flip}</span><span class="as-jbtn"><button class="mini as-jprot ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Protected: moving the part by hand cannot break this joint, nor can its values be changed — click to unprotect. (🔒 / 🔓 in its rows: one motion each.)' : 'Protect the joint: then moving the part by hand cannot break it, nor can its values be changed. (🔒 / 🔓 in its rows: one motion each.)'}">🛡️</button><button class="mini danger" data-jdel="${m.id}" title="${this.subsOf(m).length ? 'Remove this joint, with its ↕ / ↻ on the same faces (the part stays where it is)' : 'Remove this joint (the part stays where it is)'}" ${m.locked ? 'disabled' : ''}>✕</button></span>
         ${m.slides?.length || (m.rot && m.type !== 'rigid') ? `<span class="as-jv as-jlocks" title="${lockTip}">🔒 ${esc(t2('{n} locked', { n: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) }))} <button class="mini" data-junlock="${m.id}" ${m.locked ? 'disabled' : ''}>✕</button></span>` : ''}
         ${this.gapSlider(m)}
-        ${turns ? `<label class="as-jspin" title="${m.type === 'axis_distance' ? (rot ? 'Where it stands round the other axis, kept — click 🔒 to let it swing round it' : 'Swing it round the other axis — it stays free to swing') : rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — it stays free to turn'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
-        <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°<button class="mini as-jrot ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button></label>` : ''}</div>`;
+        ${spinRow ? `<label class="as-jspin" title="${swing ? (rot ? 'Where it stands round the other axis, kept — click 🔒 to let it swing round it' : 'Swing it round the other axis — it stays free to swing') : 'The angle the part is turned at against the other part (°) — ✕ this joint lets it turn freely'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
+        <input type="number" step="any" data-jspinn="${m.id}" value="${spin}"><span class="as-ju">°</span>${swing
+          ? `<button class="mini as-jrot as-jdof ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button>`
+          : `<button class="mini as-jdof on" disabled title="The turn is kept by this joint — ✕ removes it and the part turns freely again">🔒 locked</button>`}</label>` : ''}</div>`;
     }).join('')}</div>`;
   }
 
@@ -2701,21 +2698,127 @@ export class Assembly {
         if (jointMiss(m, this.worldFace(m.move, m.face, M), this.worldFace(m.onto, m.ontoFace))?.ok) { by = o; break; }
       } catch { /* try the next one */ }
     }
-    const jt = (x) => `${t((JOINT_TYPES[x.type || 'touch'] || JOINT_TYPES.touch).name)}${x.name ? ` “${x.name}”` : ''}`;
+    const jt = (x) => `${t(jointKind(x.type).name)}${x.name ? ` “${x.name}”` : ''}`;
     const why = by ? t2('Not held — {off} off: {id} ({type}) holds {part} elsewhere. Change one of them, or ✕ one.', { off, id: by.id, type: jt(by), part: this.partName(it.part) })
       : t2('Not held — {off} off: these faces cannot be put like that (with its other joints).', { off });
     this.whyCache.set(m.id, why);
     return why;
   }
 
-  /** The slider of a joint's gap (flat faces) or distance along the axis (concentric; only when it is set): ±50 mm, wider
-   *  round a bigger value. */
+  /** The ↕ row of a joint's own distance: the gap of flat faces, the distance between axes, or along the axis (a ↕
+   *  joint): [icon] [slider ±50 mm, wider round a bigger value] [number] [mm] [its lock] — like the ↻ row. */
   gapSlider(m) {
-    const flat = !m.type || ['touch', 'gap', 'flush'].includes(m.type), axis = m.type === 'axis' && Number.isFinite(m.dist), apart = m.type === 'axis_distance';
-    if (!flat && !axis && !apart) return '';
+    const flat = !m.type || ['touch', 'gap', 'flush'].includes(m.type), axial = m.type === 'axial', apart = m.type === 'axis_distance';
+    if (!flat && !axial && !apart) return '';
     const v = flat ? +(m.gap || 0) : +m.dist || 0, span = Math.max(50, Math.ceil((Math.abs(v) * 2) / 10) * 10);
-    return `<label class="as-jspin as-jgap" title="${flat ? 'The gap between the two faces (mm) — 0: touching' : apart ? 'The distance between the axes (mm)' : 'The distance along the axis (mm)'}">${apart ? '↔' : '↕'} <input type="range" min="${apart ? 0 : -span}" max="${span}" step="0.5" data-jgaps="${m.id}" value="${v}">
-      <input type="number" step="any" data-jgapn="${m.id}" value="${+v.toFixed(3)}">mm</label>`;
+    const tip = flat ? (m.type === 'flush' ? 'The offset of the two faces (mm) — 0: in one plane' : 'The gap between the two faces (mm) — 0: touching')
+      : apart ? 'The distance between the axes (mm)' : 'Distance along the axis between the facing ends of the two round faces (mm) — e.g. two plates 30 mm apart';
+    const lock = axial ? 'The distance along the axis is kept by this joint — ✕ removes it and the part slides along the axis again'
+      : flat ? 'A gap is always kept — drag or type to change it (∥ Parallel lets the faces slide apart)' : 'The distance between the axes is always kept — drag or type to change it';
+    return `<label class="as-jspin as-jgap" title="${tip}">${apart ? '↔' : '↕'} <input type="range" min="${apart ? 0 : -span}" max="${span}" step="0.5" data-jgaps="${m.id}" value="${v}">
+      <input type="number" step="any" ${apart ? 'min="0"' : ''} data-jgapn="${m.id}" ${flat ? 'data-jgap' : 'data-jdist'}="${m.id}" value="${+v.toFixed(3)}"><span class="as-ju">mm</span><button class="mini as-jdof on" disabled title="${lock}">🔒 locked</button></label>`;
+  }
+
+  /** A concentric joint's distance along the axis as its parts stand now -> {dist, side}, or null (a face's length not
+   *  known, or not built yet). */
+  axialNow(m) {
+    try {
+      const g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace));
+      return g ? { side: g.side, dist: +g.dist.toFixed(4) || 0 } : null;
+    } catch { return null; }
+  }
+
+  /** A joint's own values kept by joints of their own (↕ along the axis, ↻ its turn) on the same faces. */
+  subsOf(m) {
+    if (SUB_JOINTS[m.type]) return [];
+    return (this.doc.mates || []).filter((x) => SUB_JOINTS[x.type] && x.move === m.move && x.face === m.face && x.onto === m.onto && x.ontoFace === m.ontoFace);
+  }
+
+  /** The joint of a kind (↕ axial, ↻ spin, ◎ axis) between the same two parts as m, either way round — one is enough
+   *  (two would fight) -> it or null. */
+  pairJoint(m, kind) {
+    return (this.doc.mates || []).find((x) => x !== m && (x.type || 'touch') === kind && ((x.move === m.move && x.onto === m.onto) || (x.move === m.onto && x.onto === m.move))) || null;
+  }
+
+  /** ↕ / ↻ A joint of its own for one of m's free values (SUB_JOINTS), on m's faces, at the value it has now (nothing
+   *  moves), right after m and its other ones (applied in that order). value: set it instead. -> the joint, or null
+   *  (there is one already between these parts, or the distance cannot be measured). */
+  addSubJoint(m, kind, value = null) {
+    if (!subJointsFor(m.type).includes(kind) || this.pairJoint(m, kind)) return null;
+    const n = Math.max(0, ...(this.doc.mates || []).map((x) => parseInt(String(x.id || '').slice(1), 10) || 0)) + 1;
+    const j = { id: `J${n}`, type: kind, move: m.move, face: m.face, onto: m.onto, ontoFace: m.ontoFace, gap: 0, ...(m.fr ? { fr: m.fr } : {}), ...(m.centred ? { centred: true } : {}) };
+    if (kind === 'axial') {
+      const g = this.axialNow(m);
+      if (!g) return null;
+      Object.assign(j, { side: g.side, dist: Number.isFinite(value) ? value : g.dist });
+    } else j.angle = Number.isFinite(value) ? value : +this.spinNow(m).toFixed(3);
+    const list = this.doc.mates, after = [m, ...this.subsOf(m)].reduce((k, x) => Math.max(k, list.indexOf(x)), -1);
+    list.splice(after + 1, 0, j);
+    return j;
+  }
+
+  /** A joint's ↕ / ↻ value kept by its own joint (the AI's distance / lock_rotation / angle): null -> that joint removed
+   *  (free again); a number -> set (the joint added when there is none). -> the joint or null. */
+  setSubValue(m, kind, value) {
+    const has = this.pairJoint(m, kind);
+    if (value === null) { if (has) this.doc.mates = this.doc.mates.filter((x) => x !== has); return null; }
+    const j = has || this.addSubJoint(m, kind);
+    if (!j) throw new Error(kind === 'axial' ? `${m.id}: the distance along the axis cannot be measured on these faces (a round face's length is not known).` : `${m.id}: its turn cannot be kept.`);
+    if (kind === 'axial') j.dist = +value; else j.angle = +value;
+    return j;
+  }
+
+  /** The small "add a joint" buttons of a joint's row: its free values (↕ along the axis, ↻ its turn) as joints of
+   *  their own, ◎ for a flat joint between parts with round faces — greyed with who holds it when one does. */
+  addsHtml(m) {
+    if (m.locked && !subJointsFor(m.type).length) return '';
+    const btn = (kind, icon, tip, on) => `<button class="mini as-jadd" data-jadd="${m.id}" data-kind="${kind}" title="${esc(tip)}" ${on ? '' : 'disabled'}>+${icon}</button>`;
+    const out = subJointsFor(m.type).map((k) => {
+      const has = this.pairJoint(m, k), name = t(SUB_JOINTS[k].name);
+      if (has) return btn(k, SUB_JOINTS[k].icon, t2('{what}: kept by {id} already', { what: name, id: has.id }), false);
+      if (k === 'axial' && !this.axialNow(m)) return btn(k, '↕', t('A distance along the axis cannot be measured here (the length of a round face is not known)'), false);
+      if (!this.subFree(m, k)) return btn(k, SUB_JOINTS[k].icon, k === 'axial' ? t('It does not slide along the axis — its other joints hold it there already') : t('It does not turn here — its other joints hold its turn already'), false);
+      if (k === 'axial') return btn(k, '↕', t('Add a distance along the axis — at the distance it has now; then it no longer slides'), true);
+      return btn(k, '↻', t('Add a rotation — its turn kept where it is now; then it no longer turns'), true);
+    });
+    if (['touch', 'gap', 'flush'].includes(m.type || 'touch')) {
+      const round = (id) => (this.bodyOf(this.inst(id))?.body?.faces || []).some((f) => f.type === 'cylinder');
+      const has = this.pairJoint(m, 'axis');
+      if (round(m.move) && round(m.onto)) out.push(has ? btn('axis', '◎', t2('{what}: kept by {id} already', { what: t('Concentric'), id: has.id }), false) : btn('axis', '◎', t('Add Concentric: click a round face of each part (a pin and its hole)'), true));
+    }
+    return out.join('');
+  }
+
+  /** Is the motion a ↕ / ↻ joint of m would hold still free (its other joints let the part slide along the axis / turn)?
+   *  A second joint on a motion held already would only fight. */
+  subFree(m, kind) {
+    const it = this.inst(m.move), b = this.bodyOf(it)?.body;
+    if (!b) return false;
+    try {
+      const fA = this.worldFace(m.onto, m.ontoFace), fB = this.worldFace(m.move, m.face), dir = kind === 'axial' ? fA.axis?.d?.clone() : spinDir(fA);
+      if (!dir) return false;
+      const mo = kind === 'axial' ? { kind: 'move', dir } : { kind: 'turn', dir, point: (fA.axis ? fA.axis.o : fB.centroid).clone() };
+      const M = new THREE.Matrix4().fromArray(it.matrix), bb = b.bbox;
+      const c = new THREE.Vector3((bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2).applyMatrix4(M), L = Math.max(1, Math.hypot(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]));
+      return freeMotions(M, (MM) => this.holdPart(m.move, MM, true), c, L, [mo]).motions.length > 0;
+    } catch { return false; }
+  }
+
+  /** ↕ / ↻ / ◎ from a joint's row: the joint added at once (◎: its faces picked), the new row lit. */
+  addFromRow(m, kind) {
+    if (kind === 'axis') { // ◎ its round faces are picked: the tool started with the moving part chosen
+      this.sel = m.move;
+      this.startJoint('axis');
+      return;
+    }
+    const j = this.addSubJoint(m, kind);
+    if (!j) return;
+    this.applyMates();
+    this.newJoint = j.id;
+    clearTimeout(this._newT);
+    this._newT = setTimeout(() => { this.newJoint = null; document.querySelector(`[data-jrow="${j.id}"]`)?.classList.remove('as-jnew'); }, 2500);
+    this.hooks.toast(t2('{id} {type} added at {value} — change it in its row; ✕ frees it again.', { id: j.id, type: t(SUB_JOINTS[kind].name), value: kind === 'axial' ? `${fmt(+j.dist.toFixed(2))} mm` : `${fmt(Math.round(j.angle))}°` }), 'ok', 4000);
+    this.commit();
   }
 
   /** A Flush made on a part that is held already (by other joints, a loop) with the faces parallel: its offset as the
@@ -2737,9 +2840,12 @@ export class Assembly {
       this.applyMates();
       const g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace));
       if (!g) return;
-      m.side = g.side;
-      m.dist = Math.max(0, Math.round(g.dist * 2) / 2);
-    } catch { /* faces not built: it stays free */ }
+      if (g.dist >= 0) return; // (apart already: as it is)
+      Object.assign(m, { side: g.side, dist: 0 }); // (once: touching, then free to slide again)
+      this.applyMates();
+      delete m.dist;
+      delete m.side;
+    } catch { /* faces not built: as it is */ }
   }
 
   /** How far a joined part is turned about its joint now (degrees). */
@@ -2753,11 +2859,11 @@ export class Assembly {
 
   bindJointRows(box) {
     for (const row of box.querySelectorAll('.as-jrow.locked[data-jrow]')) { // locked 🔒: only unlocking changes it
-      const free = !row.querySelector('[data-jrot]')?.classList.contains('on'); // (a free turn can still be driven)
+      const jr = row.querySelector('[data-jrot]'), free = !!jr && !jr.classList.contains('on'); // (a free turn can still be driven)
       for (const el of row.querySelectorAll('input, button:not([data-jlock])')) {
         if (free && (el.matches('[data-jspin], [data-jspinn]'))) continue;
         el.disabled = true;
-        el.title = 'Locked 🔒 — unlock the joint to change it';
+        el.title = 'Protected 🛡 — click the joint\'s 🛡 to change it';
       }
     }
     for (const row of box.querySelectorAll('[data-frow]')) {
@@ -2802,11 +2908,8 @@ export class Assembly {
       el.addEventListener('change', () => {
         const m = this.doc.mates.find((x) => x.id === el.dataset.jdist), raw = String(el.value).trim(), v = parseFloat(raw.replace(',', '.'));
         if (!m) return;
-        if (m.type === 'axis_distance') { if (!Number.isFinite(v)) return; m.dist = Math.max(0, v); } // (↔ always a distance)
-        else if (!raw) { delete m.dist; delete m.side; } else if (Number.isFinite(v)) {
-          if (!m.side) { try { m.side = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace))?.side || 1; } catch { m.side = 1; } }
-          m.dist = v;
-        } else return;
+        if (!raw || !Number.isFinite(v)) return;
+        m.dist = m.type === 'axis_distance' ? Math.max(0, v) : v; // (↔ between axes: 0 or more; ↕ along the axis: either side)
         this.applyMates();
         this.commit();
       });
@@ -2837,6 +2940,9 @@ export class Assembly {
         this.commit();
       });
     }
+    for (const el of box.querySelectorAll('[data-jadd]')) { // +↕ +↻ +◎: a joint of its own between the same parts
+      el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jadd); if (m) this.addFromRow(m, el.dataset.kind); });
+    }
     for (const el of box.querySelectorAll('[data-jval]')) {
       el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => {
@@ -2859,12 +2965,10 @@ export class Assembly {
     }
     for (const sl of box.querySelectorAll('[data-jgaps]')) {
       const m = this.doc.mates.find((x) => x.id === sl.dataset.jgaps), num = box.querySelector(`[data-jgapn="${m.id}"]`);
-      const flat = m.type !== 'axis' && m.type !== 'axis_distance';
+      const flat = !m.type || ['touch', 'gap', 'flush'].includes(m.type); // (else its dist: ↔ between axes, ↕ along the axis)
       const set = (v, final) => {
         if (m.type === 'axis_distance') v = Math.max(0, v);
         if (flat) { m.gap = v; if ((m.type || 'touch') === 'touch' && v) m.type = 'gap'; } else m.dist = v;
-        const typed = box.querySelector(flat ? `[data-jgap="${m.id}"]` : `[data-jdist="${m.id}"]`);
-        if (typed) typed.value = +(+v).toFixed(3);
         this.applyMates();
         if (final) this.commit(); else this.draw();
       };
@@ -2874,9 +2978,8 @@ export class Assembly {
         num.value = v;
         set(v, false);
       });
-      sl.addEventListener('change', () => set(+num.value, true));
-      num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
-      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) set(v, true); });
+      sl.addEventListener('change', () => set(+sl.value, true));
+      // (typed: its data-jgap / data-jdist handlers above — also an expression of the parameters, and empty: free)
     }
     for (const sl of box.querySelectorAll('[data-jspin]')) {
       const m = this.doc.mates.find((x) => x.id === sl.dataset.jspin), num = box.querySelector(`[data-jspinn="${m.id}"]`);
@@ -2897,7 +3000,13 @@ export class Assembly {
       num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) set(v, true); });
     }
     for (const el of box.querySelectorAll('[data-jdel]')) {
-      el.addEventListener('click', () => { this.doc.mates = this.doc.mates.filter((x) => x.id !== el.dataset.jdel); this.hoverJoint = null; this.applyMates(); this.commit(); });
+      el.addEventListener('click', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.jdel), gone = new Set([m, ...(m ? this.subsOf(m) : [])]); // (its ↕ / ↻ on the same faces with it)
+        this.doc.mates = this.doc.mates.filter((x) => !gone.has(x));
+        this.hoverJoint = null;
+        this.applyMates();
+        this.commit();
+      });
     }
   }
 
@@ -2932,9 +3041,10 @@ export class Assembly {
     if (this.mode === 'idle' && !this.painting && !this.measuring && showKinds().joints) { // (🔗 Show: Joints off in the bottom row: none)
       for (const m of this.shownJoints()) {
         if (displayOf(this, m.move) === 'hidden' || displayOf(this, m.onto) === 'hidden') continue; // (👁 a hidden part's joints: not shown)
+        if (SUB_JOINTS[m.type] && (this.doc.mates || []).some((x) => !SUB_JOINTS[x.type] && this.subsOf(x).includes(m))) continue; // (↕ ↻: on their joint's symbol)
         let a, b;
         try { a = this.worldFace(m.move, m.face).centroid; b = this.worldFace(m.onto, m.ontoFace).centroid; } catch { continue; }
-        const jt = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, el = document.createElement('div');
+        const jt = jointKind(m.type), el = document.createElement('div');
         const why = this.whyNot(m);
         el.className = `as-jtag${m.broken || why ? ' bad' : ''}${m.locked ? ' locked' : ''}`;
         el.textContent = why ? `⚠ ${jt.icon}` : jt.icon;
@@ -3418,12 +3528,14 @@ export class Assembly {
       if (this.inst(to.inst)?.fixed || hangsOn(from.inst, to.inst)) { this.hooks.toast(t('Not joined: neither part can move — one is fixed 📌 and the other hangs on it.'), 'warning', 5000); return false; }
       [from, to] = [to, from];
     }
-    const same = (this.doc.mates || []).find((m) => (m.move === from.inst && m.face === fromName && m.onto === to.inst && m.ontoFace === toName)
-      || (m.move === to.inst && m.face === toName && m.onto === from.inst && m.ontoFace === fromName));
+    const same = (this.doc.mates || []).find((m) => !SUB_JOINTS[m.type] && ((m.move === from.inst && m.face === fromName && m.onto === to.inst && m.ontoFace === toName)
+      || (m.move === to.inst && m.face === toName && m.onto === from.inst && m.ontoFace === fromName)));
     if (same) {
-      const was = t((JOINT_TYPES[same.type || 'touch'] || JOINT_TYPES.touch).name), now = t(JOINT_TYPES[type].name);
+      const was = t(jointKind(same.type).name), now = t(JOINT_TYPES[type].name);
       if (same.locked) { this.hooks.toast(t2('These two faces are joined already by {id} ({type}), locked 🔒 — unlock it to change it.', { id: same.id, type: was }), 'warning', 5000); return false; }
       for (const k of ['flip', 'value', 'dist', 'side', 'angle', 'rot', 'pos', 'slides']) delete same[k];
+      const keep = subJointsFor(type); // (its ↕ / ↻ that the new kind has no use for: gone with the old kind)
+      this.doc.mates = this.doc.mates.filter((x) => !(SUB_JOINTS[x.type] && !keep.includes(x.type) && x.move === same.move && x.face === same.face && x.onto === same.onto && x.ontoFace === same.ontoFace));
       Object.assign(same, { type, gap: +gap || 0 }, type === 'parallel' && facingAway(from, to) ? { flip: true } : {});
       this.hooks.toast(t2('These two faces were joined already ({id}, {was}) — that joint is now {type}, not a second one.', { id: same.id, was, type: now }), 'info', 5000);
       return same;
@@ -3447,7 +3559,7 @@ export class Assembly {
     for (const it of this.doc.instances) if (was.has(it.id)) it.matrix = was.get(it.id);
     this.applyMates();
     return t2('{type} not added: {part} can only turn as {id} ({held}) lets it — no such turn puts these faces like that ({off}° off). Pick other faces, or change {id}.',
-      { type: t(JOINT_TYPES[nj.type].name), part: this.partName(this.inst(nj.move)?.part), id: other.id, held: t((JOINT_TYPES[other.type || 'touch'] || JOINT_TYPES.touch).name), off: fmt(+off.toFixed(1)) });
+      { type: t(JOINT_TYPES[nj.type].name), part: this.partName(this.inst(nj.move)?.part), id: other.id, held: t(jointKind(other.type).name), off: fmt(+off.toFixed(1)) });
   }
 
   /** Kept for the first-version name of a snap. */
@@ -4285,17 +4397,21 @@ export class Assembly {
     };
     const m = mo.ref && (this.doc.mates || []).find((x) => x.id === mo.ref);
     if (m && !m.locked) { // its own joint first
-      if (mo.kind === 'turn' && /:(turn|spin)$/.test(mo.key) && !Number.isFinite(m.angle)) {
-        m.angle = +this.spinNow(m).toFixed(3); // (where it is: not rounded to a whole degree)
-        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: now(m.angle) }));
+      if (mo.kind === 'turn' && /:(turn|spin)$/.test(mo.key)) { // (where it is: not rounded to a whole degree)
+        let r = null;
+        if (subJointsFor(m.type).includes('spin')) { // ↻ a joint of its own
+          const j = this.addSubJoint(m, 'spin');
+          if (j) r = tried(t2('{id}: its turn locked at {deg}°', { id: j.id, deg: now(j.angle) }));
+        } else if (!Number.isFinite(m.angle)) { // (a kind with no ↻ joint: kept in it)
+          m.angle = +this.spinNow(m).toFixed(3);
+          r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: now(m.angle) }));
+        }
         if (r) return r;
       }
-      if (mo.kind === 'move' && /:along$/.test(mo.key) && m.type === 'axis' && !Number.isFinite(m.dist)) {
-        let g = null;
-        try { g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)); } catch { g = null; }
-        if (g) {
-          Object.assign(m, { side: g.side, dist: +g.dist.toFixed(4) });
-          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: now(m.dist) }));
+      if (mo.kind === 'move' && /:along$/.test(mo.key) && m.type === 'axis') {
+        const j = this.addSubJoint(m, 'axial');
+        if (j) {
+          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: j.id, mm: now(j.dist) }));
           if (r) return r;
         }
       }
@@ -5149,7 +5265,10 @@ export class Assembly {
       ...(() => { const v = displayed(this); return { ...(v.hidden.length ? { hidden: v.hidden } : {}), ...(v.clear.length ? { transparent: v.clear } : {}) }; })(), // (👁 display only)
       ...(this.doc.groups?.length ? { groups: this.doc.groups.map((g) => { const ps = this.groupParts(g.id); return { id: g.id, name: g.name, base: ps[0], parts: ps.slice(1) }; }) } : {}),
       joints: (this.doc.mates || []).filter((m) => !m.group).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
-        ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : m.type === 'axis_distance' ? { distance: +m.dist || 0, ...(m.side === -1 ? { side: -1 } : {}) } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true, ...(this.goneFace(m) ? { gone_face: this.goneFace(m).face } : {}) } : {}),
+        ...(m.type === 'axis' ? (() => { const x = this.pairJoint(m, 'axial'); return { distance: x ? x.dist : null, ...(x ? { distance_joint: x.id } : {}) }; })()
+          : m.type === 'axial' ? { distance: +m.dist || 0 } : m.type === 'spin' ? { angle: +(+m.angle || 0).toFixed(3) }
+          : m.type === 'axis_distance' ? { distance: +m.dist || 0, ...(m.side === -1 ? { side: -1 } : {}) } : { gap: m.gap || 0 }),
+        ...(m.type !== 'parallel' && !SUB_JOINTS[m.type] ? (() => { const x = subJointsFor(m.type).includes('spin') ? this.pairJoint(m, 'spin') : null; return { rotation_locked: !!x || Number.isFinite(m.angle), ...(x ? { rotation_joint: x.id } : {}) }; })() : {}), ...(m.broken ? { broken: true, ...(this.goneFace(m) ? { gone_face: this.goneFace(m).face } : {}) } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
@@ -5266,12 +5385,14 @@ export class Assembly {
           if (v !== undefined && v !== null) { if (!(+v >= 0)) throw new Error('distance is a number of mm, 0 or more.'); nj.dist = +v; }
           if (lock_rotation === false) delete nj.angle;
         }
-        if (type === 'axis' && Number.isFinite(+gap) && gap !== undefined && gap !== null) {
+        if (type === 'axis' && Number.isFinite(+gap) && gap !== undefined && gap !== null) { // (↕ a joint of its own)
           this.applyMates();
-          nj.side = axialGap(this.worldFace(nj.move, nj.face), this.worldFace(nj.onto, nj.ontoFace))?.side || 1;
-          nj.dist = +gap;
+          this.setSubValue(nj, 'axial', +gap);
         }
-        if (lock_rotation && type !== 'parallel' && !(type === 'axis_distance' && Number.isFinite(nj.angle))) { this.applyMates(); nj.angle = Math.round(this.spinNow(nj)); }
+        if (lock_rotation && type !== 'parallel' && !(type === 'axis_distance' && Number.isFinite(nj.angle))) {
+          this.applyMates();
+          if (subJointsFor(type).includes('spin')) this.setSubValue(nj, 'spin', Math.round(this.spinNow(nj))); else nj.angle = Math.round(this.spinNow(nj)); // (↻ a joint of its own)
+        }
         if (name) nj.name = String(name).trim();
         if (type === 'angle') nj.value = Number.isFinite(+value) ? +value : Math.round((from.face.normal.angleTo(to.face.normal) * 180) / Math.PI);
         this.applyMates();

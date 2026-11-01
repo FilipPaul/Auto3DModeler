@@ -13,6 +13,10 @@
 //   ball     — a ball's centre (a spherical face's) on another part's axis (a hole, a cone: it slides along it) or on
 //              another ball's centre (a ball joint: it only turns, three ways)
 //   seat     — a ball sitting in a seat: in a cone, or on the edge of a hole smaller than it — on the axis, touching it
+//   axial    — ↕ a distance along the axis of two round faces (`dist` mm between their facing ends, on the `side` it
+//              stood): one value of its own, added onto a ◎ Concentric of the same faces (SUB_JOINTS)
+//   spin     — ↻ a turn kept (`angle` degrees about the other face's axis, or its normal on a flat face): added onto a
+//              joint of the same faces that leaves that turn free (◎ Concentric, ⧉ Touch …)
 //   rigid    — 🔗 fixed together: the part goes with the other one as they were when joined (its `rot` and `pos`; the
 //              faces only anchor it: each part's biggest one)
 // Any joint may also hold motions its type leaves free, where they were when locked (lockMotion): `slides` — a move
@@ -44,6 +48,24 @@ export const JOINT_TYPES = {
   // not a joint of its own: a screw (+ nut / insert) or pin through the parts — the holes drilled for it, or ones there
   fastener: { icon: '🔩', name: 'Screw / pin', faces: 'any', hint: 'click where it goes in: a flat face (the holes are drilled for it, through the parts below) or a hole that is there', pick: true },
 };
+
+/** One joint = one constraint: what a ◎ Concentric or a flat joint leaves free (its slide along the axis, its turn)
+ *  is held by a joint of its own on the same faces — added from the joint's row (not from the 🔗 Joint menu). */
+export const SUB_JOINTS = {
+  axial: { icon: '↕', name: 'Distance along the axis', faces: 'cylinder', hint: 'the distance along the axis between the facing ends of two round faces on one axis' },
+  spin: { icon: '↻', name: 'Rotation', faces: 'any', hint: 'the turn of the part kept at an angle (about the axis, or on the face)' },
+};
+
+/** A joint type's look and words: a joint of the menu or one of a joint's own values (SUB_JOINTS). */
+export const jointKind = (type) => JOINT_TYPES[type || 'touch'] || SUB_JOINTS[type] || JOINT_TYPES.touch;
+
+/** The joint types a joint's own value is kept by — which it may get from its row: ◎ -> ↕ ↻; a flat face on a face -> ↻. */
+export function subJointsFor(type) {
+  const t = type || 'touch';
+  if (t === 'axis') return ['axial', 'spin'];
+  if (['touch', 'gap', 'flush', 'perp', 'angle'].includes(t)) return ['spin'];
+  return [];
+}
 
 const V = (a) => (a instanceof THREE.Vector3 ? a.clone() : new THREE.Vector3(...a));
 
@@ -184,6 +206,20 @@ export function axialGap(fB, fA) {
   return { side, dist: side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1] };
 }
 
+/** ↕ A distance-along-the-axis joint's distance now (its side kept) -> mm, or null (a face's length not known). */
+function axialNow(j, fB, fA) {
+  if (!fA.axis || !fB.axis) return null;
+  const e = axialEnds(fB, fA);
+  if (!e) return null;
+  const side = j.side || (e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1);
+  return side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1];
+}
+
+/** ↻ The direction a turn is measured about: the other face's axis (a round face), else its normal. */
+export function spinDir(fA) {
+  return fA.axis ? V(fA.axis.d).normalize() : fA.normal ? V(fA.normal).normalize() : null;
+}
+
 /** How far a joint is from holding, its faces as they are placed (fB: the moving part's, fA: the other one's)
  *  -> {mm, deg, ok} (ok: it holds), or null when the faces are not of its kind. */
 export function jointMiss(j, fB, fA) {
@@ -192,6 +228,14 @@ export function jointMiss(j, fB, fA) {
   let mm = 0, deg = 0, dir = null;
   if (type === 'rigid') {
     // (only its locks)
+  } else if (type === 'axial') { // ↕ only its distance along the axis
+    const now = axialNow(j, fB, fA);
+    if (now === null) return null;
+    mm = Math.abs(now - (+j.dist || 0));
+  } else if (type === 'spin') { // ↻ only its turn
+    const dir = spinDir(fA);
+    if (!dir) return null;
+    deg = wrap(spinOf(fB, fA, dir) - (+j.angle || 0));
   } else if (type === 'ball' || type === 'seat') {
     const v = ballShift(type, fB, fA);
     if (!v) return null;
@@ -227,7 +271,7 @@ export function jointMiss(j, fB, fA) {
     if (type === 'touch' || type === 'gap' || type === 'flush') mm = Math.abs(V(fB.centroid).sub(V(fA.centroid)).dot(nA) - (+j.gap || 0));
     dir = nA;
   }
-  if (Number.isFinite(j.angle) && dir && deg < 0.1) deg = Math.max(deg, wrap(spinOf(fB, fA, dir) - j.angle)); // its turn locked
+  if (Number.isFinite(j.angle) && dir && deg < 0.1 && type !== 'spin') deg = Math.max(deg, wrap(spinOf(fB, fA, dir) - j.angle)); // its turn locked (an older file's)
   const [lm, ld] = lockMiss(j, fB, fA);
   mm = Math.max(mm, lm);
   deg = Math.max(deg, ld);
@@ -243,6 +287,13 @@ export function jointResidual(j, fB, fA, S = 50) {
   let dir = null;
   if (type === 'rigid') {
     // (only its locks)
+  } else if (type === 'axial') {
+    const now = axialNow(j, fB, fA);
+    if (now !== null) out.push(now - (+j.dist || 0));
+  } else if (type === 'spin') {
+    dir = spinDir(fA);
+    if (dir) { const w = ((((spinOf(fB, fA, dir) - (+j.angle || 0) + 180) % 360) + 360) % 360) - 180; out.push(((w * Math.PI) / 180) * S); }
+    dir = null;
   } else if (type === 'ball' || type === 'seat') {
     const v = ballShift(type, fB, fA);
     if (!v) return out;
@@ -385,6 +436,21 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
   let fB = faceAt(M);
   const type = j.type || 'touch';
   if (type === 'rigid') return { M, fixed: null }; // (its rot and pos hold it: holdLocks)
+  if (type === 'axial') { // ↕ along the other face's axis only, to its distance (what ◎ Concentric with `dist` did)
+    if (!fA.axis || !fB.axis) throw new Error('A distance along the axis joins two round faces.');
+    const dA = V(fA.axis.d).normalize(), e = axialEnds(fB, fA);
+    if (e) {
+      const side = j.side || (e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1), d = +j.dist || 0;
+      M = shift(M, dA.clone().multiplyScalar(side > 0 ? e.a[1] + d - e.b[0] : e.a[0] - d - e.b[1]));
+    }
+    return { M, fixed: null };
+  }
+  if (type === 'spin') { // ↻ turned about the other face's axis (on it), or on the face about its normal
+    const dir = spinDir(fA);
+    if (!dir) throw new Error('A rotation joins a round or a flat face.');
+    M = spinTo(M, faceAt, fA, fA.axis ? V(fA.axis.o) : V(fB.centroid), dir, +j.angle || 0);
+    return { M, fixed: null };
+  }
   if (type === 'ball' || type === 'seat') {
     const v = ballShift(type, fB, fA);
     if (!v) throw new Error('A ball joint joins a ball (a spherical face) and a hole, a cone or another ball.');

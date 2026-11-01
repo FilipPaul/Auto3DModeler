@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **One joint = one constraint: ↕ / ↻ as joints of their own (2026-11-01)** (the owner: a concentric joint with its own
+  free distance fights a distance joint added later — "joints strictly separated by type"; a gap has no rotation; adding
+  the relevant joint small and unobtrusive in the list). joints.js `SUB_JOINTS`: `axial` ↕ *Vzdálenost po ose* (the two
+  round faces of a ◎, `dist` + `side` between their facing ends — what ◎'s inline `dist` did) and `spin` ↻ *Natočení*
+  (`angle` about the other face's axis, or its normal on a flat face — what an inline `angle` did); placeJoint /
+  jointMiss / jointResidual for both (holdPart applies them after their joint, so sub-assembly order, loops and DOF
+  work unchanged); `jointKind`, `subJointsFor` (◎ -> ↕ ↻; touch / gap / flush / ⟂ / ∠ -> ↻). A ◎ has no distance and
+  no turn row of its own; a gap only its ↕ row. Each row's header has small dashed buttons +↕ +↻ (+◎ on a flat joint
+  between parts with round faces, starting the ◎ pick): one click adds that joint on the same faces at the value it
+  has now (nothing moves), right after its joint, its row lit; greyed with why when a joint of that kind is there
+  between those parts ("kept by J4 already") or the motion is held already by the part's other joints (`subFree`:
+  freeMotions on that one motion) — no duplicates fighting. ✕ on a joint takes its ↕ / ↻ with it. Every value row
+  `[icon] [slider] [number] [unit] [lock]` (grid 12px | 1fr | 52px | 18px | 74px, locks in one column); a value that
+  is always kept shows a greyed 🔒 locked; the ↔ axis distance's swing keeps its 🔓 / 🔒 toggle. The joint-level lock
+  is now 🛡 *Chráněno* (grey until on) so it is not mistaken for a motion's 🔒. 🔒 from Moves (lockMotion) adds a ↻ / ↕
+  joint; ◎ between two holes only pushes overlapping parts apart once (no distance kept). The AI: snap_faces axis gap /
+  lock_rotation and edit_joint distance / lock_rotation / angle make, set or remove the ↕ / ↻ joints (setSubValue);
+  get_assembly: ◎ `distance` / `distance_joint`, `rotation_locked` / `rotation_joint`, ↕ `distance`, ↻ `angle`. Old
+  files: inline `dist` / `angle` still honoured by the solver (not split); the demos with them (pumpička, robotické
+  rameno, otočné rameno s kabelem, portálový pojezd) were rewritten with separate joints (the same places — checked
+  split vs inline in the browser). tools/e2e_joint_rows.py (23 checks).
 - **📏 A colour per measurement kind (2026-10-31)** (the owner: "distance, angles and area should have different
   colours"; "X, Y, Z deltas a slightly different colour each"). styles.css: `--m-dist` #f0a04b (orange: distances,
   ⊥ ⫽, clearance), `--m-size` #f2cc60 (the old mark yellow: L, Ø, R), `--m-angle` #67d4e8 (cyan), `--m-area` #f47fbf

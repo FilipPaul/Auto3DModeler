@@ -224,6 +224,11 @@ Never report "works" without having run it; report failures with their output.
    in the sub-assembly's document, the axes on one line in both copies, the toast; Ctrl+Z; the AI's snap_faces with
    nested keys, get_assembly parts_inside; 🔒 locked: nothing joined, said; two copies' parts: the top's joint; the
    sub-assembly's panel: 🔓 / 🔒 and its joints counted).
+   `tools/e2e_joint_rows.py <url> <dir>` covers one joint = one constraint (a collar on a shaft: ↔ Gap + ◎ Concentric): ◎
+   has no ↕ / ↻ row, the gap only its ↕; +↻ / +◎ / +↕ in the headers (greyed with why: "kept by J2 already", "its other
+   joints hold it"); a collar on ◎ only: +↕ at the distance it has (nothing moves), its slider / typed value move it,
+   +↻ then ↻ 45; the ↕ / ↻ locks in one column; get_assembly distance_joint / rotation_joint; edit_joint distance (the
+   same ↕, then null: gone); ✕ ◎ takes its ↕ / ↻; snap_faces axis gap + lock_rotation -> three joints; Czech tooltips.
    `tools/e2e_sub_joint_parent.py <url> <dir>` covers a sub-assembly's own joints holding in its parent (a strut: rod +
    body 4 mm off-axis, placed on two pins; ◎ Concentric made from the parent -> the body on the rod's axis there and in
    its tab; the parent's joint of the body's eye on the 2nd pin: the loop through both levels closed, all held; 🧱 / ⚙;
