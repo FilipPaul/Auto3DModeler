@@ -683,7 +683,53 @@ export class ModelView {
     this.camera.position.copy(c).addScaledVector(dir, s * 1.6);
     this.controls.target.copy(c);
     this.controls.update();
+    this.frameClear(box);
     this.invalidate();
+  }
+
+  /** After a fit: when a panel floating over the view (keepClear() -> its client rects: the assembly's Suggested
+   *  table in its corner) hides some of `box`, it is framed in the larger part beside / above / below the panel
+   *  instead — a little farther, its middle there (the chosen part is not left under the table). A rect across the
+   *  view's top (its command bar) only keeps that part from going under it. */
+  frameClear(box) {
+    if (this.shooting) return;
+    const vr = this.renderer.domElement.getBoundingClientRect(), W = vr.width, H = vr.height;
+    const all = (this.keepClear?.() || []).filter((b) => b && b.width > 0 && b.height > 0);
+    const bar = (b) => b.width > 0.6 * W && b.top - vr.top < 0.1 * H, over = all.filter((b) => !bar(b));
+    if (!over.length || !W || !H || box.isEmpty()) return;
+    const top = Math.max(0, ...all.filter(bar).map((b) => b.bottom - vr.top));
+    this.camera.updateMatrixWorld();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; // (where it shows now, px from the view's corner)
+    for (let i = 0; i < 8; i++) {
+      const v = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(this.camera);
+      const x = ((v.x + 1) / 2) * W, y = ((1 - v.y) / 2) * H;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    const o = { l: Math.min(...over.map((b) => b.left)) - vr.left, t: Math.min(...over.map((b) => b.top)) - vr.top,
+      r: Math.max(...over.map((b) => b.right)) - vr.left, b: Math.max(...over.map((b) => b.bottom)) - vr.top };
+    if (o.r <= x0 || o.l >= x1 || o.b <= y0 || o.t >= y1) return; // (nothing under it)
+    const pad = 8, t0 = top && top + pad, ways = [[o.r + pad, t0, W, H], [0, t0, o.l - pad, H], [0, t0, W, o.t - pad], [0, Math.max(t0, o.b + pad), W, H]];
+    const d0 = this.camera.position.distanceTo(this.controls.target);
+    let best = null;
+    for (const [l, t, r, b] of ways) {
+      if (r - l < 80 || b - t < 80) continue;
+      const d = d0 * Math.max(1, (x1 - x0) / ((r - l) * 0.95), (y1 - y0) / ((b - t) * 0.95)); // (farther till it fits in there)
+      if (!best || d < best.d) best = { d, cx: (l + r) / 2, cy: (t + b) / 2 };
+    }
+    if (!best || best.d > 2 * d0) return; // (no room beside it: framed as usual)
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    this.camera.position.copy(this.controls.target).addScaledVector(dir, best.d);
+    this.controls.update();
+    this.camera.updateMatrixWorld();
+    // its middle (near the view's middle, nearer by d0 / d now) moved to that part's middle: camera and target
+    // sideways, k world units a px
+    const k = (2 * best.d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)) / H, f = d0 / best.d;
+    const dx = best.cx - W / 2 - ((x0 + x1) / 2 - W / 2) * f, dy = best.cy - H / 2 - ((y0 + y1) / 2 - H / 2) * f;
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const shift = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
+    this.camera.position.add(shift);
+    this.controls.target.add(shift);
+    this.controls.update();
   }
 
   /** All of it in the view, seen from where the camera looks now: the ball round its box inside the narrower of the
@@ -696,6 +742,7 @@ export class ModelView {
     this.camera.position.copy(c).addScaledVector(dir.normalize(), (s / 2 / Math.sin(half)) * 1.05);
     this.controls.target.copy(c);
     this.controls.update();
+    this.frameClear(box);
     this.invalidate();
   }
 
@@ -737,6 +784,7 @@ export class ModelView {
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
+    this.shooting = true; // (its fit: the picture's own, no table over it — frameClear)
     try {
       this.renderer.setSize(w, h, false);
       this.labels.setSize(w, h);
@@ -765,6 +813,7 @@ export class ModelView {
         this.camera.updateProjectionMatrix();
       }
       this.drawnSize = null; // (the next resize sets its size whatever it was)
+      this.shooting = false;
       if (fit) this.fit();
       this.labels.render(this.scene, this.camera);
       this.invalidate();
