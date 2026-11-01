@@ -272,6 +272,15 @@ export class MeasureTool {
     this.pick(ent);
   }
 
+  /** Two things picked already (a suggestion: 📏 Measure between them): measured at once — their row with its value
+   *  (two parts: the clearance, a moment later), the tool on for more. */
+  between(A, B) {
+    if (!this.on) this.start();
+    if (this.pend) this.endPend();
+    this.pick(A);
+    this.pick(B);
+  }
+
   /** What a right-click in the view does while the tool is on (actiondock.js: { word, run }): a first pick waiting —
    *  the measurement ends there (its own row stays: a face's area, an edge's length, a hole's Ø), the next click starts
    *  anew; nothing waiting — the tool closes (as Esc / ✕). Off: undefined (the view's usual right-click). */

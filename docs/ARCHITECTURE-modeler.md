@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📏 A measure suggestion measures at once (2026-11-01)** (the owner: "if I choose 'Změřit mezi nimi', the value
+  should be measured right away, not just the measure tool chosen — that applies to tools in general"). measure.js
+  `MeasureTool.between(A, B)` (on, a waiting pick dropped, A then B picked: the pair's row — two parts: the clearance
+  row, its value a moment later). assembly.js `measureFace(q)` (a picked face as measurePick makes it — measurePick's
+  face branch uses it), `measurePart(id)` (its mesh's middle the spot), `measureNow(A, B?)` (📏 on, then between / from):
+  two parts -> 📏 Measure between them (the clearance); two faces (all three two-face tables) -> a new 📏 Measure
+  between them (rank 6); one face -> 📏 Measure from here now picks the face (before: only 📏 on). modeler.js
+  `measureEnt(q)` / `measureNow`: two picks' 📏 Distance (between the clicked spots, as its label) and ↕ Gap (the
+  two faces) add their row instead of a toast. tools/e2e_direct_suggest.py (16 checks).
 - **📏 A colour per measurement kind (2026-10-31)** (the owner: "distance, angles and area should have different
   colours"; "X, Y, Z deltas a slightly different colour each"). styles.css: `--m-dist` #f0a04b (orange: distances,
   ⊥ ⫽, clearance), `--m-size` #f2cc60 (the old mark yellow: L, Ø, R), `--m-angle` #67d4e8 (cyan), `--m-area` #f47fbf
