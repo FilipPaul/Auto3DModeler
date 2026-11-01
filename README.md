@@ -302,7 +302,12 @@ its colour — in the table, on the label and the line in the view: a distance o
 cyan, an area pink; a distance's ΔX ΔY ΔZ in soft axis colours (X red, Y green, Z blue). One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
 rest muted; the mouse on a row lights its mark, a click offers copy / hide / delete; 👁 all marks, 📋 copy all (paste
 into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `measure` adds a row too; it can
-`list_measurements` / `clear_measurements`.
+`list_measurements` / `clear_measurements`. A suggestion with what to measure already chosen measures at once, no
+clicking it again: two parts chosen → *📏 Measure between them* — the clearance row is there; two faces picked
+(Ctrl+click) → the same row in their table — the gap or the angle; in the 3D model two spots picked → *📏 Distance*
+or *↕ Gap between the faces* adds its row; one face or a corner → *📏 Measure from here* — it is the first pick, the
+next click gives the distance; an edge picked in the 3D model → its *📏 Length* / *Ø* row adds that row (it
+was a toast). The tool stays on for more.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 

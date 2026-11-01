@@ -7,6 +7,25 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Suggestion rows audited: do it when the inputs are picked (2026-11-01)** (the owner's rule after 📏, "that
+  applies to tools in general"). Changed: the 3D model's edge 📏 Length / Ø row (edgeItems) adds its row to 📏
+  Measurements (measureEnt edge, the tool on, the edge the first pick) instead of a toast. Already doing it, kept:
+  ◜ Fillet / ◸ Chamfer this edge (the command opens with the edges chosen at 1 mm, previewed; Esc / Enter keep it),
+  a face's ◎ Hole here / ▢ Hollow out / ⇋ Mirror / ✂ Split / 🎨 Paint / 📏 Measure it (placed at the click), ⁂ Pattern
+  (made at once with 3 / 6, the box live), the assembly's two-face joint rows and a face's joint rows (the first face
+  set), 🔌 Route a cable from here (its first point), the sheet's ↔ Distance from it… (the first pick set). Left
+  as is, a real input missing: 🔗 Join them on two whole parts (which faces — the pin / rest rows above it do the
+  clear cases), 🔌 Route a cable between them (where on each part), 🔗 Join it to another part, ✥ Move… / ⟳ Rotate… /
+  ⤢ Scale… and ⇤⇥ Limits… (a value), the hole's 📏 Measure it: Ø (shows its result already). e2e_direct_suggest +3.
+- **📏 A measure suggestion measures at once (2026-11-01)** (the owner: "if I choose 'Změřit mezi nimi', the value
+  should be measured right away, not just the measure tool chosen — that applies to tools in general"). measure.js
+  `MeasureTool.between(A, B)` (on, a waiting pick dropped, A then B picked: the pair's row — two parts: the clearance
+  row, its value a moment later). assembly.js `measureFace(q)` (a picked face as measurePick makes it — measurePick's
+  face branch uses it), `measurePart(id)` (its mesh's middle the spot), `measureNow(A, B?)` (📏 on, then between / from):
+  two parts -> 📏 Measure between them (the clearance); two faces (all three two-face tables) -> a new 📏 Measure
+  between them (rank 6); one face -> 📏 Measure from here now picks the face (before: only 📏 on). modeler.js
+  `measureEnt(q)` / `measureNow`: two picks' 📏 Distance (between the clicked spots, as its label) and ↕ Gap (the
+  two faces) add their row instead of a toast. tools/e2e_direct_suggest.py (16 checks).
 - **📏 A colour per measurement kind (2026-10-31)** (the owner: "distance, angles and area should have different
   colours"; "X, Y, Z deltas a slightly different colour each"). styles.css: `--m-dist` #f0a04b (orange: distances,
   ⊥ ⫽, clearance), `--m-size` #f2cc60 (the old mark yellow: L, Ø, R), `--m-angle` #67d4e8 (cyan), `--m-area` #f47fbf
