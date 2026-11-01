@@ -488,6 +488,7 @@ export class Assembly {
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
     this.view.edgeSource = (mesh, fid) => this.edgesFor(mesh, fid); // (a 🪶 simplified part's edges: asked for when hovered)
+    this.view.keepClear = () => [...this.els.viewport.querySelectorAll(':scope > .view-suggest:not(.vs-closed), :scope > .m-cmdbar')].map((b) => b.getBoundingClientRect()); // (a fit leaves the floating Suggested table's corner free: the chosen part not under it; nor under the command bar)
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
     this.harnessTool = new HarnessTool(this); // (🔌 cable harnesses: its press on a point comes before the part's drag)
     this.ms = new MeasureTool({ ws: 'assembly', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.doc.measures ||= []) : this.doc.measures),
@@ -529,6 +530,8 @@ export class Assembly {
     const what = (q) => `${this.partName(this.inst(q.inst)?.part)} ${q.inst} · ${this.faceText(q.inst, q.face.name)}`;
     const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'sphere' ? ` (${t('ball')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'cone' ? ` (${t('cone')})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
     const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
+    const meas = fp.length === 2 ? [{ icon: '📏', label: t('Measure between them'), rank: 6, title: t('The distance or the angle between the two faces, measured now (📏 stays on for more)'),
+      run: () => { const [A, B] = fp.map((q) => this.measureFace(q)); done(); this.measureNow(A, B); } }] : [];
     const join = (type, a, b) => { // (as if the two faces had been clicked with that joint)
       this.jointType = type;
       this.mode = 'joint-to';
@@ -544,6 +547,7 @@ export class Assembly {
         ...(seats ? [{ icon: '◉', label: `${t('Seat the ball in it')} · ${d}`, rank: -2, title: t(JOINT_TYPES.seat.hint), run: () => join('seat', fp[0], fp[1]) }] : []),
         { icon: '●', label: `${t(socket ? 'Ball joint: centres together' : 'Ball centre on its axis')} · ${d}`, rank: seats ? -1 : -2,
           title: t(socket ? 'The two balls share one centre — it turns any way, it cannot slide' : 'The ball stays on the axis: it slides along it and turns any way'), run: () => join('ball', fp[0], fp[1]) },
+        ...meas,
       ], t("A joint between the two faces — the first one's part moves"), refs);
       return;
     }
@@ -556,6 +560,7 @@ export class Assembly {
         { icon: '◎', label: `${t(seat ? 'Concentric only' : 'Concentric')} · ${d}`, rank: 1, title: t(JOINT_TYPES.axis.hint), run: () => { this.joinRound(fp, false); done(); } },
         ...this.axisDistanceItem(fp, 2, join),
         ...cpl.filter((x) => x.rank >= 0),
+        ...meas,
       ], t("A joint between the two faces — the first one's part moves"), refs);
       return;
     }
@@ -581,7 +586,7 @@ export class Assembly {
         this.clickJoint(fp[1]);
         if (this.mode !== 'idle') this.cancelJoint();
         done();
-      } })), ...ax.map(({ rank, ...x }) => x), ...cpl.filter((x) => x.rank >= 0)], js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
+      } })), ...ax.map(({ rank, ...x }) => x), ...cpl.filter((x) => x.rank >= 0), ...meas], js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
       return;
     }
     const q = fp[0], js = fits(kindOf(q)), a = this.inst(q.inst);
@@ -596,7 +601,7 @@ export class Assembly {
         this.facePicks = [];
         this.drawMarks();
       } })),
-      { icon: '📏', label: t('Measure from here'), rank: 7, run: () => { done(); this.toggleMeasure(); } },
+      { icon: '📏', label: t('Measure from here'), rank: 7, title: t('This face is the first: click another spot — the distance'), run: () => { done(); this.measureNow(this.measureFace(q)); } },
       ...[this.harnessTool.fromHere(this.lastClick?.p?.inst === q.inst ? this.lastClick : null)].filter(Boolean),
       ...this.faceSketchItems(q, a),
       { section: `${this.partName(a.part)} ${a.id}` },
@@ -933,7 +938,7 @@ export class Assembly {
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
         ...(a.fixed && b.fixed ? [] : [{ icon: '🔗', label: t2('Fix {a} to {b}', { a: this.partName((a.fixed ? b : a).part), b: this.partName((a.fixed ? a : b).part) }), rank: 0.5,
           title: t('Fixed together, as they are now: it goes with the other part and has no motion of its own'), run: () => this.fixTogether(a.id, b.id) }]),
-        { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
+        { icon: '📏', label: t('Measure between them'), title: t('The clearance between the two parts, measured now (📏 stays on for more)'), run: () => this.measureNow(this.measurePart(a.id), this.measurePart(b.id)) },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
         { icon: '◆', ico: this.partIcon(a.part), label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
         ...displayItems(this, [a.id, b.id]), // (👁 both hidden, see-through, isolated …)
@@ -948,8 +953,7 @@ export class Assembly {
           title: t('Its round face chosen: the joints that fit it (concentric …)'), run: () => { this.snapPick = null; this.facePicks = [{ inst: a.id, face }]; this.choose(a.id); this.drawMarks(); } })),
         { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
           this.snapPick = null;
-          if (!this.measuring) this.toggleMeasure();
-          this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, inst: a.id });
+          this.measureNow({ kind: 'point', p: p.clone(), snap: sp.snap, inst: a.id });
         } },
         ...[this.harnessTool.fromHere({ inst: a.id, point: p }, 1)].filter(Boolean),
         { icon: '⧉', group: 'other', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
@@ -2211,10 +2215,29 @@ export class Assembly {
         hole: names.some((x) => x.includes(':hole')), tip: this.partName(this.inst(eh.inst)?.part) };
     }
     if (!mp?.face || !mp.inst) return null;
+    return this.measureFace({ inst: mp.inst, face: mp.face, point: mp.point });
+  }
+
+  /** 📏 A face ({inst, face, point?}: clicked, or picked before — facePicks) as the measure tool takes it -> null: gone. */
+  measureFace(q) {
     let face;
-    try { face = this.worldFace(mp.inst, mp.face.name); } catch { return null; }
-    const body = this.bodyOf(this.inst(mp.inst))?.body, i = body ? body.faces.findIndex((f) => f.id === mp.face.id) : -1;
-    return { kind: 'face', face, id: `${mp.inst}·F${(i >= 0 ? i : mp.face.id) + 1}`, inst: mp.inst, at: mp.point.clone(), hole: String(mp.face.name).includes(':hole'), tip: this.partName(this.inst(mp.inst)?.part) };
+    try { face = this.worldFace(q.inst, q.face.name); } catch { return null; }
+    const body = this.bodyOf(this.inst(q.inst))?.body, i = body ? body.faces.findIndex((f) => f.id === q.face.id) : -1;
+    return { kind: 'face', face, id: `${q.inst}·F${(i >= 0 ? i : q.face.id) + 1}`, inst: q.inst, at: (q.point || face.centroid).clone(), hole: String(q.face.name).includes(':hole'), tip: this.partName(this.inst(q.inst)?.part) };
+  }
+
+  /** 📏 A placed part as the measure tool takes it (mode 'parts'): its middle the spot. */
+  measurePart(id) {
+    const mesh = (this.view.meshes || []).find((m) => m.userData.inst === id);
+    return { kind: 'part', inst: id, id, at: mesh ? new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()) : new THREE.Vector3(), tip: this.partName(this.inst(id)?.part) };
+  }
+
+  /** 📏 What a suggestion picked already, measured at once (the owner: no clicking the same things again): two things
+   *  -> their row with its value; one -> the first of a measurement (the next click: the distance). The tool stays on. */
+  measureNow(A, B = null) {
+    if (!this.measuring) this.toggleMeasure();
+    if (!A) return;
+    if (B) this.ms.between(A, B); else this.ms.from(A);
   }
 
   clickMeasure(e) { this.ms.click(e); }

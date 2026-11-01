@@ -664,6 +664,12 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_measure_colours.py <url> <dir>` covers 📏 Measure's colours (five rows: distance, angle, area, length, Ø ->
    four different colours, icon = value, L = Ø; ΔX ΔY ΔZ three colours, not the muted tail; the view's labels and lines
    in their row's colour; screenshot measure_colours.png; no console errors). Exits 1.
+   `tools/e2e_direct_suggest.py <url> <dir>` covers suggestions that DO their action when their inputs are picked
+   already (Czech, rows clicked; a base and a plate 5 mm above it): two parts -> 📏 Změřit mezi nimi: the clearance
+   row 5 at once, 📏 on; two faces -> 📏 Změřit mezi nimi: the gap 5; one face -> 📏 Měřit odtud: its area row and the
+   pick waiting, one click on the plate: 10; a corner -> 📏 Měřit odtud waits; the 3D model: two spots -> 📏
+   Vzdálenost: its row 80, 📏 on; an edge -> 📏 Délka 80 mm: its L row, 📏 on, the edge waiting; no console errors).
+   Exits 1.
    `tools/e2e_origin_hover.py <url> <dir>` covers ⊕ the origin lit like a snap point, real mouse, Czech (a sketch's ⟋
    Line near 0, 0: the marker and "Počátek", the line starts at exactly [0, 0]; the 3D model, no tool on: "Počátek",
    its X arrow "Osa X", Rohy off: not caught; 📏 origin -> a corner 30.332 with "Počátek" in the row; a hole spot snaps

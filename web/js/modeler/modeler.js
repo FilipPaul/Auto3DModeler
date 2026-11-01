@@ -857,8 +857,7 @@ export class Modeler {
         run: () => { this.dropSuggest(); this.addPoint(sp); } }] : []),
       { icon: '📏', label: t('Measure from here'), run: () => {
         this.dropSuggest();
-        if (!this.measuring) this.toggleMeasure();
-        if (this.measuring) this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, name: sp.name || '' });
+        this.measureNow({ kind: 'point', p: p.clone(), snap: sp.snap, name: sp.name || '' });
       } },
       { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
     ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
@@ -994,7 +993,8 @@ export class Modeler {
       { icon: '◜', label: t(one ? 'Fillet this edge' : 'Fillet these edges'), rank: 0, title: t('Round it off — the radius in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('fillet', refs); } },
       { icon: '◸', label: t(one ? 'Chamfer this edge' : 'Chamfer these edges'), rank: 1, title: t('Bevel it — the size in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('chamfer', refs); } },
       { icon: '⇱', label: t('Take the edges into a sketch'), rank: 4.5, title: t('A sketch on their flat face with these edges as lines, arcs and circles held to the part'), run: () => { this.dropSuggest(); this.sketchFromEdges(refs); } },
-      ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size — 📏 Measure for more'), run: () => this.hooks.toast(sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, 'info', 3000) }] : []),
+      ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size as a row of 📏 Measurements — the next click: the distance from it'),
+        run: () => { const A = this.measureEnt({ kind: 'edge', ei: idx }); this.dropSuggest(); this.measureNow(A); } }] : []), // (measured at once: its row, the tool on)
     ];
   }
 
@@ -1438,10 +1438,10 @@ export class Modeler {
     if (ps.length === 2 && !edges.length) {
       const [a, b] = ps, d = a.point.distanceTo(b.point), fa = a.kind === 'face' && a.face.type === 'plane' && a.face.frame, fb = b.kind === 'face' && b.face.type === 'plane' && b.face.frame;
       const gap = fa && fb && Math.abs(Math.abs(dot(fa.n, fb.n)) - 1) < 1e-6 ? Math.abs(dot(fb.o.map((v, k) => v - fa.o[k]), fa.n)) : null;
-      const show = (text) => { this.view.setMeasure([a.point, b.point], text); this.hooks.toast(text, 'info', 3000); };
+      const spot = (q) => ({ kind: 'point', p: q.point.clone(), snap: q.snap || 'point' }), show = (A, B) => { this.dropSuggest(); this.measureNow(A, B); }; // (its row in 📏 Measurements, the tool on for more)
       items.push({ section: t('Between them') },
-        ...(gap !== null ? [{ icon: '↕', label: `${t('Gap between the faces')} ${fmt(gap)} mm`, title: t('The two flat faces are parallel'), run: () => show(`${fmt(gap)} mm`) }] : []),
-        { icon: '📏', label: `${t('Distance')} ${fmt(d)} mm`, title: `Δx ${fmt(Math.abs(b.point.x - a.point.x))} Δy ${fmt(Math.abs(b.point.y - a.point.y))} Δz ${fmt(Math.abs(b.point.z - a.point.z))}`, run: () => show(`${fmt(d)} mm`) });
+        ...(gap !== null ? [{ icon: '↕', label: `${t('Gap between the faces')} ${fmt(gap)} mm`, title: t('The two flat faces are parallel'), run: () => show(this.measureEnt(a), this.measureEnt(b)) }] : []),
+        { icon: '📏', label: `${t('Distance')} ${fmt(d)} mm`, title: `Δx ${fmt(Math.abs(b.point.x - a.point.x))} Δy ${fmt(Math.abs(b.point.y - a.point.y))} Δz ${fmt(Math.abs(b.point.z - a.point.z))}`, run: () => show(spot(a), spot(b)) }); // (between the spots clicked, as its label)
     }
     if (steps.length) {
       const allOff = steps.every((s) => s.suppressed), one = steps.length === 1;
@@ -4375,6 +4375,29 @@ export class Modeler {
   }
 
   clickMeasure(e) { if (this.result?.body) this.ms.click(e); }
+
+  /** 📏 A thing picked with no tool on (picks: a point, a face, an edge — {ei}) as the measure tool takes it -> null: gone. */
+  measureEnt(q) {
+    const b = this.result?.body;
+    if (!b) return null;
+    if (q.kind === 'point') return { kind: 'point', p: q.point.clone(), snap: q.snap || 'point', name: q.name || '' };
+    if (q.kind === 'edge') {
+      const ei = q.ei ?? this.refEdges([q.ref])[0], ed = b.edges[ei];
+      if (!ed) return null;
+      const names = ed.faces.map((k) => b.faces[k]?.name || ''), n = ed.pts.length / 3, k = 3 * Math.floor(n / 2);
+      return { kind: 'edge', pts: ed.pts, id: `E${ei + 1}`, at: q.point?.clone() || [ed.pts[k], ed.pts[k + 1], ed.pts[k + 2]], hole: names.some((x) => x.includes(':hole')), tip: names.filter(Boolean).map((x) => this.faceLabel(x)).join(' / ') };
+    }
+    const i = b.faces.findIndex((f) => f.id === q.face.id), f = b.faces[i] || q.face;
+    return { kind: 'face', face: f, faceId: f.id, id: `F${(i >= 0 ? i : f.id) + 1}`, at: q.point ? q.point.clone() : f.centroid, hole: String(f.name).includes(':hole'), tip: this.faceLabel(f.name) };
+  }
+
+  /** 📏 What a suggestion picked already, measured at once (no clicking the same things again): two things -> their
+   *  row with its value; one -> its own row (a length, a Ø, an area) and the first of a measurement. The tool stays on. */
+  measureNow(A, B = null) {
+    if (!this.measuring) this.toggleMeasure();
+    if (!this.measuring || !A) return;
+    if (B) this.ms.between(A, B); else this.ms.from(A);
+  }
 
   toggleSection() {
     if (this.section) { // (off also when the part has no solid now: rolled back, its solid step deleted, another model)

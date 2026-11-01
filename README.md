@@ -302,7 +302,12 @@ its colour — in the table, on the label and the line in the view: a distance o
 cyan, an area pink; a distance's ΔX ΔY ΔZ in soft axis colours (X red, Y green, Z blue). One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
 rest muted; the mouse on a row lights its mark, a click offers copy / hide / delete; 👁 all marks, 📋 copy all (paste
 into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `measure` adds a row too; it can
-`list_measurements` / `clear_measurements`.
+`list_measurements` / `clear_measurements`. A suggestion with what to measure already chosen measures at once, no
+clicking it again: two parts chosen → *📏 Measure between them* — the clearance row is there; two faces picked
+(Ctrl+click) → the same row in their table — the gap or the angle; in the 3D model two spots picked → *📏 Distance*
+or *↕ Gap between the faces* adds its row; one face or a corner → *📏 Measure from here* — it is the first pick, the
+next click gives the distance; an edge picked in the 3D model → its *📏 Length* / *Ø* row adds that row (it
+was a toast). The tool stays on for more.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 
@@ -1256,6 +1261,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   motion of its own (the rod, a coupler) is followed by the mechanism — the crank turns to where the spot you grabbed
   comes nearest the mouse. The driver's limits hold. A click without moving still chooses the part; one drag is one
   undo step. Elsewhere a drag turns the view as always.
+  Fitting the view (⌂, the view cube, Top / Front …) frames the parts beside or above the floating Suggested table
+  (and under the command bar) when they would be under it — the part you chose stays in sight and can be dragged.
 - **Name the motions**: a free motion is named by its part — *Turn: Crank*, *Slide: Slider* (*Otáčení: Klika*,
   *Posuv: Smýkadlo*; two of a kind say how: *Slide: Lid (along X)*; the joint it comes from is in its tooltip).
   Double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu vlastní název"*) for your
