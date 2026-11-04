@@ -237,7 +237,7 @@ export class PrintPanel {
       <div class="field"><label>Bed margin (mm)</label><input type="number" min="0" step="1" data-a="margin" value="${this.margin}"></div>
       <label class="check"><input type="checkbox" data-a="vol" ${this.showVolume ? 'checked' : ''}> Show build volume in 3D</label>
       </details>
-      ${plan && !plan.error && !this.pieces ? `<details class="pr-more" data-d="join" ${this.open.join ?? !plan.fits ? 'open' : ''}><summary title="How the pieces of a part split to fit the printer join again: the joint, its sizes, glue">${plan.fits ? 'Split it anyway — joints' : 'Joining split pieces'}</summary>
+      ${plan && !plan.error ? `<details class="pr-more" data-d="join" ${this.open.join ?? !plan.fits ? 'open' : ''}><summary title="How the pieces of a part split to fit the printer join again: the joint, its sizes, glue">${plan.fits ? 'Split it anyway — joints' : 'Joining split pieces'}</summary>
       <div class="field"><label>Joint</label><select data-a="joint">${this.joints.map((j) =>
         `<option value="${j.id}" ${j.id === this.joint.type ? 'selected' : ''}>${esc(j.name)}</option>`).join('')}</select></div>
       <p class="hint">${esc(JOINT_HELP[this.joint.type] || '')}</p>
