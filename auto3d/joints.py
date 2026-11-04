@@ -192,7 +192,7 @@ def apply_joints(solid, cells, seams, joint, mm, bend_zones=()):
     if kind == "hidden_dovetail":
         if u(p["skin"]) < wall or zb < 3 * wall:
             issues.append({"severity": "error", "message": f"Front skin {p['skin']} mm does not suit a {t * mm:.1f} mm "
-                           f"part: keep it ≥ {WALL_MM} mm and leave ≥ {3 * WALL_MM:.1f} mm below it for the dovetails."})
+                           f"part: use {WALL_MM} – {t * mm - 3 * WALL_MM:.1f} mm ({3 * WALL_MM:.1f} mm must stay below it for the dovetails)."})
             return regions, voids, parts, issues, notes, flips
         male = lambda key: (key[0] + key[1]) % 2 == 0
         lower = dict(cells)

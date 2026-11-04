@@ -2775,7 +2775,7 @@ const CS_PATTERNS = [
   ['the part would need {} slices — increase the slice height', 'díl by potřeboval {1} vrstev — zvětšete výšku vrstvy'],
   ['{} entities could not be read.', 'Nepodařilo se přečíst prvků: {1}.'],
   ['Unknown joint type \'{}\'.', 'Neznámý typ spoje \'{1}\'.'],
-  ['Front skin {} mm does not suit a {} mm part: keep it ≥ {} mm and leave ≥ {} mm below it for the dovetails.', 'Přední vrstva {1} mm se nehodí k dílu {2} mm: nechte ji ≥ {3} mm a pod ní ≥ {4} mm pro rybinové spoje.'],
+  ['Front skin {} mm does not suit a {} mm part: use {} – {} mm ({} mm must stay below it for the dovetails).', 'Přední vrstva {1} mm se nehodí k dílu {2} mm: použijte {3} – {4} mm (pod ní musí zůstat {5} mm pro rybinové spoje).'],
   ['No room for a dovetail on {} — it stays a butt joint.', 'Na {1} není místo pro rybinu — zůstane tupý spoj.'],
   ['No room for puzzle knobs on {} — it stays a butt joint.', 'Na {1} není místo pro puzzle výstupky — zůstane tupý spoj.'],
   ['Butterfly key depth {} mm is too deep for a {} mm part (leave ≥ {} mm).', 'Hloubka motýlkového klínu {1} mm je na díl {2} mm příliš velká (nechte ≥ {3} mm).'],
