@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The outline window docked or floating (2026-11-05)** (the owner: "the window could be embedded in the main program…
+  or a pop-up, but resizable"). outline.js: the window lies over the app's work area (`.layout`'s rect, `place()`, kept
+  on resize and when the chat opens), the top bar above it (`body.wz-open`: its menus and ✨ AI usable, toasts on top).
+  **Docked** (default) fills it; **⧉** floats it — floatbox.js (title moves it, edges / corners resize it, double-click
+  = usual place, kept inside the area); **▣** docks it again. `a3d.outlineWindow` (dock / float) and floatbox's
+  `a3d.box.outline-window` remember it. The picture fits the stage (its ResizeObserver), the side column
+  `clamp(230px, 30%, 300px)` scrolls with Cancel / Use sticky at its bottom. While it is open the quick part's ✨ AI
+  chat moves to the drawer beside it (placeChat); its keys leave fields alone (typing in the chat). The backdrop click
+  that closed it is gone (there is no backdrop). tools/e2e_outline_window.py (REAL drags).
+
 - **Cookie-cutter photos in the outline wizard (2026-11-05)** (the owner: a metal cutter on paper is found nowhere —
   the paper shows inside the shape as outside). outline.py `_thin_wall`: low-threshold Canny, gaps closed at three
   widths, the edge piece enclosing the most area filled, eroded back to the strip's outer edge and opened (a pen

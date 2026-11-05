@@ -274,7 +274,7 @@ const bends = new BendsPanel($('bendList'), {
   },
 });
 
-const wizard = new OutlineWizard({ api, toast });
+const wizard = new OutlineWizard({ api, toast, onShow: () => placeChat() }); // (its window open: the chat in the drawer beside it)
 const outlinePanel = new OutlinePanel($('rtab-outline'), {
   onChange: (renderParamsToo) => { scheduleRebuild(); if (renderParamsToo) renderParams(); },
   onSelect: (rings) => {
@@ -2126,7 +2126,7 @@ function setWorkspace(ws) {
 
 // the AI chat: a tab of the quick-part panel; in the 3D model and assembly workspaces the ✨ AI button opens it in a drawer
 function placeChat() {
-  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick' && !document.body.classList.contains('start-open'); // (the start screen: in the drawer)
+  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick' && !document.body.classList.contains('start-open') && !document.body.classList.contains('wz-open'); // (the start screen, the outline window: in the drawer)
   if (quick && el.parentElement === drawer) document.querySelector('.panel.left.quick-only').insertBefore(el, $('tab-drawing'));
   if (!quick && el.parentElement !== drawer) drawer.appendChild(el);
   drawer.hidden = quick || !state.chatOpen;
@@ -2148,7 +2148,7 @@ function showChat() {
   $('tab-ai').querySelector('textarea')?.focus();
 }
 $('aiBtn').addEventListener('click', () => {
-  if (state.workspace === 'quick' && !document.body.classList.contains('start-open')) showChat(); // (the quick part: the chat is its left panel's ✨ AI tab)
+  if ($('tab-ai').parentElement !== $('aiDrawer')) showChat(); // (the quick part: the chat is its left panel's ✨ AI tab)
   else toggleChat();
 });
 // ✨ in the Suggested table: what is selected goes into the chat (the AI's tools know these ids)

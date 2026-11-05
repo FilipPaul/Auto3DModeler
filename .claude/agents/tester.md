@@ -19,6 +19,8 @@ Never report "works" without having run it; report failures with their output.
    must be empty. `tools/e2e_outline_cutter.py <url> <abs path to tests/fixtures> <dir>` opens the four
    cookie-cutter photos (thin metal strip on paper, pen marks around): one thin-wall outline first on each, the
    Object switch (Auto / Solid object / Thin wall), ⟳ 90° and a part from the turned picture.
+   `tools/e2e_outline_window.py` (same arguments as e2e_outline) docks / floats the window, moves and resizes it by
+   REAL drags (the picture fits, the side panel scrolls, OK in sight), remembers the choice, the ✨ AI chat beside it.
    `tools/e2e_outline_project.py` (same arguments) checks the outline round trip: edit -> part,
    Drawing tab enlarge / zoom, reopening the editor from the part (edit + hints restored, scale kept), and
    Save project -> reload -> Open project. `tools/e2e_pick_layers.py` clicks on faces / corners in the 3D view

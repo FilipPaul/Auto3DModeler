@@ -276,6 +276,7 @@ const CS = {
   'A filled object that stands out from the background': 'Plný předmět, který se liší od pozadí', 'Thin wall': 'Tenká stěna',
   'A thin wall or a line drawing, e.g. a cookie cutter — the background shows inside it': 'Tenká stěna nebo kresba čarou, např. vykrajovátko — uvnitř je vidět pozadí',
   'thin wall': 'tenká stěna',
+  'Dock the window into the app': 'Ukotvit okno do aplikace', 'Float the window — move it by its title, resize it by its edges': 'Uvolnit okno — přesunete ho za titulek, velikost změníte tažením okrajů',
   'No outline found — give a hint (inside point, box, colours) or draw it with ✎ Edit outline.': 'Obrys nenalezen — dejte nápovědu (bod uvnitř, rámeček, barvy) nebo ho nakreslete přes ✎ Upravit obrys.',
   'No candidates.': 'Žádní kandidáti.', 'In use — your edit': 'Používaný — vaše úprava', 'Your edit': 'Vaše úprava', '● In use': '● Používaný', '(the part is made from it)': '(díl je z něj vyroben)',
   'Enter the real width / height in mm.': 'Zadejte skutečnou šířku / výšku v mm.', 'your edit — in use': 'vaše úprava — používaná', 'in use': 'používaný', 'your edit': 'vaše úprava',

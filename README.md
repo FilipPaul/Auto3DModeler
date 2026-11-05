@@ -1944,6 +1944,12 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
 4. **Real size** — width or height in mm (aspect kept; editable later in Dimensions like any dimension, with an
    optional aspect lock).
 
+**The window** opens **docked**: it fills the app's work area, the top bar (menus, ✨ AI) stays usable above it and
+the AI chat opens beside it. **⧉** (top right of the window) makes it a **floating** window: drag its title to move
+it, its edges or corner to resize it (double-click the title: its usual place); **▣** docks it again. The choice and
+the floating size are remembered. The picture fits the window as it changes; the side panel scrolls, with
+*Cancel* / *Use this outline* always in sight.
+
 **Back to the outline** — **✎ Edit outline** (3D view toolbar, Outline → 3D panel, Drawing tab or the enlarged
 drawing) reopens the editor on the outline the part is made from: it is listed first as **● In use** (or
 **✎ In use — your edit**, with the painted mask restored so you can keep editing), selected, with your detection

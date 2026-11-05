@@ -365,9 +365,19 @@ body.rw-empty { --rcol: 6px; }
 .add-layer.wrap { flex-wrap: wrap; }
 .wizard { position: fixed; inset: 0; background: #05070acc; z-index: 80; display: flex; align-items: center; justify-content: center; }
 .wz-box { width: min(1280px, 96vw); height: min(820px, 94vh); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 20px 60px #000c; }
+/* the outline window over the app's work area (outline.js place()): docked it fills it, floating it is a window moved by
+   its title and resized by its edges (floatbox.js) — the top bar (menus, ✨ AI) and the chat beside it stay usable */
+.wizard.docked, .wizard.floating { inset: auto; background: none; display: block; }
+.wizard.docked .wz-box { width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.wizard.floating { pointer-events: none; }
+.wizard.floating .wz-box { pointer-events: auto; position: absolute; left: 3%; top: 3%; width: min(1280px, 94%); height: 94%; }
+.wizard .wz-box.fb-sized { overflow: hidden; }
+.wz-head .wz-dock { margin-left: auto; }
+body.wz-open .topbar { position: relative; z-index: 85; }
+body.wz-open .toast-stack { z-index: 95; }
 .wz-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .wz-src { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wz-main { flex: 1; display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+.wz-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) clamp(230px, 30%, 300px); min-height: 0; }
 .wz-stage-wrap { display: flex; flex-direction: column; padding: 10px; gap: 8px; min-height: 0; min-width: 0; }
 .wz-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .wz-tl { color: var(--muted); font-size: 12px; }
@@ -393,6 +403,7 @@ body.rw-empty { --rcol: 6px; }
 .wz-range span { width: 30px; text-align: right; color: var(--muted); font-size: 12px; }
 .wz-detect { margin-top: 8px; align-self: flex-start; }
 .wz-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 14px; }
+.wz-side .wz-actions { position: sticky; bottom: -14px; margin-bottom: -14px; padding-bottom: 14px; background: var(--panel); } /* (a small window: OK / Cancel stay in sight) */
 .wz-preset button { font-size: 12px; }
 .wz-edit-tools { padding: 4px 6px; border: 1px solid #6e40c9; border-radius: 16px; background: #6e40c91a; }
 .wz-size { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }

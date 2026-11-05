@@ -2,13 +2,17 @@
 // (object / background colours, a click inside the object, 'not this' points, a box around the
 // object, what kind of object — solid or a thin wall like a cookie cutter), turn the picture,
 // combine candidates and edit the outline by hand (brush, eraser, lasso, polygon), then give its
-// real size.
+// real size. The window is docked in the app's work area or floats (moved and resized); the choice and
+// the floating place are remembered.
+import { floatBox } from './floatbox.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 const COLORS = ['#ff2d95', '#3fb950', '#58a6ff', '#f2cc60', '#a371f7', '#ff7b72', '#39d0d8', '#ffa657', '#e6e9ee', '#7ee787'];
 const EDIT_COLOR = '#ff2d95';
 const CURRENT_COLOR = '#ffffff'; // the outline the part is made from
 const MAX_UPLOAD = 1600;
 const fmt = (v) => (+(+v).toFixed(2)).toString();
+const WIN_KEY = 'a3d.outlineWindow'; // 'dock' | 'float'
 const HINTS = () => ({ count: 6, tolerance: 0, smoothing: 1, holes: false, mode: 'auto', object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null });
 
 const HINT_TOOLS = {
@@ -57,9 +61,11 @@ export async function imageToDataURL(file) {
 }
 
 export class OutlineWizard {
-  constructor({ api, toast }) {
+  /** hooks: onShow(open) — the window opened / closed (the app moves its chat beside it). */
+  constructor({ api, toast, onShow = null }) {
     this.api = api;
     this.toast = toast;
+    this.onShow = onShow;
     this.hints = HINTS();
   }
 
@@ -73,6 +79,7 @@ export class OutlineWizard {
       this.toast(`Could not open the picture: ${e.message}`, 'error');
       return null;
     }
+    if (this.root) this.close(null); // (one window: a picture opened while one is open replaces it)
     this.img = img;
     this.source = file.name || file.source || 'image.png';
     this.replace = replace;
@@ -124,8 +131,12 @@ export class OutlineWizard {
   close(result) {
     this.root?.remove();
     this.root = null;
+    this.areaWatch?.disconnect();
+    document.body.classList.remove('wz-open');
     window.removeEventListener('keydown', this.onKey, true);
     window.removeEventListener('keyup', this.onKeyUp, true);
+    window.removeEventListener('resize', this.place);
+    this.onShow?.(false);
     this.resolve?.(result);
     this.resolve = null;
   }
@@ -141,7 +152,7 @@ export class OutlineWizard {
     r.className = 'wizard';
     r.innerHTML = `
       <div class="wz-box">
-        <div class="wz-head"><b>Outline from picture</b><span class="wz-src"></span><button class="icon-btn wz-x" title="Close (Esc)">✕</button></div>
+        <div class="wz-head"><b>Outline from picture</b><span class="wz-src"></span><button class="icon-btn wz-dock"></button><button class="icon-btn wz-x" title="Close (Esc)">✕</button></div>
         <div class="wz-main">
           <div class="wz-stage-wrap">
             <div class="wz-tools">
@@ -212,6 +223,22 @@ export class OutlineWizard {
     this.root = r;
     const $ = (s) => r.querySelector(s);
     this.$ = $;
+    // over the app's work area (under the top bar, beside the chat), docked or floating
+    document.body.classList.add('wz-open');
+    this.place = () => {
+      if (!this.root) return;
+      const a = document.querySelector('.layout')?.getBoundingClientRect();
+      const top = a?.height ? a.top : 48, right = a?.height ? a.right : window.innerWidth;
+      Object.assign(r.style, { left: `${a?.height ? a.left : 0}px`, top: `${top}px`, width: `${right - (a?.height ? a.left : 0)}px`, height: `${(a?.height ? a.bottom : window.innerHeight) - top}px` });
+    };
+    this.areaWatch = new ResizeObserver(() => this.place());
+    const area = document.querySelector('.layout');
+    if (area) this.areaWatch.observe(area);
+    window.addEventListener('resize', this.place);
+    let float = false;
+    try { float = localStorage.getItem(WIN_KEY) === 'float'; } catch { /* private window */ }
+    this.setFloating(float, false);
+    $('.wz-dock').addEventListener('click', () => this.setFloating(!this.floating));
     $('.wz-src').textContent = this.source;
     $('.wz-make').hidden = this.replace || this.purpose === 'layer';
     $('.wz-use').textContent = this.purpose === 'layer' ? (this.replace ? 'Apply to the layer' : 'Add as design layer')
@@ -258,7 +285,7 @@ export class OutlineWizard {
     $('.wz-x').addEventListener('click', () => this.close(null));
     $('.wz-cancel').addEventListener('click', () => this.close(null));
     this.onKey = (e) => {
-      if (!this.root || e.target.closest?.('input')) return;
+      if (!this.root || e.target.closest?.('input, textarea, select, [contenteditable], .ai-drawer')) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         if (this.poly.length) { this.poly = []; this.renderOverlay(); } else if (this.tool) this.setTool(null); else this.close(null);
@@ -281,7 +308,6 @@ export class OutlineWizard {
     window.addEventListener('keydown', this.onKey, true);
     this.onKeyUp = (e) => { if (e.key === ' ') { this.spaceDown = false; this.root?.querySelector('.wz-stage').classList.remove('can-pan'); } };
     window.addEventListener('keyup', this.onKeyUp, true);
-    r.addEventListener('pointerdown', (e) => { if (e.target === r) this.close(null); });
 
     for (const inp of r.querySelectorAll('[data-h]')) {
       const k = inp.dataset.h;
@@ -344,6 +370,26 @@ export class OutlineWizard {
     wIn.addEventListener('input', () => { const a = this.aspect(); if (a && +wIn.value > 0) hIn.value = fmt(+wIn.value / a); this.sizeTouched = 'w'; this.userSized = true; });
     hIn.addEventListener('input', () => { const a = this.aspect(); if (a && +hIn.value > 0) wIn.value = fmt(+hIn.value * a); this.sizeTouched = 'h'; this.userSized = true; });
     $('.wz-use').addEventListener('click', () => this.use());
+  }
+
+  /** Docked (fills the app's work area) or floating (moved by its title, resized by its edges and corners — floatbox.js
+   *  remembers where); the choice is remembered too (`remember` false: only shown). */
+  setFloating(on, remember = true) {
+    const r = this.root, box = this.$('.wz-box'), b = this.$('.wz-dock');
+    this.floating = on;
+    if (remember) try { localStorage.setItem(WIN_KEY, on ? 'float' : 'dock'); } catch { /* private window */ }
+    r.classList.toggle('floating', on);
+    r.classList.toggle('docked', !on);
+    this.place();
+    b.textContent = on ? '▣' : '⧉';
+    b.title = on ? 'Dock the window into the app' : 'Float the window — move it by its title, resize it by its edges';
+    if (on) floatBox(box, r, { kind: 'outline-window', handle: '.wz-head', min: [560, 380] });
+    else {
+      box.classList.remove('fb-box', 'fb-sized', 'fb-front');
+      box.removeAttribute('style');
+    }
+    this.onShow?.(true);
+    requestAnimationFrame(() => this.layout?.());
   }
 
   /** Turn the picture a quarter turn clockwise: the hints, the hand edit and the outline in use turn
