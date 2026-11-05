@@ -1638,6 +1638,14 @@ size); ✕ removes one.
 - Other types are refused with a message (*"Tento typ souboru zatím neumím přiložit"*). Files are saved in
   `data/agent/attachments/`; the kept conversation shows the chips again.
 
+**In the outline window**: while *Outline from picture* is open, **✨ AI** in its title bar (or the top bar's) opens
+the chat beside it, and your messages tell Claude the window is open. Ask in plain words — *"take the thin-wall
+one"*, *"remove the shadow on the left"*, *"add the wheels"*, *"smooth it more"*, *"turn it 90°"*, *"make it 65 mm
+wide"*, *"that's it, make a cookie cutter"* — and Claude works in the window as you would: it sees the picture with
+every candidate drawn in and numbered (on a 10 % grid), chooses or combines candidates (＋ / −), switches *Object*,
+adds *inside* / *not this* points or a box, changes smoothing, size and what to make, turns the picture, and
+accepts the outline to make the part. Every change shows in the window at once.
+
 - It runs on **your own Claude Code** installation and sign-in (a Claude Pro / Max subscription or an API key):
   the app starts `claude -p` in the background — found on the PATH, in `~/.local/bin`, or the newest copy
   bundled with the VS Code / Cursor extension; set `AUTO3D_CLAUDE` to point elsewhere and

@@ -6,7 +6,7 @@ import { LayersPanel, newLayer, maskRings, hitMask, nice } from './layers.js';
 import { DimensionTool, addDimension, deleteDimension, promoteDimension, planDimension, evalNumber } from './dimtool.js';
 import { PrintPanel } from './printers.js';
 import { BendsPanel } from './bends.js';
-import { OutlineWizard } from './outline.js';
+import { OutlineWizard, outlineHandlers } from './outline.js';
 import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
 import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './agent.js';
@@ -274,7 +274,7 @@ const bends = new BendsPanel($('bendList'), {
   },
 });
 
-const wizard = new OutlineWizard({ api, toast, onShow: () => placeChat() }); // (its window open: the chat in the drawer beside it)
+const wizard = new OutlineWizard({ api, toast, onShow: () => placeChat(), onAI: () => toggleChat(true) }); // (its window open: the chat in the drawer beside it)
 const outlinePanel = new OutlinePanel($('rtab-outline'), {
   onChange: (renderParamsToo) => { scheduleRebuild(); if (renderParamsToo) renderParams(); },
   onSelect: (rings) => {
@@ -2841,6 +2841,7 @@ const chat = new ChatPanel($('tab-ai'), { toast,
   project: () => ({ id: autosave?.id || '', name: state.projectName || '' }), // (🕘 a conversation is kept with its project)
   onShow: () => showChat(),
   workspace: () => (document.body.classList.contains('start-open') ? 'start' : state.workspace), // (📌 This file only: its tools)
+  context: () => (wizard.root ? `On screen: the “Outline from picture” window (${wizard.source}) — what the user says about outlines, candidates, hints, size or turning is about it: outline_window shows it, outline_window_edit changes it.` : ''),
   onUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).go(-1),
   canUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).canUndo() });
 window.__chat = chat;
@@ -3002,6 +3003,15 @@ Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows th
 recorder.init({ state, project, modeler, assembly, toast }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks (toast: 📋 copied)
 Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_recording, get_recording, get_recording_screenshot)
 Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project, close_project)
+// the open outline window (outline_window, outline_window_edit); ✓ accept answers when the part made of it is built
+Object.assign(agentHandlers, outlineHandlers(wizard, {
+  afterUse: async (use) => {
+    const was = state.solution, quick = state.workspace === 'quick';
+    use();
+    for (const end = Date.now() + (quick ? 30000 : 1500); Date.now() < end && (state.solution === was || inflight || queued);) await new Promise((r) => setTimeout(r, 150));
+    return state.solution && state.solution !== was ? `The part: ${partLine()}` : 'Check the result (get_part / get_sketch).';
+  },
+}));
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
 agentHandlers.export_data = async (args = {}) => (args.format === 'project'
   ? { text: 'ok', data: { name: safeName(), ...(await projectPackage({ history: !!args.history })) } } : exportData(args)); // (the server packs the .a3d)

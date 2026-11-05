@@ -39,6 +39,7 @@ HANDLER_BLOCKS = [
     ("assembly/chains.js", "export function chainHandlers("),
     ("leftdock.js", "export function layoutHandlers("),
     ("newproject.js", "export function newProjectHandlers("),
+    ("outline.js", "export function outlineHandlers("),
 ]
 # the page's handlers that are no AI tool of their own: the server's relays (open_file -> load …) and the 3D model's
 # versions of the shared tools (app.js SHARED: get_screenshot / undo follow the part on screen)

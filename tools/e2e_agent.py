@@ -78,6 +78,8 @@ try:
     tool("export", format="stl", path=str(Path(OUT) / "agent_cutter.stl"))
     tool("get_screenshot", view="iso")
     tool("remove_item", id="nope")
+    t, r = tool("outline_window")  # (no outline window open: a clear error — the window's tools: tools/e2e_outline_ai.py)
+    print("    outline_window without a window is an error:", bool(r.get("isError")) and "No outline window" in t)
     print("exported file:", (Path(OUT) / "agent_cutter.stl").stat().st_size, "bytes")
     d.save_screenshot(f"{OUT}/a_page.png")
 

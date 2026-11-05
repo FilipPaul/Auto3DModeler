@@ -56,7 +56,7 @@ The check found 12 tools the chat showed by their raw name and 3 no skill named 
 | Clean-up, mirror, aspect lock, import orientation | panel | `set_part_options` | ok |
 | 3D objects, 2D shapes, design layers | (＋ Díra, ＋ Text, ＋ Obrys …) | `add_object`, `add_shape`, `add_design_layer`, `update_item`, `remove_item` | ok |
 | Bending: fold lines, roll | (＋ Linie ohybu, ＋ Stočit) | — | gui (rare; clicks on the part) |
-| Outline editor | (✎ Upravit obrys) | `trace_picture` hints | partial |
+| Outline editor | (✎ Upravit obrys) | `outline_window` + `outline_window_edit` (the open window: select, ＋ / −, Object, inside / not-this / box, smoothing, ⟳ 90°, size, accept); `trace_picture` hints for a file | ok (was partial; hand drawing with the brush / lasso: gui) |
 | To a 3D model | (◆ Do 3D modelu) | — (a DXF: `drawing_use {as: "sketch"}`) | gui |
 | Printer fit, pieces when split | 3D print panel | `check_print {printer, split}` | ok |
 | Split joints (dovetail, dowels …), pieces ZIP, ＋ new printer | 3D print panel (Rozdělit pro tuto tiskárnu) | — | gui (many inputs) |

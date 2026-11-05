@@ -132,6 +132,7 @@ const TOOL_LABEL = {
   add_missing_joint: 'adding the missing joint', edit_chain: 'changing an energy chain', set_layout: 'arranging the widgets', new_project: 'starting a new project', close_project: 'closing the project',
   start_recording: 'starting to record your moves', stop_recording: 'stopping the recording', get_recording: 'reading your recorded moves', get_recording_screenshot: 'looking at a recorded screenshot',
   list_demos: 'looking at the demo projects', open_demo: 'opening a demo project',
+  outline_window: 'looking at the outline window', outline_window_edit: 'changing the outline window',
   get_drawing: 'reading the 2D drawing', drawing_find: 'finding shapes', drawing_layers: 'setting the layers', drawing_set_size: 'sizing shapes', drawing_use: 'making something of the drawing', measure: 'measuring', list_measurements: 'reading the measurements', clear_measurements: 'clearing the measurements', set_view: 'setting the view', rename_part: 'renaming a part', delete_part: 'deleting a part', edit_joint: 'changing a joint', remove_joint: 'removing a joint', bolt_parts: 'bolting parts together',
 };
 
@@ -176,11 +177,12 @@ const tagRe = (tag) => new RegExp(`(^|\\s)#(?:${[tag, TAG_ALIASES[tag]].filter(B
 export class ChatPanel {
   /** hooks: project() -> {id, name} (the project on screen: a new conversation is about it), onShow() (the chat in sight),
    *  workspace() -> the one on screen (📌 This file only: only its tools). */
-  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow, workspace }) {
+  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory, project, onShow, workspace, context }) {
     this.root = root;
     this.toast = toast;
     this.project = project;
     this.workspace = workspace;
+    this.context = context; // () -> a line about what is open on screen (the outline window), sent with a message
     this.onShow = onShow;
     this.conv = null; // the conversation on screen ({id, title, created …}; null: a new one, made with its first message)
     this.onTurnDone = onTurnDone; // ({prompt}) after each AI turn
@@ -683,7 +685,7 @@ ${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // 
     this.setBusy(true);
     try {
       const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, files, client: CLIENT, project: this.project?.() || null,
-        settings: aiSettings.get(), workspace: this.workspace?.() || '' }) }); // (✨ the project's AI settings)
+        settings: aiSettings.get(), workspace: this.workspace?.() || '', context: this.context?.() || '' }) }); // (✨ the project's AI settings)
       if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     } catch (e) {
       this.setBusy(false);

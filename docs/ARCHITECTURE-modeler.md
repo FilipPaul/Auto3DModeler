@@ -7,6 +7,21 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI in the outline window (2026-11-05)** (the owner: "I'm missing the AI assistant integration" in the picture
+  -> outline window). Two page tools (agent_tools.py, `general` group; outline.js `outlineHandlers`): **outline_window**
+  — the window's state as JSON (candidates named as its list shows them: `#1` …, `edit`, `in use`; selected; Object;
+  hints in 0..1; settings; size; make) and `aiPicture()`: the picture (1000 px, a small one enlarged) with every
+  outline in its list colour and its name tag (placed clear of the others), the selected one bold ✓, the hints, a
+  10 % grid with numbers to read points off; **outline_window_edit** — rotate, mode, smoothing / holes / count /
+  tolerance, clear_hints, inside / not_this / box (detected again once), select, add / cut (combine into the edit),
+  drop_edit, width / height, make, accept / cancel; everything checked before anything changes; answers after
+  `settle()` (no detection / tracing running or due — `working`, `traceTimer`) with the new state and picture.
+  accept: app.js `afterUse` waits for the part built and answers its size. ✨ AI in the window's title bar opens the
+  chat beside it; ChatPanel `context()` sends "On screen: the “Outline from picture” window …" with each message while
+  it is open (server -> ChatSession.send(context) -> a "[…]" line before the text; the chat shows the text as typed).
+  SYSTEM_PROMPT and the from-picture skill say how to map the user's words to the calls. tests/test_agent.py (+2),
+  test_agent_wiring (outline.js block), tools/e2e_outline_ai.py (MCP calls, no model), e2e_agent (no window: error).
+
 - **The outline window docked or floating (2026-11-05)** (the owner: "the window could be embedded in the main program…
   or a pop-up, but resizable"). outline.js: the window lies over the app's work area (`.layout`'s rect, `place()`, kept
   on resize and when the chat opens), the top bar above it (`body.wz-open`: its menus and ✨ AI usable, toasts on top).

@@ -2293,7 +2293,8 @@ def api_chat_send():
         extra = {"settings": body["settings"], "workspace": str(body.get("workspace") or "")} if isinstance(body.get("settings"), dict) else {}
         if extra:  # (🌐 for the chat's start: the next process searches the internet or not)
             ai_settings.save_internet(DATA, ai_settings.clean(extra["settings"])["internet"])
-        chat.send(text, photos, files, **extra)
+        context = str(body.get("context") or "")[:400]  # (what is open on screen: the outline window)
+        chat.send(text, photos, files, **extra, **({"context": context} if context else {}))
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})

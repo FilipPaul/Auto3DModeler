@@ -97,6 +97,37 @@ TOOLS = [
                     "or height in mm, and what to make: cutter (cookie cutter), solid (the shape extruded) or custom.",
      "inputSchema": _obj({"candidate": {"type": "integer", "minimum": 1}, "width": NUM, "height": NUM,
                           "make": {"type": "string", "enum": ["cutter", "solid", "custom"]}}, ["candidate"])},
+    {"name": "outline_window", "where": "browser",
+     "description": "The 'Outline from picture' window the user has open (📂 Open → Picture → outline, ✎ Edit outline): its "
+                    "candidate outlines named as its list shows them ('#1' = the likeliest detected one, 'edit' = the hand edit, "
+                    "'in use' = the outline the part is made from), which is selected, the Object mode, the hints, smoothing, "
+                    "the real size and what it makes — and the picture with the outlines drawn in their list colours with their "
+                    "names (the selected one bold, ✓), the hints (inside +, not this ×, the box) and a 10 % grid to read points "
+                    "off (x right, y down, 0..1). show: [names] draws only those. Then outline_window_edit.",
+     "inputSchema": _obj({"show": {"type": "array", "items": VAL}})},
+    {"name": "outline_window_edit", "where": "browser",
+     "description": "Change the open 'Outline from picture' window as the user would — live, in this order: rotate (90 / 180 / "
+                    "270, clockwise), mode ('auto' | 'solid' | 'thin' — a thin wall such as a cookie cutter on paper), smoothing "
+                    "(0..6 px, more = rounder), holes (keep inner holes), count (3..10 candidates), clear_hints, inside / not_this "
+                    "(points [x, y], 0..1 of the picture as shown now: only outlines containing an inside point are kept, those "
+                    "containing a not-this point — a shadow, the background, a neighbour — are dropped), box ([x0, y0, x1, y1] "
+                    "to search in; null removes it) — then the outlines are found again; select (a candidate: 1 or '#1', "
+                    "'edit', 'in use'), add / cut (candidates added to / cut from the user's edit, starting from the selected "
+                    "one — e.g. select 1, add [3], cut [4]; the edit is selected after), drop_edit, width / height (real size "
+                    "in mm, the other follows the aspect), make ('cutter' | 'solid' | 'custom'; a new part only), accept (use "
+                    "the selected outline: the window closes and the app makes the part — the answer says its size) or cancel "
+                    "(close it, nothing made). Answers with the window's new state and picture.",
+     "inputSchema": _obj({"rotate": {"type": "integer", "enum": [90, 180, 270]},
+                          "mode": {"type": "string", "enum": ["auto", "solid", "thin"]},
+                          "smoothing": NUM, "holes": {"type": "boolean"}, "count": {"type": "integer", "minimum": 3, "maximum": 10},
+                          "tolerance": NUM, "clear_hints": {"type": "boolean"},
+                          "inside": {"type": "array", "items": {"type": "array", "items": NUM, "minItems": 2, "maxItems": 2}},
+                          "not_this": {"type": "array", "items": {"type": "array", "items": NUM, "minItems": 2, "maxItems": 2}},
+                          "box": {"type": ["array", "null"], "items": NUM, "minItems": 4, "maxItems": 4},
+                          "select": VAL, "add": {"type": "array", "items": VAL}, "cut": {"type": "array", "items": VAL},
+                          "drop_edit": {"type": "boolean"}, "width": NUM, "height": NUM,
+                          "make": {"type": "string", "enum": ["cutter", "solid", "custom"]},
+                          "accept": {"type": "boolean"}, "cancel": {"type": "boolean"}})},
     {"name": "set_dimensions", "where": "browser",
      "description": "Set dimension values, e.g. {\"width\": 90} or by name {\"Overall length\": 80}. On picture / "
                     "DXF parts width / height keep the aspect ratio when it is locked; a point dimension scales the "
@@ -1018,7 +1049,7 @@ LOCAL_TOOLS = {t["name"] for t in TOOLS if t["where"] == "local"}  # answered by
 TOOL_GROUPS = {
     "general": ["get_screenshot", "list_parts", "open_part", "new_model", "new_assembly", "open_file", "undo", "export", "fetch_cad",
                 "get_parameters", "set_parameter", "save_version", "ask_user", "gui_state", "gui_action", "gui_highlight",
-                "set_view", "get_guide", "report_problem"],
+                "set_view", "get_guide", "report_problem", "outline_window", "outline_window_edit"],
     "quick": ["get_part", "trace_picture", "use_outline", "set_dimensions", "set_make", "set_part_options", "add_object",
               "add_shape", "add_design_layer", "update_item", "remove_item", "add_dimension", "check_print", "open_sample"],
     "model": ["get_model", "find_refs", "add_feature", "edit_feature", "delete_feature", "turn_off_feature", "rollback",
@@ -1084,6 +1115,8 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 Rules: pick faces and edges with find_refs, never by guessing. **Model from simple shapes**, one idea per sketch, fillets and chamfers last (design-principles); a complex sketch only when the user said it may be built any way. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
+
+The outline window: when a message carries "[On screen: the “Outline from picture” window …]" the user has that window open — "take the thin-wall one", "remove the shadow on the left", "make it 65 mm wide", "smoother", "turn it" are about it: outline_window (its candidates and the picture with them drawn in), then outline_window_edit (select / add / cut, mode, inside / not_this points, smoothing, rotate, width, accept). Do not trace the file again with trace_picture.
 
 Files: a message may list "[Attached file: <path>, …]" — a text file's content follows it (or its first lines: read the rest from the path). An attached CAD file or drawing counts as asked to open: open it with open_file (or trace_picture / the drawing tools) when the message is about it.
 

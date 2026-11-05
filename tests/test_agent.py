@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -782,6 +783,76 @@ class TestChatPhotos(unittest.TestCase):
         while ev.get("type") != "user":
             ev = events.get(timeout=1)
         self.assertEqual(ev["photos"], [{"name": "star.png", "url": "/api/chat/photo/star.png"}])
+
+    def test_the_open_outline_window_goes_with_the_message(self):
+        """The page says what is open on screen (the outline window): a line before the message, the user's words in the
+        chat as typed; the server passes it on (cut to 400 characters), nothing is added without it."""
+        from auto3d.agent import ChatSession
+
+        class Proc:
+            def __init__(self):
+                self.lines, self.stdin = [], self
+
+            def poll(self):
+                return None
+
+            def write(self, b):
+                self.lines.append(json.loads(b.decode("utf-8")))
+
+            def flush(self):
+                pass
+
+        s = ChatSession("http://127.0.0.1:1")
+        s.proc = Proc()
+        events = s.subscribe()
+        s.send("remove the shadow on the left", context="On screen: the outline window (cutter.jpg)")
+        text = s.proc.lines[0]["message"]["content"][-1]["text"]
+        self.assertTrue(text.startswith("[On screen: the outline window (cutter.jpg)]\n\nremove the shadow"), text)
+        ev = events.get(timeout=1)
+        while ev.get("type") != "user":
+            ev = events.get(timeout=1)
+        self.assertEqual(ev["text"], "remove the shadow on the left")
+        s.send("and now?")
+        self.assertEqual(s.proc.lines[1]["message"]["content"][-1]["text"], "and now?")
+
+        import server
+        got = []
+
+        class Stub:
+            def send(self, text, photos, files, **kw):
+                got.append((text, kw))
+
+        with unittest.mock.patch.object(server, "_chat", lambda client="": Stub()):
+            c = server.app.test_client()
+            c.post("/api/chat/send", json={"text": "smoother", "context": "x" * 900})
+            c.post("/api/chat/send", json={"text": "plain"})
+        self.assertEqual(got[0], ("smoother", {"context": "x" * 400}))
+        self.assertEqual(got[1], ("plain", {}))
+
+    def test_outline_window_tools(self):
+        """outline_window / outline_window_edit: page tools (the open window), in every workspace's list, their inputs
+        as the skill uses them; a call goes to the page and its picture comes back to the AI as an image."""
+        tools = {t["name"]: t for t in TOOLS}
+        for name in ("outline_window", "outline_window_edit"):
+            self.assertIn(name, BROWSER_TOOLS)
+            self.assertIn(name, {t["name"] for t in mcp_tool_list("model")})  # (📌 This file only: still there)
+        props = tools["outline_window_edit"]["inputSchema"]["properties"]
+        self.assertTrue({"rotate", "mode", "smoothing", "holes", "inside", "not_this", "box", "select", "add", "cut",
+                         "drop_edit", "width", "height", "make", "accept", "cancel"} <= set(props))
+        self.assertEqual(props["mode"]["enum"], ["auto", "solid", "thin"])
+        self.assertEqual(props["inside"]["items"]["maxItems"], 2)
+        import server
+        sent = []
+        relay = lambda cmd, args=None, timeout=150.0: (sent.append((cmd, args)), {"text": '{"selected": "#1"}', "image": "QUJD"})[1]
+        with unittest.mock.patch.object(server.RELAY, "call", relay):
+            r = server.app.test_client().post("/api/agent/call", json={"tool": "outline_window_edit", "args": {"mode": "thin", "width": 65}}).get_json()
+        self.assertEqual(sent, [("outline_window_edit", {"mode": "thin", "width": 65})])
+        self.assertFalse(r["isError"])
+        self.assertEqual(r["content"][1], {"type": "image", "data": "QUJD", "mimeType": "image/png"})
+        from auto3d.guides import guides
+        skill = guides()["from-picture"]["text"]
+        for words in ("outline_window_edit", "not_this", "accept"):
+            self.assertIn(words, skill)
 
     def test_server_saves_and_validates_photos(self):
         import server

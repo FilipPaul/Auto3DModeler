@@ -3,7 +3,8 @@
 // object, what kind of object — solid or a thin wall like a cookie cutter), turn the picture,
 // combine candidates and edit the outline by hand (brush, eraser, lasso, polygon), then give its
 // real size. The window is docked in the app's work area or floats (moved and resized); the choice and
-// the floating place are remembered.
+// the floating place are remembered. The AI works in the open window too (outlineHandlers: outline_window /
+// outline_window_edit — it sees the picture with the candidates drawn in and changes the window as the user would).
 import { floatBox } from './floatbox.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -61,11 +62,14 @@ export async function imageToDataURL(file) {
 }
 
 export class OutlineWizard {
-  /** hooks: onShow(open) — the window opened / closed (the app moves its chat beside it). */
-  constructor({ api, toast, onShow = null }) {
+  /** hooks: onShow(open) — the window opened / closed (the app moves its chat beside it); onAI() — ✨ AI in the window
+   *  (the chat opens beside it). */
+  constructor({ api, toast, onShow = null, onAI = null }) {
     this.api = api;
     this.toast = toast;
     this.onShow = onShow;
+    this.onAI = onAI;
+    this.working = 0; // detections / tracings running (the AI's edits wait for them: settle)
     this.hints = HINTS();
   }
 
@@ -152,7 +156,7 @@ export class OutlineWizard {
     r.className = 'wizard';
     r.innerHTML = `
       <div class="wz-box">
-        <div class="wz-head"><b>Outline from picture</b><span class="wz-src"></span><button class="icon-btn wz-dock"></button><button class="icon-btn wz-x" title="Close (Esc)">✕</button></div>
+        <div class="wz-head"><b>Outline from picture</b><span class="wz-src"></span><button class="chip wz-ai" title="Ask the AI about this outline — the chat opens beside the window">✨ AI</button><button class="icon-btn wz-dock"></button><button class="icon-btn wz-x" title="Close (Esc)">✕</button></div>
         <div class="wz-main">
           <div class="wz-stage-wrap">
             <div class="wz-tools">
@@ -239,6 +243,8 @@ export class OutlineWizard {
     try { float = localStorage.getItem(WIN_KEY) === 'float'; } catch { /* private window */ }
     this.setFloating(float, false);
     $('.wz-dock').addEventListener('click', () => this.setFloating(!this.floating));
+    $('.wz-ai').hidden = !this.onAI;
+    $('.wz-ai').addEventListener('click', () => this.onAI?.());
     $('.wz-src').textContent = this.source;
     $('.wz-make').hidden = this.replace || this.purpose === 'layer';
     $('.wz-use').textContent = this.purpose === 'layer' ? (this.replace ? 'Apply to the layer' : 'Add as design layer')
@@ -313,9 +319,6 @@ export class OutlineWizard {
       const k = inp.dataset.h;
       const out = inp.nextElementSibling;
       const show = () => { if (out) out.textContent = k === 'tolerance' && !+inp.value ? 'auto' : inp.value; };
-      if (inp.type === 'checkbox') inp.checked = !!this.hints[k];
-      else inp.value = this.hints[k];
-      show();
       inp.addEventListener('input', show);
       inp.addEventListener('change', () => {
         this.hints[k] = inp.type === 'checkbox' ? inp.checked : +inp.value;
@@ -329,11 +332,9 @@ export class OutlineWizard {
     brush.nextElementSibling.textContent = this.brush;
     brush.addEventListener('input', () => { this.brush = +brush.value; brush.nextElementSibling.textContent = brush.value; });
 
+    this.showHints();
     $('.wz-detect').addEventListener('click', () => this.detect());
-    const kinds = r.querySelectorAll('.wz-kind button');
-    const showKind = () => kinds.forEach((x) => x.classList.toggle('on', x.dataset.k === (this.hints.mode || 'auto')));
-    showKind();
-    for (const b of kinds) b.addEventListener('click', () => { this.hints.mode = b.dataset.k; showKind(); this.detect(); });
+    for (const b of r.querySelectorAll('.wz-kind button')) b.addEventListener('click', () => { this.hints.mode = b.dataset.k; this.showHints(); this.detect(); });
     $('.wz-rotate').addEventListener('click', () => this.rotate());
     $('.wz-clear').addEventListener('click', () => {
       Object.assign(this.hints, { object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null });
@@ -370,6 +371,17 @@ export class OutlineWizard {
     wIn.addEventListener('input', () => { const a = this.aspect(); if (a && +wIn.value > 0) hIn.value = fmt(+wIn.value / a); this.sizeTouched = 'w'; this.userSized = true; });
     hIn.addEventListener('input', () => { const a = this.aspect(); if (a && +hIn.value > 0) wIn.value = fmt(+hIn.value * a); this.sizeTouched = 'h'; this.userSized = true; });
     $('.wz-use').addEventListener('click', () => this.use());
+  }
+
+  /** The detection controls (sliders, Keep inner holes, Object) as this.hints has them. */
+  showHints() {
+    for (const inp of this.root.querySelectorAll('[data-h]')) {
+      const k = inp.dataset.h, out = inp.nextElementSibling;
+      if (inp.type === 'checkbox') inp.checked = !!this.hints[k];
+      else inp.value = this.hints[k];
+      if (out) out.textContent = k === 'tolerance' && !+inp.value ? 'auto' : inp.value;
+    }
+    this.root.querySelectorAll('.wz-kind button').forEach((x) => x.classList.toggle('on', x.dataset.k === (this.hints.mode || 'auto')));
   }
 
   /** Docked (fills the app's work area) or floating (moved by its title, resized by its edges and corners — floatbox.js
@@ -543,7 +555,7 @@ export class OutlineWizard {
   maskChanged() {
     this.drawMaskView();
     clearTimeout(this.traceTimer);
-    this.traceTimer = setTimeout(() => this.traceMask(true), 250);
+    this.traceTimer = setTimeout(() => { this.traceTimer = null; this.traceMask(true); }, 250);
   }
 
   drawMaskView() {
@@ -562,6 +574,7 @@ export class OutlineWizard {
   async traceMask(select = false) {
     if (!this.mask || !this.root) return;
     const ticket = (this.maskTicket = (this.maskTicket || 0) + 1);
+    this.working++;
     try {
       const res = await (await this.api('/api/outline/mask', { mask: this.mask.toDataURL('image/png'), smoothing: this.hints.smoothing, holes: this.hints.holes })).json();
       if (ticket !== this.maskTicket || !this.root) return;
@@ -569,7 +582,7 @@ export class OutlineWizard {
       this.edit = res.polygons.length ? { id: 'edit', polygons: res.polygons, area: res.area, methods: ['your edit'], edited: true } : null;
       this.sel = select && this.edit ? 0 : this.reselect(prev);
       this.render();
-    } catch (e) { this.toast(e.message, 'error'); }
+    } catch (e) { this.toast(e.message, 'error'); } finally { this.working--; }
   }
 
   /** Index of `prev` in the current list after it was rebuilt (re-detection with other settings
@@ -849,6 +862,7 @@ export class OutlineWizard {
     const busy = this.$('.wz-busy');
     busy.hidden = false;
     const ticket = (this.ticket = (this.ticket || 0) + 1);
+    this.working++;
     try {
       const res = await (await this.api('/api/outline/detect', { image: this.img.url, hints: this.hints })).json();
       if (ticket !== this.ticket || !this.root) return;
@@ -859,6 +873,7 @@ export class OutlineWizard {
     } catch (e) {
       if (this.root) this.toast(e.message, 'error');
     } finally {
+      this.working--;
       if (ticket === this.ticket && this.root) busy.hidden = true;
     }
     if (this.root) this.render();
@@ -895,16 +910,8 @@ export class OutlineWizard {
         if (a === 'add' || a === 'sub') this.combine(c, a === 'add');
         else if (a === 'edit') this.startEdit();
         else if (a === 'editfrom') { this.sel = i; this.startEdit(); }
-        else if (a === 'drop') {
-          // discarding the edit of the outline in use keeps that outline listed
-          if (this.edit.current) this.current = { ...this.edit, id: 'current', edited: false, methods: ['in use'] };
-          this.edit = null;
-          this.mask = null;
-          this.undo = [];
-          this.setEditing(false);
-          this.sel = 0;
-          this.render();
-        } else this.select(i);
+        else if (a === 'drop') this.dropEdit();
+        else this.select(i);
       });
       row.addEventListener('mouseenter', () => this.renderOverlay(null, i));
       row.addEventListener('mouseleave', () => this.renderOverlay());
@@ -912,6 +919,20 @@ export class OutlineWizard {
     });
     this.$('.wz-use').disabled = !items.length;
     this.syncSize();
+  }
+
+  /** Discard the hand edit (the edit of the outline in use keeps that outline listed). */
+  dropEdit() {
+    if (!this.edit) return;
+    if (this.edit.current) this.current = { ...this.edit, id: 'current', edited: false, methods: ['in use'] };
+    this.edit = null;
+    this.mask = null;
+    this.undo = [];
+    clearTimeout(this.traceTimer);
+    this.traceTimer = null;
+    this.setEditing(false);
+    this.sel = 0;
+    this.render();
   }
 
   colorOf(i) {
@@ -984,6 +1005,235 @@ export class OutlineWizard {
     }
   }
 
+  // ---------------------------------------------------------------- the AI in the window
+  /** Resolves when no detection or tracing is running or due (the AI's edits answer with their result). */
+  async settle(limit = 60000) {
+    const end = Date.now() + limit;
+    let calm = 0;
+    while (this.root && calm < 2 && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 100));
+      calm = this.working > 0 || this.traceTimer ? 0 : calm + 1;
+    }
+  }
+
+  /** A candidate's name as the list shows it: '#2' (detected), 'edit' (the hand edit), 'in use'. */
+  labelOf(i) {
+    const c = this.list()[i];
+    return !c ? null : c.edited ? 'edit' : c.current ? 'in use' : `#${i - this.pinned() + 1}`;
+  }
+
+  /** The list index of a candidate named as labelOf says (or its number: 2 = '#2'); -1 when there is none. */
+  indexOf(ref) {
+    const key = String(ref ?? '').trim().toLowerCase().replace(/[_-]/g, ' ');
+    const items = this.list();
+    for (let i = 0; i < items.length; i++) {
+      const l = this.labelOf(i);
+      if (key === l || key === l.replace('#', '') || (key === 'your edit' && l === 'edit') || (key === 'current' && l === 'in use')) return i;
+    }
+    return -1;
+  }
+
+  /** What the window shows, for the AI (outline_window): names as the list shows them, points 0..1 of the picture. */
+  aiState() {
+    const W = this.img.width, H = this.img.height, r3 = (v) => +(+v).toFixed(3);
+    const box = (polys) => {
+      const pts = polys.flatMap((p) => p[0]), xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+      return [r3(Math.min(...xs) / W), r3(Math.min(...ys) / H), r3(Math.max(...xs) / W), r3(Math.max(...ys) / H)];
+    };
+    const h = this.hints, make = !this.$('.wz-make').hidden;
+    return {
+      window: `${this.floating ? 'floating' : 'docked'} — makes ${this.purpose === 'layer' ? 'a design layer' : this.replace ? 'the outline of the part on screen' : 'a new part'}`,
+      picture: { name: this.source, width_px: W, height_px: H },
+      object: h.mode || 'auto',
+      settings: { smoothing: h.smoothing, holes: !!h.holes, count: h.count, tolerance: h.tolerance || 'auto' },
+      hints: {
+        inside: h.seeds.map((p) => p.map(r3)), not_this: h.bg_seeds.map((p) => p.map(r3)), box: h.rect ? h.rect.map(r3) : null,
+        ...(h.object_colors.length ? { object_colors: h.object_colors } : {}), ...(h.background_colors.length ? { background_colors: h.background_colors } : {}),
+      },
+      selected: this.labelOf(this.sel),
+      candidates: this.list().map((c, i) => ({
+        n: this.labelOf(i), ...(c.confidence != null ? { confidence: c.confidence } : {}),
+        area: `${Math.round(c.area * 100)}% of the picture`, pieces: c.polygons.length,
+        holes: c.polygons.reduce((n, p) => n + p.length - 1, 0), ...(c.thin ? { thin_wall: true } : {}),
+        found_by: c.methods.join(', '), box: box(c.polygons),
+      })),
+      size_mm: { width: +this.$('.wz-w').value || null, height: +this.$('.wz-h').value || null },
+      ...(make ? { make: this.preset } : {}),
+      editing: !!this.editing,
+      busy: this.working > 0,
+    };
+  }
+
+  /** The picture with the outlines drawn in, for the AI (base64 PNG, 1000 px — a small picture enlarged): each in its list colour with its name
+   *  (the selected one bold, ✓), the hints, and a 10 % grid with its numbers to read points off. show: names to draw only. */
+  aiPicture(show = null) {
+    const W = this.img.width, H = this.img.height, k = Math.min(3, 1000 / Math.max(W, H));
+    const c = document.createElement('canvas');
+    c.width = Math.round(W * k);
+    c.height = Math.round(H * k);
+    const g = c.getContext('2d');
+    g.drawImage(this.img.canvas, 0, 0, c.width, c.height);
+    const fs = Math.max(12, Math.round(Math.max(c.width, c.height) / 55));
+    g.textBaseline = 'top';
+    let size = fs; // (the font's size in px: the tags' height)
+    const tag = (text, x, y, bg, fg = '#fff') => {
+      const w = g.measureText(text).width + 8, h = size + 6;
+      x = Math.max(0, Math.min(c.width - w, x));
+      y = Math.max(0, Math.min(c.height - h, y));
+      g.fillStyle = bg;
+      g.fillRect(x, y, w, h);
+      g.fillStyle = fg;
+      g.fillText(text, x + 4, y + 3);
+      return { x, y, w, h };
+    };
+    // the grid: x right, y down, 0..1
+    g.lineWidth = 1;
+    g.setLineDash([4, 5]);
+    g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    size = Math.round(fs * 0.75);
+    g.font = `${size}px Segoe UI, sans-serif`;
+    for (let f = 1; f < 10; f++) {
+      const x = (f / 10) * c.width, y = (f / 10) * c.height;
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, c.height); g.moveTo(0, y); g.lineTo(c.width, y); g.stroke();
+      tag(`${f / 10}`, x + 2, 2, 'rgba(0, 0, 0, 0.55)');
+      tag(`${f / 10}`, 2, y + 2, 'rgba(0, 0, 0, 0.55)');
+    }
+    g.setLineDash([]);
+    // the outlines, the selected one last (on top) and bold; names above their topmost point, not over each other
+    size = fs;
+    g.font = `bold ${fs}px Segoe UI, sans-serif`;
+    const items = this.list(), want = show?.length ? new Set(show.map((n) => this.indexOf(n))) : null;
+    const order = items.map((_, i) => i).filter((i) => !want || want.has(i)).sort((a, b) => (a === this.sel) - (b === this.sel));
+    const placed = [];
+    for (const i of order) {
+      const col = this.colorOf(i), on = i === this.sel;
+      g.save();
+      g.scale(k, k);
+      g.lineWidth = (on ? 4 : 2) / k;
+      g.strokeStyle = col;
+      g.lineJoin = 'round';
+      g.stroke(new Path2D(pathOf(items[i].polygons)));
+      g.restore();
+      let top = null;
+      for (const poly of items[i].polygons) for (const p of poly[0]) if (!top || p[1] < top[1]) top = p;
+      if (!top) continue;
+      const label = `${this.labelOf(i)}${on ? ' ✓' : ''}`, w = g.measureText(label).width + 8, h = fs + 6;
+      // beside the others: the next free spot to the right / left, then a row lower
+      const x0 = Math.max(0, Math.min(c.width - w, top[0] * k - 10)), y0 = Math.max(0, top[1] * k - h - 6);
+      const free = (x, y) => x >= 0 && x + w <= c.width && y + h <= c.height && !placed.some((b) => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
+      let at = [x0, y0];
+      search: for (let row = 0; row < 8; row++) {
+        for (let n = 0; n < 16; n++) {
+          const x = x0 + (n % 2 ? 1 : -1) * Math.ceil(n / 2) * (w + 4), y = y0 + row * (h + 3);
+          if (free(x, y)) { at = [x, y]; break search; }
+        }
+      }
+      placed.push(tag(label, at[0], at[1], col, ['#e6e9ee', CURRENT_COLOR, '#f2cc60', '#7ee787', '#39d0d8'].includes(col) ? '#111' : '#fff'));
+    }
+    // the hints: inside +, not this ×, the box
+    const h = this.hints, r = Math.max(6, fs * 0.5);
+    const mark = ([x, y], color, cross) => {
+      const cx = x * c.width, cy = y * c.height, s = r * 0.6;
+      g.fillStyle = color;
+      g.strokeStyle = '#000';
+      g.lineWidth = 2;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath();
+      if (cross) { g.moveTo(cx - s, cy - s); g.lineTo(cx + s, cy + s); g.moveTo(cx + s, cy - s); g.lineTo(cx - s, cy + s); } else { g.moveTo(cx - s, cy); g.lineTo(cx + s, cy); g.moveTo(cx, cy - s); g.lineTo(cx, cy + s); }
+      g.stroke();
+    };
+    h.seeds.forEach((p) => mark(p, '#fff', false));
+    h.bg_seeds.forEach((p) => mark(p, '#ff7b72', true));
+    if (h.rect) {
+      const [x0, y0, x1, y1] = h.rect;
+      g.setLineDash([10, 6]);
+      g.strokeStyle = '#f2cc60';
+      g.lineWidth = 2;
+      g.strokeRect(x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height);
+      g.setLineDash([]);
+    }
+    return c.toDataURL('image/png').split(',')[1];
+  }
+
+  /** The AI's change of the window (outline_window_edit), in the order the tool says; answers with the new state and
+   *  picture (✓ accept: what the app made — afterUse). Everything is checked before anything changes. */
+  async aiEdit(a, afterUse = null) {
+    const bad = (m) => { throw new Error(m); };
+    const pt = (p, what) => (Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(+v) && +v >= 0 && +v <= 1) ? [+p[0], +p[1]]
+      : bad(`${what}: a point is [x, y], both 0..1 (x right, y down) — got ${JSON.stringify(p)}.`));
+    const pts = (v, what) => (v == null ? [] : Array.isArray(v) && Array.isArray(v[0]) ? v.map((p) => pt(p, what)) : [pt(v, what)]);
+    const inside = pts(a.inside, 'inside'), notThis = pts(a.not_this, 'not_this');
+    if (a.mode != null && !['auto', 'solid', 'thin'].includes(a.mode)) bad("mode: 'auto', 'solid' or 'thin'.");
+    const turn = a.rotate == null ? 0 : ((Math.round(+a.rotate) % 360) + 360) % 360;
+    if (!Number.isFinite(turn) || turn % 90) bad('rotate: 90, 180 or 270 (degrees clockwise).');
+    let box = null;
+    if (a.box) {
+      const b = Array.isArray(a.box) ? a.box.map(Number) : [];
+      if (b.length !== 4 || !b.every((v) => v >= 0 && v <= 1) || b[2] <= b[0] || b[3] <= b[1]) bad('box: [x0, y0, x1, y1], 0..1, x0 < x1, y0 < y1.');
+      box = b;
+    }
+    if (a.make != null && !['cutter', 'solid', 'custom'].includes(a.make)) bad("make: 'cutter', 'solid' or 'custom'.");
+    for (const k of ['width', 'height']) if (a[k] != null && !(+a[k] > 0)) bad(`${k}: a size in mm above 0.`);
+    if (a.cancel) {
+      this.close(null);
+      return { text: 'The outline window is closed — nothing was made.' };
+    }
+    const notes = [];
+    for (let n = 0; n < turn / 90; n++) this.rotate();
+    let again = false;
+    const h = this.hints, clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, +v));
+    if (a.mode != null) { h.mode = a.mode; again = true; }
+    if (a.smoothing != null) { h.smoothing = Math.round(clamp(a.smoothing, 0, 6) * 2) / 2; again = true; }
+    if (a.count != null) { h.count = Math.round(clamp(a.count, 3, 10)); again = true; }
+    if (a.tolerance != null) { h.tolerance = Math.round(clamp(a.tolerance, 0, 60)); again = true; }
+    if (a.holes != null) { h.holes = !!a.holes; again = true; }
+    if ((a.smoothing != null || a.holes != null) && this.mask) this.traceMask();
+    if (a.clear_hints) { Object.assign(h, { object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null }); again = true; }
+    if (inside.length || notThis.length) { h.seeds.push(...inside); h.bg_seeds.push(...notThis); again = true; }
+    if ('box' in a) { h.rect = box; again = true; }
+    if (again) {
+      this.showHints();
+      this.renderChips();
+      this.detect();
+    }
+    await this.settle();
+    const find = (ref) => {
+      const i = this.indexOf(ref);
+      if (i < 0) bad(`No candidate ${JSON.stringify(ref)} — the window lists ${this.list().map((_, j) => this.labelOf(j)).join(', ') || 'none'}.`);
+      return i;
+    };
+    if (a.select != null) this.select(find(a.select));
+    const comb = [...(a.add || []).map((n) => [n, true]), ...(a.cut || []).map((n) => [n, false])];
+    for (const [ref, add] of comb) {
+      const c = this.list()[find(ref)];
+      if (c.edited) bad('The edit cannot be added to / cut from itself — name detected candidates (#1, #2 …).');
+      this.combine(c, add);
+    }
+    if (comb.length) await this.settle();
+    if (a.drop_edit) {
+      if (this.edit) this.dropEdit(); else notes.push('There was no edit to drop.');
+    }
+    const wIn = this.$('.wz-w'), hIn = this.$('.wz-h');
+    for (const [k, inp] of [['width', wIn], ['height', hIn]]) {
+      if (a[k] == null) continue;
+      inp.value = fmt(+a[k]);
+      inp.dispatchEvent(new Event('input'));
+    }
+    if (a.make != null) {
+      if (this.$('.wz-make').hidden) notes.push(`make is for a new part — this window ${this.purpose === 'layer' ? 'makes a design layer' : 'changes the part on screen'}; use set_make after.`);
+      else this.root.querySelector(`.wz-preset [data-p=${a.make}]`).click();
+    }
+    if (a.accept) {
+      if (!this.list()[this.sel]) bad('No outline to use — give a hint (inside / not_this / box) or ask the user to draw it.');
+      const w = +wIn.value, ht = +hIn.value;
+      if (!(w > 0 && ht > 0)) bad('Give the real size first (width or height in mm).');
+      const what = `${this.labelOf(this.sel)}, ${fmt(w)} × ${fmt(ht)} mm${this.$('.wz-make').hidden ? '' : `, ${this.preset}`}`;
+      const after = afterUse ? await afterUse(() => this.use()) : (this.use(), '');
+      return { text: `Used the outline ${what}; the window is closed.${after ? ` ${after}` : ''}${notes.length ? ` ${notes.join(' ')}` : ''}` };
+    }
+    return { text: `${notes.length ? `${notes.join(' ')}\n` : ''}${JSON.stringify(this.aiState())}`, image: this.aiPicture() };
+  }
+
   use() {
     const c = this.list()[this.sel];
     if (!c) return;
@@ -996,6 +1246,25 @@ export class OutlineWizard {
       editor: { mask: c.edited && this.mask ? this.mask.toDataURL('image/png') : null, hints: structuredClone(this.hints) },
     });
   }
+}
+
+/** The AI's tools for the open outline window (agent_tools.py: outline_window, outline_window_edit). afterUse(use) — ✓
+ *  accept: runs use() and resolves to a line about what the app made of it (the part built). */
+export function outlineHandlers(w, { afterUse = null } = {}) {
+  const open = () => {
+    if (!w.root) throw new Error('No outline window is open — for a picture file use trace_picture; or ask the user to open the picture (📂 Open → Picture → outline).');
+  };
+  return {
+    outline_window: async ({ show } = {}) => {
+      open();
+      await w.settle();
+      return { text: JSON.stringify(w.aiState()), image: w.aiPicture(show) };
+    },
+    outline_window_edit: async (args = {}) => {
+      open();
+      return w.aiEdit(args || {}, afterUse);
+    },
+  };
 }
 
 function inside(ring, [x, y]) {
