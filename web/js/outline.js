@@ -1,13 +1,15 @@
 // Picture -> outline wizard: detect candidate outlines, let the user steer the detection
 // (object / background colours, a click inside the object, 'not this' points, a box around the
-// object), combine candidates and edit the outline by hand (brush, eraser, lasso, polygon),
-// then give its real size.
+// object, what kind of object — solid or a thin wall like a cookie cutter), turn the picture,
+// combine candidates and edit the outline by hand (brush, eraser, lasso, polygon), then give its
+// real size.
 const NS = 'http://www.w3.org/2000/svg';
 const COLORS = ['#ff2d95', '#3fb950', '#58a6ff', '#f2cc60', '#a371f7', '#ff7b72', '#39d0d8', '#ffa657', '#e6e9ee', '#7ee787'];
 const EDIT_COLOR = '#ff2d95';
 const CURRENT_COLOR = '#ffffff'; // the outline the part is made from
 const MAX_UPLOAD = 1600;
 const fmt = (v) => (+(+v).toFixed(2)).toString();
+const HINTS = () => ({ count: 6, tolerance: 0, smoothing: 1, holes: false, mode: 'auto', object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null });
 
 const HINT_TOOLS = {
   object: 'Click colours that belong to the object',
@@ -58,7 +60,7 @@ export class OutlineWizard {
   constructor({ api, toast }) {
     this.api = api;
     this.toast = toast;
-    this.hints = { count: 6, tolerance: 0, smoothing: 1, holes: false, object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null };
+    this.hints = HINTS();
   }
 
   /** Open for a picture. Resolves to {polygons, img_w, img_h, width, height, preset, image, source,
@@ -87,8 +89,7 @@ export class OutlineWizard {
     this.tool = null;
     this.poly = [];        // pending polygon points
     // hints belong to a picture: a new picture starts clean, a reopened one gets its own back
-    Object.assign(this.hints, { count: 6, tolerance: 0, smoothing: 1, holes: false, object_colors: [], background_colors: [],
-      seeds: [], bg_seeds: [], rect: null }, structuredClone(current?.hints || {}));
+    Object.assign(this.hints, HINTS(), structuredClone(current?.hints || {}));
     this.build();
     if (current?.polygons?.length) await this.restore(current);
     this.render();
@@ -154,6 +155,7 @@ export class OutlineWizard {
               <span class="sep"></span>
               <button class="chip tool wz-edit-btn" title="Edit the selected outline by hand — or draw one from scratch">✎ Edit outline</button>
               <button class="chip" data-tool="measure" title="Measure between two points (px / mm)">📏 Measure</button>
+              <button class="chip wz-rotate" title="Turn the picture a quarter turn clockwise">⟳ 90°</button>
               <span class="wz-zoom" title="Zoom: mouse wheel · pan: drag (no tool), middle mouse or Space + drag · keys + − 0">
                 <button class="chip wz-zoom-out">−</button><span class="wz-zoom-val">100%</span><button class="chip wz-zoom-in">+</button><button class="chip wz-zoom-fit">Fit</button>
               </span>
@@ -181,6 +183,11 @@ export class OutlineWizard {
             <div class="wz-list"></div>
             <p class="hint">＋ / − on a candidate adds it to / cuts it from your edit — e.g. body ＋ wheels − shadow.</p>
             <div class="layer-section">Detection</div>
+            <div class="field"><label title="What the object is like">Object</label><span class="seg wz-kind">
+              <button data-k="auto" title="Try both kinds and list the likelier first">Auto</button>
+              <button data-k="solid" title="A filled object that stands out from the background">Solid object</button>
+              <button data-k="thin" title="A thin wall or a line drawing, e.g. a cookie cutter — the background shows inside it">Thin wall</button>
+            </span></div>
             <div class="field"><label>Candidates</label><div class="wz-range"><input type="range" min="3" max="10" step="1" data-h="count"><span></span></div></div>
             <div class="field"><label title="Colour tolerance (0 = automatic)">Tolerance</label><div class="wz-range"><input type="range" min="0" max="60" step="1" data-h="tolerance"><span></span></div></div>
             <div class="field"><label title="Rounds off pixel steps and small bumps (pixels)">Smoothing</label><div class="wz-range"><input type="range" min="0" max="6" step="0.5" data-h="smoothing"><span></span></div></div>
@@ -297,6 +304,11 @@ export class OutlineWizard {
     brush.addEventListener('input', () => { this.brush = +brush.value; brush.nextElementSibling.textContent = brush.value; });
 
     $('.wz-detect').addEventListener('click', () => this.detect());
+    const kinds = r.querySelectorAll('.wz-kind button');
+    const showKind = () => kinds.forEach((x) => x.classList.toggle('on', x.dataset.k === (this.hints.mode || 'auto')));
+    showKind();
+    for (const b of kinds) b.addEventListener('click', () => { this.hints.mode = b.dataset.k; showKind(); this.detect(); });
+    $('.wz-rotate').addEventListener('click', () => this.rotate());
     $('.wz-clear').addEventListener('click', () => {
       Object.assign(this.hints, { object_colors: [], background_colors: [], seeds: [], bg_seeds: [], rect: null });
       this.renderChips();
@@ -332,6 +344,47 @@ export class OutlineWizard {
     wIn.addEventListener('input', () => { const a = this.aspect(); if (a && +wIn.value > 0) hIn.value = fmt(+wIn.value / a); this.sizeTouched = 'w'; this.userSized = true; });
     hIn.addEventListener('input', () => { const a = this.aspect(); if (a && +hIn.value > 0) wIn.value = fmt(+hIn.value * a); this.sizeTouched = 'h'; this.userSized = true; });
     $('.wz-use').addEventListener('click', () => this.use());
+  }
+
+  /** Turn the picture a quarter turn clockwise: the hints, the hand edit and the outline in use turn
+   *  with it; the candidates are detected again. */
+  rotate() {
+    const W = this.img.width, H = this.img.height;
+    const turn = (src) => {
+      const c = document.createElement('canvas');
+      c.width = H;
+      c.height = W;
+      const ctx = c.getContext('2d');
+      ctx.translate(H, 0);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(src, 0, 0);
+      return c;
+    };
+    const canvas = turn(this.img.canvas);
+    this.img = { url: canvas.toDataURL('image/png'), width: H, height: W, canvas };
+    // picture pixels (x, y) -> (H - y, x); hint points in 0..1 -> (1 - y, x)
+    const px = (polys) => polys.map((poly) => poly.map((ring) => ring.map(([x, y]) => [H - y, x])));
+    const norm = (pts) => pts.map(([x, y]) => [1 - y, x]);
+    this.hints.seeds = norm(this.hints.seeds);
+    this.hints.bg_seeds = norm(this.hints.bg_seeds);
+    if (this.hints.rect) { const [x0, y0, x1, y1] = this.hints.rect; this.hints.rect = [1 - y1, x0, 1 - y0, x1]; }
+    if (this.edit) this.edit = { ...this.edit, polygons: px(this.edit.polygons) };
+    if (this.current) this.current = { ...this.current, polygons: px(this.current.polygons) };
+    if (this.mask) this.mask = turn(this.mask);
+    this.undo = [];
+    this.poly = [];
+    this.measure = null;
+    this.cands = [];
+    const img = this.$('.wz-stage img');
+    img.src = this.img.url;
+    this.svg.setAttribute('viewBox', `0 0 ${H} ${W}`);
+    this.view.width = H;
+    this.view.height = W;
+    // the typed size keeps its meaning (width = across the picture as now shown)
+    this.layout();
+    this.drawMaskView();
+    this.render();
+    this.detect();
   }
 
   setTool(t) {

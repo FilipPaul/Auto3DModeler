@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Cookie-cutter photos in the outline wizard (2026-11-05)** (the owner: a metal cutter on paper is found nowhere —
+  the paper shows inside the shape as outside). outline.py `_thin_wall`: low-threshold Canny, gaps closed at three
+  widths, the edge piece enclosing the most area filled, eroded back to the strip's outer edge and opened (a pen
+  stroke touching the ring is cut off; open strokes enclose nothing). `_see_through` calls it a thin wall when the
+  middle looks like the surroundings and both are plain (edge pixels < 10 % inside, < 2.5 % around — a textured
+  scene's tangle of edges is not) with the edges crowded on the rim. The solid pipeline runs as before;
+  `_with_thin_walls` then adds only such see-through rings (mode auto), ranked first, taking over a solid candidate
+  of the same shape (mode thin: every ring, no solid ones). Candidates carry `thin`. Wizard: **Object** Auto /
+  Solid object / Thin wall, **⟳ 90°** (picture, hints, edit and the outline in use turn; re-detected). The four
+  owner photos (tests/fixtures/cutter-*.jpg): one closed outline first, no spurs. ECSSD (150, step 6): top-1 mean
+  IoU 0.534 -> 0.531 (one image: a cream bag on a cream towel taken for a ring), best-3/5/10 unchanged
+  (0.663 / 0.681 / 0.706). tools/e2e_outline_cutter.py; trace_picture takes `mode`.
+
 - **A sub-assembly's mechanism at any depth (2026-11-01)** (the owner: in "Sestava ICT M1556" the gate did not open —
   "Otevírání brány" of "Sestava brány" is driven by the hinge's leaf inside "Sestava pant P", two levels down; the top's
   ⚙ Mechanism offered only the struts' turns, drive_mechanism with "I5/I45/I4" found no such part). Cause: flatAsm

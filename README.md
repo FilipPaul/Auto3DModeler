@@ -1919,11 +1919,18 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
    from them (separates drop shadows from the object edge). Candidates are ranked by edge contrast along the
    boundary, how many method families agree, size and solidity; regions inside a bigger candidate (inner
    decoration) and regions touching the picture edge rank lower. 3–10 candidates are shown with a confidence.
+   **Thin walls** — a photo of a metal cookie cutter on paper shows the paper inside and out, so colour finds
+   nothing: the *thin wall* method closes the ring of edges the strip makes (small gaps bridged), fills it and
+   takes its outer edge; open strokes (pen lines, writing) enclose nothing and fall away, a thin stroke touching
+   the ring is cut off. When the background shows inside such a ring it is listed first. **Object** switches
+   between *Auto* (both, the likelier first), *Solid object* and *Thin wall* (only that kind).
 2. **Help the detection** — *✚ inside object* (only outlines containing the point are kept), *✖ not this*
    (click a shadow, the background or a neighbour: outlines containing it are dropped and GrabCut treats it as
    background), *▭ box around object* (only that area is searched — handy for one object among several, or one part
    of an object), *object / background colours* with the eyedropper (nearest-colour classification, refined by
    GrabCut); colour tolerance, smoothing, inner holes. Clicking an outline on the picture selects it.
+   **⟳ 90°** turns the picture a quarter turn clockwise (a photo taken sideways): the hints and your edit turn
+   with it and the outline is found again; the part keeps the turned picture.
 3. **✎ Edit outline** — take the selected candidate (or **Empty** to draw from scratch) and change it by hand.
    Pick a **tool** — **polygon** (click corners; double-click, `Enter` or a click on the first point closes it,
    right-click / `Backspace` removes the last point, `Esc` cancels), freehand **lasso** (drag a loop) or **brush**

@@ -5,6 +5,10 @@
    edges) each give foreground masks; their connected regions become candidates.  Candidates
    that several methods agree on, with a strong colour edge along their boundary, rank first.
    The user can steer it with object / background colours and a click inside the object.
+   Thin-walled objects (a cookie cutter: a metal strip standing on paper) look like the paper
+   inside and out, so colour finds nothing there: the 'thin wall' method closes the ring of edges
+   the strip makes and fills it.  Mode 'auto' adds such a ring (first) only when the background
+   shows inside it; 'solid' / 'thin' look for one kind only.
 2. Model (:func:`outline_model`): the chosen outline (image pixels) plus the real-life size,
    extra 2D shapes (circles, rectangles, lines) and the 3D build (bodies).
 3. Solve (:func:`solve_outline`): outline scaled to size, shapes added / subtracted, then every
@@ -176,6 +180,64 @@ def _masks(rgb: np.ndarray, lab: np.ndarray, hints: dict):
     yield "edges", edges > 0
 
 
+def _fine_edges(gray: np.ndarray) -> np.ndarray:
+    """Canny with low thresholds: a shiny strip seen from above is a few faint lines, a soft shadow none."""
+    med = float(np.median(gray))
+    return cv2.Canny(gray, int(0.33 * med), int(0.66 * med)) > 0
+
+
+def _thin_wall(gray: np.ndarray, size: int):
+    """Yield ('thin wall', mask): the region a closed ring of edges encloses — a cookie cutter, a
+    wire, a drawn outline — at a few gap-closing widths.  Of each edge map the piece enclosing the
+    most area wins; open strokes (writing, lines) enclose nothing and fall away, and a thin
+    stroke touching the ring is cut off by an opening wider than it."""
+    edges = _fine_edges(gray)
+    h, w = gray.shape
+    for div in (120, 80, 50):
+        k = max(3, (size // div) | 1)
+        ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+        ring = cv2.dilate(edges.astype(np.uint8), ker)
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(ring, connectivity=8)
+        best, most = None, 0.01 * h * w
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < 0.002 * h * w:
+                continue
+            comp = (labels == i).astype(np.uint8)
+            filled = _fill_holes(comp)
+            enclosed = int(filled.sum()) - int(stats[i, cv2.CC_STAT_AREA])
+            if enclosed > most and filled.mean() < 0.9:
+                best, most = filled, enclosed
+        if best is None:
+            continue
+        # back to the strip's outer edge, then drop thin attachments (strokes touching the ring)
+        m = cv2.erode(best, ker)
+        k2 = max(5, (size // 50) | 1)
+        yield "thin wall", cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k2, k2)))
+
+
+SEE_THROUGH = 8.0  # Lab distance inside vs. around below which a region looks see-through
+
+
+def _see_through(lab: np.ndarray, edges: np.ndarray, comp: np.ndarray, size: int) -> bool:
+    """A thin wall: the middle of the region looks like its surroundings (the background shows
+    inside), both are plain (few edges — not a textured scene a tangle of edges happens to
+    enclose) and the edges crowd along the boundary."""
+    r = max(3, size // 25)
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    inner = cv2.erode(comp, ker) > 0
+    around = (cv2.dilate(comp, ker) > 0) & ~(cv2.dilate(comp, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r, r))) > 0)
+    if inner.sum() < 20 or around.sum() < 20:
+        return False
+    wt = np.array([L_WEIGHT, 1, 1], np.float32)
+    if np.linalg.norm((np.median(lab[inner], 0) - np.median(lab[around], 0)) * wt) > SEE_THROUGH:
+        return False
+    band = (comp > 0) & ~(cv2.erode(comp, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r + 1, r + 1))) > 0)
+    # edge pixel shares measured on cookie-cutter photos: inside < 0.07, around < 0.01, rim 0.2+;
+    # textured photos (ECSSD): inside mostly 0.1+ or around 0.03+, the rim < 2x that
+    inside, rim, out = edges[inner].mean(), edges[band].mean(), edges[around].mean()
+    return bool(inside < 0.1 and out < 0.025 and rim > 2.5 * max(inside, out))
+
+
 def _fill_holes(m: np.ndarray) -> np.ndarray:
     cnts, _ = cv2.findContours(m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out = np.zeros(m.shape, np.uint8)
@@ -305,8 +367,9 @@ def detect_outlines(data_url: str, hints: dict | None = None) -> dict:
     distance, 0 = automatic), seeds ([[x, y], ...] in 0..1 image coordinates — only regions
     containing a seed are kept), bg_seeds ('not this' points — regions containing one are
     dropped and GrabCut treats them as background), rect ([x0, y0, x1, y1] in 0..1 — a box around
-    the object: outside is background), smoothing (px), holes (keep inner holes).
-    Returns {width, height, candidates: [{id, polygons, score, confidence, methods, area}]}
+    the object: outside is background), smoothing (px), holes (keep inner holes), mode ('auto',
+    'solid' — a filled object, 'thin' — a thin wall / line outline such as a cookie cutter).
+    Returns {width, height, candidates: [{id, polygons, score, confidence, methods, area, thin}]}
     with polygons in original image pixels (x right, y down).
     """
     hints = hints or {}
@@ -347,8 +410,9 @@ def detect_outlines(data_url: str, hints: dict | None = None) -> dict:
             return False
         return not any(filled[y, x] for x, y in not_seeds)
 
+    mode = hints.get("mode") or "auto"
     found = []  # (method, filled region, raw region with holes)
-    for method, mask in _masks(rgb, lab, hints):
+    for method, mask in _masks(rgb, lab, hints) if mode != "thin" else ():
         for filled, raw in _components(_clean(mask, size)):
             if wanted(filled):
                 found.append((method, filled, raw))
@@ -367,7 +431,10 @@ def detect_outlines(data_url: str, hints: dict | None = None) -> dict:
                 if filled[prior > 0].mean() > 0.5 and wanted(filled):
                     found.append(("refined (GrabCut)", filled, raw))
     groups = _group(found)
-    scored = sorted(_score(groups, lab, size), key=lambda s: -s[0])
+    scored = _score(groups, lab, size)
+    if mode == "thin" or (mode == "auto" and not (hints.get("object_colors") or hints.get("background_colors"))):
+        scored = _with_thin_walls(scored, rgb, lab, size, wanted, mode == "thin")
+    scored.sort(key=lambda s: -s[0])
 
     smooth = float(hints.get("smoothing") if hints.get("smoothing") is not None else 1.0)
     cands = []
@@ -381,6 +448,7 @@ def detect_outlines(data_url: str, hints: dict | None = None) -> dict:
             "id": f"c{len(cands) + 1}", "polygons": polys, "score": round(score, 4),
             "confidence": round(100 * min(score, 1.0)), "methods": sorted(g["methods"]),
             "area": round(float(area) * w * h / (sw * sh), 4), "edge": round(edge, 1),  # share of the picture
+            "thin": bool(g.get("thin")),
         })
     return {"width": W0, "height": H0, "candidates": cands}
 
@@ -420,6 +488,34 @@ def _group(found):
         else:
             groups.append({"comp": filled, "raw": raw, "methods": {method}})
     return groups
+
+
+def _with_thin_walls(scored, rgb, lab, size, wanted, only):
+    """The solid candidates plus the thin-wall ones: a ring with the background showing inside goes
+    first (a solid guess on such a photo is the paper or a shadow) and takes over a solid candidate
+    of the same shape; other rings only when `only` thin walls are wanted (they then replace the
+    solid ones)."""
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    edges = _fine_edges(gray)
+    found = [(m, filled, raw) for m, mask in _thin_wall(gray, size)
+             for filled, raw in _components(_clean(mask, size)) if wanted(filled)]
+    rings = []
+    for g in _group(found):
+        g["thin"] = _see_through(lab, edges, g["comp"], size)
+        if g["thin"] or only:
+            rings.append(g)
+    if not rings:
+        return [] if only else scored
+    top = max((s[0] for s in scored), default=0.5)
+    out = [] if only else list(scored)
+    for score, g, area, edge in _score(rings, lab, size):
+        for i, o in enumerate(out):
+            if _iou(o[1]["comp"], g["comp"]) > 0.92:  # the same shape found as solid too
+                g["methods"] |= o[1]["methods"]
+                del out[i]
+                break
+        out.append((max(score * 1.6, top + 0.01) if g["thin"] else score, g, area, edge))
+    return out
 
 
 def _score(groups, lab, size):

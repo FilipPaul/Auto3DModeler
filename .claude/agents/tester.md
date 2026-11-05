@@ -16,7 +16,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_outline_tools.py` (same arguments) drives the wizard tools (box, not-this, combine, brush,
    polygon / lasso in add / remove / cut-out mode, zoom, pan) with REAL mouse input (Selenium ActionChains —
    synthetic JS events hide native-drag and double-click bugs) and clean-up / text / hole. Extend these for new UI flows. Read the screenshots; console errors
-   must be empty. `tools/e2e_outline_project.py` (same arguments) checks the outline round trip: edit -> part,
+   must be empty. `tools/e2e_outline_cutter.py <url> <abs path to tests/fixtures> <dir>` opens the four
+   cookie-cutter photos (thin metal strip on paper, pen marks around): one thin-wall outline first on each, the
+   Object switch (Auto / Solid object / Thin wall), ⟳ 90° and a part from the turned picture.
+   `tools/e2e_outline_project.py` (same arguments) checks the outline round trip: edit -> part,
    Drawing tab enlarge / zoom, reopening the editor from the part (edit + hints restored, scale kept), and
    Save project -> reload -> Open project. `tools/e2e_pick_layers.py` clicks on faces / corners in the 3D view
    (placing objects, picking heights, snapping) and adds a picture outline as a design layer. Restart the

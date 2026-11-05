@@ -7,7 +7,9 @@ description: Use when the user gives a photo or picture (a path, or an attached 
 
 1. `trace_picture {path}` — numbered candidate outlines (most likely first) and an image with them drawn in.
    If none fits, call it again with hints: `seeds` (points [x, y] in 0..1 inside the object), `bg_seeds`
-   (outside it), `rect` (a box around it), `object_colors` / `background_colors`.
+   (outside it), `rect` (a box around it), `object_colors` / `background_colors`. A cookie cutter, wire or line
+   drawing photographed on paper (the background shows inside it): `mode: "thin"` (only thin-wall outlines;
+   `"solid"` = only filled objects; default `"auto"` tries both and lists a see-through ring first).
 2. Decide what to make:
    - **Cookie cutter, plaque, stencil, a simple solid shape** → `use_outline {candidate, width (mm), make:
      "cutter" | "solid" | "custom"}`. This is a quick part: change it with `set_part_options`, add holes and

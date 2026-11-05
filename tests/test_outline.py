@@ -9,6 +9,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from shapely.geometry import Polygon
 
 from auto3d.outline import PRESETS, detect_outlines, outline_from_mask, outline_model, preset_objects, solve_outline
 from auto3d.export import to_step, to_stl
@@ -16,6 +17,7 @@ from test_design_print import mesh_stats
 
 ROOT = Path(__file__).resolve().parent.parent
 PERNICEK = ROOT / "pernicek.png"
+FIXTURES = ROOT / "tests" / "fixtures"
 
 
 def data_url(img_rgb):
@@ -126,6 +128,80 @@ class TestDetection(unittest.TestCase):
         self.assertLess(y0, 26)
         self.assertGreater(y1, 236)
         self.assertGreater(best["area"], 0.5)
+
+
+def thin_ring(stroke=True):
+    """A cookie cutter seen from above: a thin closed ring (dark + bright line) on shaded grey paper,
+    the same paper inside and out, and an open pen stroke touching the ring."""
+    rng = np.random.default_rng(5)
+    h, w = 320, 400
+    yy, xx = np.mgrid[0:h, 0:w]
+    img = np.zeros((h, w, 3), np.float32)
+    img[...] = (150 + 50 * xx / w)[..., None]
+    img += rng.normal(0, 3, img.shape)
+    t = np.linspace(0, 2 * np.pi, 400, endpoint=False)
+    r = 100 + 22 * np.cos(4 * t)
+    ring = np.stack([200 + r * np.cos(t), 160 + 0.85 * r * np.sin(t)], 1).round().astype(np.int32)
+    cv2.polylines(img, [ring], True, (60, 60, 60), 3)
+    cv2.polylines(img, [ring + 2], True, (245, 245, 245), 1)
+    if stroke:  # a dimension line drawn up to the shape
+        cv2.line(img, (200, 160 + int(0.85 * 122)), (200, 312), (90, 60, 40), 2)
+        cv2.line(img, (60, 300), (340, 300), (90, 60, 40), 2)
+    gt = np.zeros((h, w), np.uint8)
+    cv2.fillPoly(gt, [ring], 1)
+    return np.clip(img, 0, 255).astype(np.uint8), gt > 0
+
+
+def no_spurs(test, poly, size):
+    """No thin spikes: opening the outline by 2 % of the picture keeps (almost) all of it."""
+    pg = Polygon(poly[0])
+    test.assertTrue(pg.is_valid)
+    s = 0.02 * size
+    test.assertGreater(pg.buffer(-s).buffer(s).area / pg.area, 0.97)
+
+
+class TestThinWall(unittest.TestCase):
+    def test_ring_on_paper_found_first(self):
+        img, gt = thin_ring()
+        res = detect_outlines(data_url(img), {"count": 5})
+        best = res["candidates"][0]
+        self.assertTrue(best["thin"])
+        self.assertIn("thin wall", best["methods"])
+        self.assertEqual(len(best["polygons"]), 1)
+        self.assertGreater(iou_of(best, gt), 0.93)  # the pen strokes do not join it
+        no_spurs(self, best["polygons"][0], 400)
+
+    def test_modes(self):
+        img, gt = thin_ring(stroke=False)
+        url = data_url(img)
+        thin = detect_outlines(url, {"count": 5, "mode": "thin"})["candidates"]
+        self.assertTrue(thin)
+        self.assertTrue(all("thin wall" in c["methods"] for c in thin))
+        self.assertGreater(iou_of(thin[0], gt), 0.93)
+        solid = detect_outlines(url, {"count": 10, "mode": "solid"})["candidates"]
+        self.assertFalse(any("thin wall" in c["methods"] or c["thin"] for c in solid))
+        # a solid object: the thin-wall guess, if any, is not taken for a see-through ring
+        sol, sgt = synthetic()
+        res = detect_outlines(data_url(sol), {"count": 5})
+        self.assertFalse(res["candidates"][0]["thin"])
+        self.assertGreater(iou_of(res["candidates"][0], sgt), 0.95)
+
+    def test_cookie_cutter_photos(self):
+        """The owner's photos of metal cookie cutters on paper (pen marks around them): one closed,
+        smooth outline around the cutter, first.  Expected boxes measured on the photos (px)."""
+        boxes = {1: (57, 48, 252, 276), 2: (20, 26, 400, 414), 3: (71, 88, 323, 417), 4: (107, 146, 511, 452)}
+        for i, box in boxes.items():
+            with self.subTest(photo=i):
+                url = "data:image/jpeg;base64," + base64.b64encode((FIXTURES / f"cutter-{i}.jpg").read_bytes()).decode()
+                res = detect_outlines(url, {"count": 5})
+                best = res["candidates"][0]
+                self.assertTrue(best["thin"])
+                self.assertEqual(len(best["polygons"]), 1)
+                self.assertEqual(len(best["polygons"][0]), 1)  # no holes
+                no_spurs(self, best["polygons"][0], max(res["width"], res["height"]))
+                bounds = Polygon(best["polygons"][0][0]).bounds
+                for got, want in zip(bounds, box):
+                    self.assertAlmostEqual(got, want, delta=12)
 
 
 def square_model(**kw):

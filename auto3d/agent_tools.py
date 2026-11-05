@@ -88,7 +88,8 @@ TOOLS = [
      "description": "Find object outlines in a picture file (PNG / JPG …). Returns numbered candidates (most likely "
                     "first) and an image with them drawn in, so you can choose. Hints: seeds / bg_seeds = points "
                     "[x, y] in 0..1 of the picture inside / outside the object, rect = [x0, y0, x1, y1] box to search "
-                    "in, object_colors / background_colors = [[r, g, b]], holes = keep inner holes. Then use_outline.",
+                    "in, object_colors / background_colors = [[r, g, b]], holes = keep inner holes, mode = 'auto' | 'solid' | "
+                    "'thin' (a thin wall such as a cookie cutter on paper — the background shows inside). Then use_outline.",
      "inputSchema": _obj({"path": STR, "count": {"type": "integer", "minimum": 1, "maximum": 10},
                           "hints": _obj({}, extra=True)}, ["path"])},
     {"name": "use_outline", "where": "server",
